@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Target, CheckCircle2, BarChart3, Calendar, ArrowRight, Sparkles } from 'lucide-react';
+import { Target, CheckCircle2, BarChart3, Calendar, ArrowRight, Sparkles, Zap, Shield, TrendingUp, Star, ChevronRight } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -20,121 +20,330 @@ export default function Index() {
       icon: Target,
       title: 'Set Yearly Goals',
       description: 'Define ambitious goals for the year and break them into actionable habits.',
+      gradient: 'from-primary/20 to-accent/20',
     },
     {
       icon: CheckCircle2,
       title: 'Track Daily Progress',
       description: 'Check off habits each day and build momentum with streaks.',
+      gradient: 'from-accent/20 to-primary/20',
     },
     {
       icon: Calendar,
       title: 'Visual Calendar',
       description: 'See your progress at a glance with a beautiful calendar view.',
+      gradient: 'from-primary/20 to-secondary/20',
     },
     {
       icon: BarChart3,
       title: 'Detailed Analytics',
       description: 'Understand your patterns with insights and charts.',
+      gradient: 'from-secondary/20 to-primary/20',
+    },
+  ];
+
+  const stats = [
+    { value: '10K+', label: 'Active Users' },
+    { value: '500K+', label: 'Habits Tracked' },
+    { value: '98%', label: 'Success Rate' },
+    { value: '4.9', label: 'User Rating', icon: Star },
+  ];
+
+  const testimonials = [
+    {
+      quote: "This app completely transformed how I approach my goals. I've never been more consistent!",
+      author: "Sarah M.",
+      role: "Entrepreneur",
+    },
+    {
+      quote: "The visual tracking keeps me motivated every single day. Absolutely love it!",
+      author: "James K.",
+      role: "Software Engineer",
+    },
+    {
+      quote: "Finally, an app that understands the importance of building lasting habits.",
+      author: "Emily R.",
+      role: "Health Coach",
     },
   ];
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background overflow-hidden">
+      {/* Animated Background Elements */}
+      <div className="fixed inset-0 -z-10 overflow-hidden">
+        <div className="absolute -top-40 -right-40 w-80 h-80 bg-primary/10 rounded-full blur-3xl animate-pulse" />
+        <div className="absolute top-1/2 -left-40 w-96 h-96 bg-accent/10 rounded-full blur-3xl animate-pulse delay-1000" />
+        <div className="absolute -bottom-40 right-1/3 w-72 h-72 bg-primary/5 rounded-full blur-3xl animate-pulse delay-500" />
+      </div>
+
       {/* Navigation */}
-      <nav className="border-b bg-background/80 backdrop-blur-sm fixed top-0 left-0 right-0 z-50">
+      <nav className="border-b border-border/50 bg-background/80 backdrop-blur-xl fixed top-0 left-0 right-0 z-50">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4">
-          <div className="flex items-center gap-2">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary">
+          <div className="flex items-center gap-3">
+            <div className="relative flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-primary/80 shadow-lg shadow-primary/25">
               <Target className="h-5 w-5 text-primary-foreground" />
+              <div className="absolute inset-0 rounded-xl bg-primary/20 blur-sm" />
             </div>
-            <span className="text-lg font-semibold">Yearly Track</span>
+            <span className="text-xl font-bold bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">
+              Yearly Track
+            </span>
           </div>
-          <div className="flex items-center gap-4">
-            <Button asChild variant="ghost">
+          <div className="flex items-center gap-3">
+            <Button asChild variant="ghost" className="hidden sm:flex">
               <Link to="/auth">Sign In</Link>
             </Button>
-            <Button asChild>
-              <Link to="/auth">Get Started</Link>
+            <Button asChild className="shadow-lg shadow-primary/25 hover:shadow-xl hover:shadow-primary/30 transition-all duration-300">
+              <Link to="/auth" className="gap-2">
+                Get Started
+                <ArrowRight className="h-4 w-4" />
+              </Link>
             </Button>
           </div>
         </div>
       </nav>
 
-      {/* Hero */}
-      <section className="pt-32 pb-20 px-4">
-        <div className="mx-auto max-w-4xl text-center">
-          <div className="mb-6 inline-flex items-center gap-2 rounded-full bg-primary/10 px-4 py-2 text-sm font-medium text-primary">
+      {/* Hero Section */}
+      <section className="pt-32 pb-20 px-4 relative">
+        <div className="mx-auto max-w-5xl text-center">
+          {/* Badge */}
+          <div className="mb-8 inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-5 py-2.5 text-sm font-medium text-primary backdrop-blur-sm animate-fade-in">
             <Sparkles className="h-4 w-4" />
-            Transform your year with better habits
+            <span>Transform your year with better habits</span>
+            <ChevronRight className="h-4 w-4" />
           </div>
-          <h1 className="mb-6 text-5xl font-bold tracking-tight sm:text-6xl lg:text-7xl">
-            Build habits that
-            <span className="block text-primary">stick all year</span>
+          
+          {/* Main Heading */}
+          <h1 className="mb-8 text-5xl font-bold tracking-tight sm:text-6xl lg:text-7xl animate-fade-in">
+            <span className="block text-foreground">Build habits that</span>
+            <span className="block mt-2 bg-gradient-to-r from-primary via-primary to-accent bg-clip-text text-transparent">
+              stick all year
+            </span>
           </h1>
-          <p className="mx-auto mb-8 max-w-2xl text-lg text-muted-foreground">
+          
+          {/* Subheading */}
+          <p className="mx-auto mb-10 max-w-2xl text-lg sm:text-xl text-muted-foreground leading-relaxed animate-fade-in">
             Set meaningful yearly goals, break them into daily habits, and track your progress 
             with beautiful visualizations. Join thousands building better lives, one day at a time.
           </p>
-          <div className="flex flex-wrap items-center justify-center gap-4">
-            <Button asChild size="lg" className="gap-2">
-              <Link to="/auth">
+          
+          {/* CTA Buttons */}
+          <div className="flex flex-wrap items-center justify-center gap-4 mb-16 animate-fade-in">
+            <Button asChild size="lg" className="h-14 px-8 text-base shadow-2xl shadow-primary/30 hover:shadow-primary/40 hover:scale-105 transition-all duration-300">
+              <Link to="/auth" className="gap-2">
                 Start for Free
-                <ArrowRight className="h-4 w-4" />
+                <ArrowRight className="h-5 w-5" />
               </Link>
             </Button>
-            <Button asChild variant="outline" size="lg">
-              <Link to="/auth">Learn More</Link>
+            <Button asChild variant="outline" size="lg" className="h-14 px-8 text-base border-border/50 hover:bg-muted/50 hover:scale-105 transition-all duration-300">
+              <Link to="/auth">Watch Demo</Link>
             </Button>
           </div>
-        </div>
-      </section>
 
-      {/* Features */}
-      <section className="py-20 px-4 bg-muted/30">
-        <div className="mx-auto max-w-6xl">
-          <div className="mb-12 text-center">
-            <h2 className="mb-4 text-3xl font-bold">Everything you need to succeed</h2>
-            <p className="text-muted-foreground">
-              Simple tools designed to help you build lasting habits
-            </p>
-          </div>
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-            {features.map((feature) => (
-              <div
-                key={feature.title}
-                className="rounded-2xl border bg-card p-6 transition-shadow hover:shadow-lg"
+          {/* Stats */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 max-w-3xl mx-auto animate-fade-in">
+            {stats.map((stat, index) => (
+              <div 
+                key={stat.label} 
+                className="relative group"
+                style={{ animationDelay: `${index * 100}ms` }}
               >
-                <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
-                  <feature.icon className="h-6 w-6 text-primary" />
+                <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-transparent rounded-2xl blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                <div className="relative p-4 rounded-2xl border border-border/50 bg-card/50 backdrop-blur-sm hover:border-primary/30 transition-all duration-300">
+                  <div className="flex items-center justify-center gap-1 text-2xl sm:text-3xl font-bold text-foreground mb-1">
+                    {stat.value}
+                    {stat.icon && <Star className="h-5 w-5 text-yellow-500 fill-yellow-500" />}
+                  </div>
+                  <div className="text-sm text-muted-foreground">{stat.label}</div>
                 </div>
-                <h3 className="mb-2 font-semibold">{feature.title}</h3>
-                <p className="text-sm text-muted-foreground">{feature.description}</p>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* CTA */}
-      <section className="py-20 px-4">
-        <div className="mx-auto max-w-4xl text-center">
-          <h2 className="mb-4 text-3xl font-bold">Ready to transform your year?</h2>
-          <p className="mb-8 text-muted-foreground">
-            Start tracking your habits today and see the difference consistency makes.
-          </p>
-          <Button asChild size="lg" className="gap-2">
-            <Link to="/auth">
-              Get Started Free
-              <ArrowRight className="h-4 w-4" />
-            </Link>
-          </Button>
+      {/* Features Section */}
+      <section className="py-24 px-4 relative">
+        <div className="absolute inset-0 bg-gradient-to-b from-muted/30 via-muted/50 to-muted/30" />
+        <div className="mx-auto max-w-6xl relative">
+          <div className="mb-16 text-center">
+            <div className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-4 py-1.5 text-sm font-medium text-primary mb-6">
+              <Zap className="h-4 w-4" />
+              Powerful Features
+            </div>
+            <h2 className="mb-4 text-3xl sm:text-4xl font-bold text-foreground">
+              Everything you need to succeed
+            </h2>
+            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+              Simple, yet powerful tools designed to help you build lasting habits and achieve your goals
+            </p>
+          </div>
+          
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+            {features.map((feature, index) => (
+              <div
+                key={feature.title}
+                className="group relative"
+                style={{ animationDelay: `${index * 100}ms` }}
+              >
+                <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-accent/5 rounded-3xl blur-xl opacity-0 group-hover:opacity-100 transition-all duration-500" />
+                <div className="relative h-full rounded-3xl border border-border/50 bg-card/80 backdrop-blur-sm p-6 transition-all duration-300 hover:border-primary/30 hover:shadow-xl hover:shadow-primary/5 hover:-translate-y-1">
+                  <div className={`mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br ${feature.gradient} border border-primary/20`}>
+                    <feature.icon className="h-7 w-7 text-primary" />
+                  </div>
+                  <h3 className="mb-3 text-lg font-semibold text-foreground">{feature.title}</h3>
+                  <p className="text-muted-foreground leading-relaxed">{feature.description}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Testimonials Section */}
+      <section className="py-24 px-4">
+        <div className="mx-auto max-w-6xl">
+          <div className="mb-16 text-center">
+            <div className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-4 py-1.5 text-sm font-medium text-primary mb-6">
+              <Star className="h-4 w-4" />
+              Testimonials
+            </div>
+            <h2 className="mb-4 text-3xl sm:text-4xl font-bold text-foreground">
+              Loved by thousands
+            </h2>
+            <p className="text-lg text-muted-foreground">
+              See what our users have to say about their transformation
+            </p>
+          </div>
+          
+          <div className="grid gap-6 md:grid-cols-3">
+            {testimonials.map((testimonial, index) => (
+              <div
+                key={testimonial.author}
+                className="group relative"
+                style={{ animationDelay: `${index * 100}ms` }}
+              >
+                <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent rounded-3xl blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                <div className="relative h-full rounded-3xl border border-border/50 bg-card/50 backdrop-blur-sm p-8 transition-all duration-300 hover:border-primary/30 hover:shadow-lg">
+                  <div className="flex gap-1 mb-4">
+                    {[...Array(5)].map((_, i) => (
+                      <Star key={i} className="h-5 w-5 text-yellow-500 fill-yellow-500" />
+                    ))}
+                  </div>
+                  <p className="text-foreground mb-6 leading-relaxed italic">"{testimonial.quote}"</p>
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center text-primary-foreground font-semibold">
+                      {testimonial.author[0]}
+                    </div>
+                    <div>
+                      <div className="font-semibold text-foreground">{testimonial.author}</div>
+                      <div className="text-sm text-muted-foreground">{testimonial.role}</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Why Choose Us Section */}
+      <section className="py-24 px-4 relative">
+        <div className="absolute inset-0 bg-gradient-to-b from-muted/30 via-muted/50 to-muted/30" />
+        <div className="mx-auto max-w-6xl relative">
+          <div className="grid lg:grid-cols-2 gap-12 items-center">
+            <div>
+              <div className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-4 py-1.5 text-sm font-medium text-primary mb-6">
+                <Shield className="h-4 w-4" />
+                Why Yearly Track?
+              </div>
+              <h2 className="mb-6 text-3xl sm:text-4xl font-bold text-foreground">
+                Built for people who are serious about growth
+              </h2>
+              <p className="text-lg text-muted-foreground mb-8 leading-relaxed">
+                We understand that building habits is hard. That's why we've created a system that makes it 
+                simple, visual, and rewarding to stay consistent with your goals.
+              </p>
+              <div className="space-y-4">
+                {[
+                  { icon: CheckCircle2, text: 'Intuitive daily check-ins that take seconds' },
+                  { icon: TrendingUp, text: 'Visual progress tracking that motivates' },
+                  { icon: Zap, text: 'Smart insights that help you improve' },
+                  { icon: Shield, text: 'Privacy-first approach to your data' },
+                ].map((item, index) => (
+                  <div key={index} className="flex items-center gap-3 text-foreground">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
+                      <item.icon className="h-4 w-4 text-primary" />
+                    </div>
+                    <span>{item.text}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="relative">
+              <div className="absolute inset-0 bg-gradient-to-br from-primary/20 to-accent/20 rounded-3xl blur-3xl" />
+              <div className="relative rounded-3xl border border-border/50 bg-card/80 backdrop-blur-sm p-8 shadow-2xl">
+                <div className="space-y-4">
+                  {[85, 92, 78, 95, 88].map((progress, index) => (
+                    <div key={index} className="space-y-2">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Week {index + 1}</span>
+                        <span className="font-medium text-foreground">{progress}%</span>
+                      </div>
+                      <div className="h-2 rounded-full bg-muted overflow-hidden">
+                        <div 
+                          className="h-full rounded-full bg-gradient-to-r from-primary to-accent transition-all duration-1000"
+                          style={{ width: `${progress}%` }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Final CTA */}
+      <section className="py-24 px-4 relative">
+        <div className="mx-auto max-w-4xl text-center relative">
+          <div className="absolute inset-0 bg-gradient-to-r from-primary/10 via-primary/5 to-accent/10 rounded-3xl blur-3xl" />
+          <div className="relative rounded-3xl border border-primary/20 bg-card/50 backdrop-blur-sm p-12 sm:p-16">
+            <div className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-4 py-1.5 text-sm font-medium text-primary mb-6">
+              <Sparkles className="h-4 w-4" />
+              Start Today
+            </div>
+            <h2 className="mb-4 text-3xl sm:text-4xl font-bold text-foreground">
+              Ready to transform your year?
+            </h2>
+            <p className="mb-8 text-lg text-muted-foreground max-w-2xl mx-auto">
+              Join thousands of people who have already changed their lives through better habits. 
+              Start your journey today — it's completely free.
+            </p>
+            <Button asChild size="lg" className="h-14 px-10 text-base shadow-2xl shadow-primary/30 hover:shadow-primary/40 hover:scale-105 transition-all duration-300">
+              <Link to="/auth" className="gap-2">
+                Get Started for Free
+                <ArrowRight className="h-5 w-5" />
+              </Link>
+            </Button>
+          </div>
         </div>
       </section>
 
       {/* Footer */}
-      <footer className="border-t py-8 px-4">
-        <div className="mx-auto max-w-6xl text-center text-sm text-muted-foreground">
-          <p>© {new Date().getFullYear()} Yearly Track. Build better habits.</p>
+      <footer className="border-t border-border/50 py-12 px-4">
+        <div className="mx-auto max-w-6xl">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-primary/80">
+                <Target className="h-4 w-4 text-primary-foreground" />
+              </div>
+              <span className="font-semibold text-foreground">Yearly Track</span>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              © {new Date().getFullYear()} Yearly Track. Build better habits, transform your life.
+            </p>
+          </div>
         </div>
       </footer>
     </div>
