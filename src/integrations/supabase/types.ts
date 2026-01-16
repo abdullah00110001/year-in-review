@@ -150,15 +150,21 @@ export type Database = {
       }
       daily_entries: {
         Row: {
+          akhirah_score: number | null
           asr_completed: boolean | null
           asr_on_time: boolean | null
+          barakah_index: number | null
           biggest_time_leak: string | null
           created_at: string
+          current_mood: string | null
           date: string
+          day_reset_time: string | null
+          day_reset_used: boolean | null
           device_time_minutes: number | null
           dhuhr_completed: boolean | null
           dhuhr_on_time: boolean | null
           discipline_level: number | null
+          dunya_score: number | null
           energy_level: number | null
           exercise_done: boolean | null
           exercise_duration_minutes: number | null
@@ -177,36 +183,55 @@ export type Database = {
           locked_at: string | null
           maghrib_completed: boolean | null
           maghrib_on_time: boolean | null
+          mawt_preparedness: number | null
           mental_state: string | null
+          mindless_scrolling_minutes: number | null
           most_important_task: string | null
+          niyyah_type: string | null
           overall_day_rating: number | null
           quran_ayah_from: number | null
           quran_ayah_to: number | null
           quran_minutes: number | null
+          quran_mood_shift: boolean | null
           quran_read: boolean | null
           quran_surah: string | null
           quran_type: string | null
           regret_of_day: string | null
           revision_minutes: number | null
+          service_hours: number | null
+          service_type: string | null
+          session_value_rating: number | null
           shorts_reels_minutes: number | null
           skill_learning_minutes: number | null
           sleep_duration_minutes: number | null
+          sleep_end_time: string | null
           sleep_quality: number | null
+          sleep_start_time: string | null
           social_media_minutes: number | null
+          tahajjud_performed: boolean | null
           task_status: string | null
           updated_at: string
+          urges_resisted: number | null
+          urges_succumbed: number | null
           user_id: string
+          weighted_daily_score: number | null
         }
         Insert: {
+          akhirah_score?: number | null
           asr_completed?: boolean | null
           asr_on_time?: boolean | null
+          barakah_index?: number | null
           biggest_time_leak?: string | null
           created_at?: string
+          current_mood?: string | null
           date?: string
+          day_reset_time?: string | null
+          day_reset_used?: boolean | null
           device_time_minutes?: number | null
           dhuhr_completed?: boolean | null
           dhuhr_on_time?: boolean | null
           discipline_level?: number | null
+          dunya_score?: number | null
           energy_level?: number | null
           exercise_done?: boolean | null
           exercise_duration_minutes?: number | null
@@ -225,36 +250,55 @@ export type Database = {
           locked_at?: string | null
           maghrib_completed?: boolean | null
           maghrib_on_time?: boolean | null
+          mawt_preparedness?: number | null
           mental_state?: string | null
+          mindless_scrolling_minutes?: number | null
           most_important_task?: string | null
+          niyyah_type?: string | null
           overall_day_rating?: number | null
           quran_ayah_from?: number | null
           quran_ayah_to?: number | null
           quran_minutes?: number | null
+          quran_mood_shift?: boolean | null
           quran_read?: boolean | null
           quran_surah?: string | null
           quran_type?: string | null
           regret_of_day?: string | null
           revision_minutes?: number | null
+          service_hours?: number | null
+          service_type?: string | null
+          session_value_rating?: number | null
           shorts_reels_minutes?: number | null
           skill_learning_minutes?: number | null
           sleep_duration_minutes?: number | null
+          sleep_end_time?: string | null
           sleep_quality?: number | null
+          sleep_start_time?: string | null
           social_media_minutes?: number | null
+          tahajjud_performed?: boolean | null
           task_status?: string | null
           updated_at?: string
+          urges_resisted?: number | null
+          urges_succumbed?: number | null
           user_id: string
+          weighted_daily_score?: number | null
         }
         Update: {
+          akhirah_score?: number | null
           asr_completed?: boolean | null
           asr_on_time?: boolean | null
+          barakah_index?: number | null
           biggest_time_leak?: string | null
           created_at?: string
+          current_mood?: string | null
           date?: string
+          day_reset_time?: string | null
+          day_reset_used?: boolean | null
           device_time_minutes?: number | null
           dhuhr_completed?: boolean | null
           dhuhr_on_time?: boolean | null
           discipline_level?: number | null
+          dunya_score?: number | null
           energy_level?: number | null
           exercise_done?: boolean | null
           exercise_duration_minutes?: number | null
@@ -273,25 +317,38 @@ export type Database = {
           locked_at?: string | null
           maghrib_completed?: boolean | null
           maghrib_on_time?: boolean | null
+          mawt_preparedness?: number | null
           mental_state?: string | null
+          mindless_scrolling_minutes?: number | null
           most_important_task?: string | null
+          niyyah_type?: string | null
           overall_day_rating?: number | null
           quran_ayah_from?: number | null
           quran_ayah_to?: number | null
           quran_minutes?: number | null
+          quran_mood_shift?: boolean | null
           quran_read?: boolean | null
           quran_surah?: string | null
           quran_type?: string | null
           regret_of_day?: string | null
           revision_minutes?: number | null
+          service_hours?: number | null
+          service_type?: string | null
+          session_value_rating?: number | null
           shorts_reels_minutes?: number | null
           skill_learning_minutes?: number | null
           sleep_duration_minutes?: number | null
+          sleep_end_time?: string | null
           sleep_quality?: number | null
+          sleep_start_time?: string | null
           social_media_minutes?: number | null
+          tahajjud_performed?: boolean | null
           task_status?: string | null
           updated_at?: string
+          urges_resisted?: number | null
+          urges_succumbed?: number | null
           user_id?: string
+          weighted_daily_score?: number | null
         }
         Relationships: []
       }
@@ -592,6 +649,39 @@ export type Database = {
         }
         Relationships: []
       }
+      nafs_logs: {
+        Row: {
+          ayah_shown: string | null
+          created_at: string
+          date: string
+          id: string
+          resisted: boolean
+          triggered_at: string
+          urge_type: string | null
+          user_id: string
+        }
+        Insert: {
+          ayah_shown?: string | null
+          created_at?: string
+          date?: string
+          id?: string
+          resisted: boolean
+          triggered_at?: string
+          urge_type?: string | null
+          user_id: string
+        }
+        Update: {
+          ayah_shown?: string | null
+          created_at?: string
+          date?: string
+          id?: string
+          resisted?: boolean
+          triggered_at?: string
+          urge_type?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       night_muhasaba: {
         Row: {
           created_at: string
@@ -714,6 +804,51 @@ export type Database = {
         }
         Relationships: []
       }
+      quranic_anchors: {
+        Row: {
+          arabic_text: string | null
+          ayah_end: number
+          ayah_start: number
+          benefit: string | null
+          bengali_translation: string | null
+          created_at: string
+          english_translation: string | null
+          id: string
+          mood: string
+          mood_bn: string
+          surah_name: string
+          surah_number: number
+        }
+        Insert: {
+          arabic_text?: string | null
+          ayah_end: number
+          ayah_start: number
+          benefit?: string | null
+          bengali_translation?: string | null
+          created_at?: string
+          english_translation?: string | null
+          id?: string
+          mood: string
+          mood_bn: string
+          surah_name: string
+          surah_number: number
+        }
+        Update: {
+          arabic_text?: string | null
+          ayah_end?: number
+          ayah_start?: number
+          benefit?: string | null
+          bengali_translation?: string | null
+          created_at?: string
+          english_translation?: string | null
+          id?: string
+          mood?: string
+          mood_bn?: string
+          surah_name?: string
+          surah_number?: number
+        }
+        Relationships: []
+      }
       reflections: {
         Row: {
           challenges: string | null
@@ -753,6 +888,45 @@ export type Database = {
         }
         Relationships: []
       }
+      service_logs: {
+        Row: {
+          beneficiary: string | null
+          created_at: string
+          date: string
+          hours: number
+          id: string
+          mood_after: number | null
+          mood_before: number | null
+          notes: string | null
+          service_type: string
+          user_id: string
+        }
+        Insert: {
+          beneficiary?: string | null
+          created_at?: string
+          date?: string
+          hours?: number
+          id?: string
+          mood_after?: number | null
+          mood_before?: number | null
+          notes?: string | null
+          service_type: string
+          user_id: string
+        }
+        Update: {
+          beneficiary?: string | null
+          created_at?: string
+          date?: string
+          hours?: number
+          id?: string
+          mood_after?: number | null
+          mood_before?: number | null
+          notes?: string | null
+          service_type?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       small_wins: {
         Row: {
           content: string
@@ -773,6 +947,51 @@ export type Database = {
           created_at?: string
           date?: string
           id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      study_sessions: {
+        Row: {
+          barakah_score: number | null
+          created_at: string
+          date: string
+          duration_minutes: number
+          ended_at: string | null
+          id: string
+          niyyah: string
+          niyyah_multiplier: number
+          session_type: string | null
+          session_value: number | null
+          started_at: string
+          user_id: string
+        }
+        Insert: {
+          barakah_score?: number | null
+          created_at?: string
+          date?: string
+          duration_minutes?: number
+          ended_at?: string | null
+          id?: string
+          niyyah: string
+          niyyah_multiplier?: number
+          session_type?: string | null
+          session_value?: number | null
+          started_at?: string
+          user_id: string
+        }
+        Update: {
+          barakah_score?: number | null
+          created_at?: string
+          date?: string
+          duration_minutes?: number
+          ended_at?: string | null
+          id?: string
+          niyyah?: string
+          niyyah_multiplier?: number
+          session_type?: string | null
+          session_value?: number | null
+          started_at?: string
           user_id?: string
         }
         Relationships: []
