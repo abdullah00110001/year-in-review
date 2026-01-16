@@ -13,6 +13,7 @@ import { Slider } from '@/components/ui/slider';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
+import HabitFrictionSystem from '@/components/insights/HabitFrictionSystem';
 import { 
   BookOpen, Clock, Dumbbell, Moon, Brain, Target, Smartphone,
   CheckCircle2, AlertTriangle, Save, Lock
@@ -498,10 +499,19 @@ export default function DailyInput() {
                   </div>
                 </div>
                 {entry.device_time_minutes > 180 && (
-                  <div className="flex items-center gap-2 p-3 bg-destructive/10 text-destructive rounded-lg">
-                    <AlertTriangle className="h-5 w-5" />
-                    <span className="text-sm">High screen time detected. Consider digital detox.</span>
-                  </div>
+                  <HabitFrictionSystem 
+                    type="warning"
+                    trigger="high_device"
+                    value={entry.device_time_minutes}
+                    onDismiss={() => {}}
+                  />
+                )}
+                {entry.device_time_minutes <= 120 && entry.device_time_minutes > 0 && (
+                  <HabitFrictionSystem 
+                    type="positive"
+                    trigger="good_habit_complete"
+                    onDismiss={() => {}}
+                  />
                 )}
               </CardContent>
             </Card>

@@ -30,7 +30,8 @@ import {
   ClipboardList,
   Moon,
   FileText,
-  Brain
+  Brain,
+  Eye
 } from 'lucide-react';
 
 export default function Sidebar() {
@@ -58,6 +59,7 @@ export default function Sidebar() {
     { name: t('nav.weeklyReview'), href: '/weekly-review', icon: FileText },
     { name: t('nav.monthlyReview'), href: '/monthly-review', icon: Calendar },
     { name: t('nav.intelligence'), href: '/intelligence', icon: Brain },
+    { name: 'Advanced Insights', href: '/insights', icon: Eye },
     { name: t('nav.gamification'), href: '/gamification', icon: Trophy },
     { name: t('nav.journey'), href: '/journey', icon: Map },
     { name: t('nav.goals'), href: '/goals', icon: Target },
