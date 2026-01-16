@@ -297,7 +297,7 @@ const App = () => (
                   }
                 />
                 <Route
-                  path="/unified"
+                  path="/unified-dashboard"
                   element={
                     <ProtectedRoute>
                       <UnifiedDashboard />
