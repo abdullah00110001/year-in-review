@@ -25,7 +25,10 @@ import {
   Mail,
   Menu,
   X,
-  Shield
+  Shield,
+  Eye,
+  ClipboardList,
+  Brain
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -90,6 +93,9 @@ export default function MobileNav() {
 
   const navigation = [
     { name: t('nav.dashboard'), href: '/dashboard', icon: LayoutDashboard },
+    { name: t('nav.dailyInput'), href: '/daily-input', icon: ClipboardList },
+    { name: t('nav.intelligence'), href: '/intelligence', icon: Brain },
+    { name: 'Advanced Insights', href: '/insights', icon: Eye },
     { name: t('nav.journey'), href: '/journey', icon: Map },
     { name: t('nav.goals'), href: '/goals', icon: Target },
     { name: t('nav.quarterlyGoals'), href: '/quarterly-goals', icon: Target },

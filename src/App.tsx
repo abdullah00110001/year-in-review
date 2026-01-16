@@ -35,6 +35,7 @@ import AdminCommand from "./pages/AdminCommand";
 import Gamification from "./pages/Gamification";
 import MonthlyReview from "./pages/MonthlyReview";
 import IntelligenceEngine from "./pages/IntelligenceEngine";
+import Insights from "./pages/Insights";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -272,6 +273,14 @@ const App = () => (
                   element={
                     <ProtectedRoute>
                       <Gamification />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/insights"
+                  element={
+                    <ProtectedRoute>
+                      <Insights />
                     </ProtectedRoute>
                   }
                 />

@@ -28,7 +28,9 @@ import {
   Flame,
   Globe,
   Lock,
-  TrendingUp
+  TrendingUp,
+  Brain,
+  AlertTriangle
 } from "lucide-react";
 import {
   Table,
@@ -252,11 +254,16 @@ export default function AdminDashboard() {
         </div>
 
         <Tabs defaultValue="stats" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-3 h-auto">
+          <TabsList className="grid w-full grid-cols-4 h-auto">
             <TabsTrigger value="stats" className="text-xs sm:text-sm py-2.5 px-2 sm:px-4">
               <BarChart3 className="h-4 w-4 mr-1 sm:mr-2" />
               <span className="hidden sm:inline">{language === "bn" ? "পরিসংখ্যান" : "Statistics"}</span>
               <span className="sm:hidden">{language === "bn" ? "স্ট্যাটস" : "Stats"}</span>
+            </TabsTrigger>
+            <TabsTrigger value="insights" className="text-xs sm:text-sm py-2.5 px-2 sm:px-4">
+              <Brain className="h-4 w-4 mr-1 sm:mr-2" />
+              <span className="hidden sm:inline">{language === "bn" ? "ইনসাইটস" : "Insights"}</span>
+              <span className="sm:hidden">{language === "bn" ? "ইনসাইটস" : "Insights"}</span>
             </TabsTrigger>
             <TabsTrigger value="users" className="text-xs sm:text-sm py-2.5 px-2 sm:px-4">
               <Users className="h-4 w-4 mr-1 sm:mr-2" />
@@ -287,6 +294,68 @@ export default function AdminDashboard() {
                 </Card>
               ))}
             </div>
+          </TabsContent>
+
+          {/* Insights Tab - Admin view of user patterns */}
+          <TabsContent value="insights" className="space-y-4">
+            <Card>
+              <CardHeader className="p-4 sm:p-6">
+                <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
+                  <Brain className="h-5 w-5" />
+                  {language === "bn" ? "ইউজার ইনসাইটস" : "User Insights Overview"}
+                </CardTitle>
+                <CardDescription className="text-sm">
+                  {language === "bn" ? "বার্নআউট এলার্ট এবং ইউজার প্যাটার্ন মনিটর করুন" : "Monitor burnout alerts and user patterns"}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="p-4 sm:p-6 pt-0 space-y-4">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="p-4 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800">
+                    <div className="flex items-center gap-2 mb-2">
+                      <AlertTriangle className="h-5 w-5 text-amber-600" />
+                      <span className="font-medium text-amber-800 dark:text-amber-200">
+                        {language === "bn" ? "বার্নআউট মনিটরিং" : "Burnout Monitoring"}
+                      </span>
+                    </div>
+                    <p className="text-sm text-amber-700 dark:text-amber-300">
+                      {language === "bn" 
+                        ? "সক্রিয় ইউজারদের লো এনার্জি, লো স্লিপ ট্র্যাক করা হচ্ছে।"
+                        : "Actively tracking users with low energy and sleep patterns."
+                      }
+                    </p>
+                  </div>
+                  <div className="p-4 rounded-lg bg-primary/5 border border-primary/20">
+                    <div className="flex items-center gap-2 mb-2">
+                      <TrendingUp className="h-5 w-5 text-primary" />
+                      <span className="font-medium">
+                        {language === "bn" ? "মুড-প্রোডাক্টিভিটি করেলেশন" : "Mood-Productivity Correlation"}
+                      </span>
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      {language === "bn" 
+                        ? "সকল ইউজারের মুড এবং প্রোডাক্টিভিটি প্যাটার্ন বিশ্লেষণ করা হচ্ছে।"
+                        : "Analyzing mood and productivity patterns across all users."
+                      }
+                    </p>
+                  </div>
+                </div>
+                <div className="text-center py-6 text-muted-foreground">
+                  <Brain className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                  <p className="text-sm">
+                    {language === "bn" 
+                      ? "বিস্তারিত ইনসাইটস আসছে..."
+                      : "Detailed insights dashboard coming soon..."
+                    }
+                  </p>
+                  <p className="text-xs mt-1">
+                    {language === "bn" 
+                      ? "ইউজারদের দৈনিক এন্ট্রি থেকে প্যাটার্ন বিশ্লেষণ করা হবে।"
+                      : "User patterns will be analyzed from daily entries."
+                    }
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
           </TabsContent>
 
           {/* Users Tab */}
