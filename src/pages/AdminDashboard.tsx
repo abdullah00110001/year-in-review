@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { format, subDays } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
 import { useLanguage } from "@/contexts/LanguageContext";
 import AppLayout from "@/components/layout/AppLayout";
@@ -14,32 +15,20 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { 
-  Shield, 
-  Users, 
-  BarChart3, 
-  Settings2, 
-  Loader2, 
-  UserCog,
-  Target,
-  CheckSquare,
-  Clock,
-  BookOpen,
-  Image,
-  Flame,
-  Globe,
-  Lock,
-  TrendingUp,
-  Brain,
-  AlertTriangle
+  Shield, Users, BarChart3, Settings2, Loader2, UserCog,
+  Target, CheckSquare, Clock, BookOpen, Image, Flame,
+  TrendingUp, Brain, AlertTriangle, Calendar, Eye
 } from "lucide-react";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
+import {
+  LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, 
+  Tooltip, ResponsiveContainer, Legend
+} from "recharts";
+import ProductivityHeatmap from "@/components/admin/ProductivityHeatmap";
+import UserDayInspector from "@/components/admin/UserDayInspector";
+import AdminAlertSystem from "@/components/admin/AdminAlertSystem";
 
 interface UserProfile {
   user_id: string;
@@ -47,6 +36,8 @@ interface UserProfile {
   avatar_url: string | null;
   created_at: string;
   role: string;
+  deenScore?: number;
+  disciplineScore?: number;
 }
 
 interface GlobalStats {
@@ -65,6 +56,21 @@ interface AppSetting {
   value: { public?: boolean; [key: string]: unknown };
 }
 
+interface HeatmapData {
+  date: string;
+  value: number;
+  studyMinutes: number;
+  salahCount: number;
+  deviceMinutes: number;
+}
+
+interface ChartData {
+  date: string;
+  study: number;
+  device: number;
+  salah: number;
+}
+
 export default function AdminDashboard() {
   const { user } = useAuth();
   const { language } = useLanguage();
@@ -73,17 +79,15 @@ export default function AdminDashboard() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [stats, setStats] = useState<GlobalStats>({
-    totalUsers: 0,
-    totalGoals: 0,
-    totalHabits: 0,
-    totalHabitEntries: 0,
-    totalTimeHours: 0,
-    totalKnowledgeItems: 0,
-    totalHighlights: 0,
-    totalSmallWins: 0,
+    totalUsers: 0, totalGoals: 0, totalHabits: 0, totalHabitEntries: 0,
+    totalTimeHours: 0, totalKnowledgeItems: 0, totalHighlights: 0, totalSmallWins: 0,
   });
   const [settings, setSettings] = useState<AppSetting[]>([]);
   const [savingRole, setSavingRole] = useState<string | null>(null);
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const [heatmapData, setHeatmapData] = useState<HeatmapData[]>([]);
+  const [chartData, setChartData] = useState<ChartData[]>([]);
+  const [inspectorData, setInspectorData] = useState<any>(null);
 
   useEffect(() => {
     checkAdminAndFetch();
@@ -104,7 +108,13 @@ export default function AdminDashboard() {
     }
 
     setIsAdmin(true);
-    await Promise.all([fetchUsers(), fetchStats(), fetchSettings()]);
+    await Promise.all([
+      fetchUsers(), 
+      fetchStats(), 
+      fetchSettings(),
+      fetchHeatmapData(),
+      fetchChartData()
+    ]);
     setLoading(false);
   };
 
@@ -116,13 +126,27 @@ export default function AdminDashboard() {
 
     if (!profiles) return;
 
-    // Fetch roles for each user
     const { data: roles } = await supabase.from("user_roles").select("user_id, role");
     const roleMap = new Map(roles?.map(r => [r.user_id, r.role]) || []);
+
+    // Fetch user scores
+    const { data: scores } = await supabase
+      .from("user_scores")
+      .select("user_id, deen_score, discipline_score")
+      .order("date", { ascending: false });
+
+    const scoreMap = new Map<string, { deen: number; discipline: number }>();
+    scores?.forEach(s => {
+      if (!scoreMap.has(s.user_id)) {
+        scoreMap.set(s.user_id, { deen: s.deen_score || 0, discipline: s.discipline_score || 0 });
+      }
+    });
 
     const usersWithRoles = profiles.map(p => ({
       ...p,
       role: roleMap.get(p.user_id) || "user",
+      deenScore: scoreMap.get(p.user_id)?.deen || 0,
+      disciplineScore: scoreMap.get(p.user_id)?.discipline || 0,
     }));
 
     setUsers(usersWithRoles);
@@ -165,26 +189,141 @@ export default function AdminDashboard() {
 
   const fetchSettings = async () => {
     const { data } = await supabase.from("app_settings").select("key, value");
-    if (data) {
-      setSettings(data as AppSetting[]);
+    if (data) setSettings(data as AppSetting[]);
+  };
+
+  const fetchHeatmapData = async (userId?: string) => {
+    const last365Days = format(subDays(new Date(), 364), 'yyyy-MM-dd');
+    
+    let query = supabase
+      .from("daily_entries")
+      .select("date, focused_study_minutes, revision_minutes, fajr_completed, dhuhr_completed, asr_completed, maghrib_completed, isha_completed, device_time_minutes")
+      .gte("date", last365Days);
+    
+    if (userId) query = query.eq("user_id", userId);
+
+    const { data } = await query;
+    if (!data) return;
+
+    const heatmap: HeatmapData[] = data.map(entry => {
+      const studyMinutes = (entry.focused_study_minutes || 0) + (entry.revision_minutes || 0);
+      const salahCount = [
+        entry.fajr_completed, entry.dhuhr_completed, entry.asr_completed,
+        entry.maghrib_completed, entry.isha_completed
+      ].filter(Boolean).length;
+      const deviceMinutes = entry.device_time_minutes || 0;
+      
+      // Calculate productivity score (0-100)
+      const studyScore = Math.min(50, studyMinutes / 3);
+      const salahScore = salahCount * 8;
+      const devicePenalty = Math.min(20, deviceMinutes / 15);
+      const value = Math.round(Math.max(0, Math.min(100, studyScore + salahScore - devicePenalty)));
+
+      return { date: entry.date, value, studyMinutes, salahCount, deviceMinutes };
+    });
+
+    setHeatmapData(heatmap);
+  };
+
+  const fetchChartData = async (userId?: string) => {
+    const last30Days = format(subDays(new Date(), 29), 'yyyy-MM-dd');
+    
+    let query = supabase
+      .from("daily_entries")
+      .select("date, focused_study_minutes, revision_minutes, device_time_minutes, fajr_completed, dhuhr_completed, asr_completed, maghrib_completed, isha_completed")
+      .gte("date", last30Days)
+      .order("date", { ascending: true });
+    
+    if (userId) query = query.eq("user_id", userId);
+
+    const { data } = await query;
+    if (!data) return;
+
+    // Aggregate by date
+    const dateMap = new Map<string, { study: number; device: number; salah: number; count: number }>();
+    
+    data.forEach(entry => {
+      const existing = dateMap.get(entry.date) || { study: 0, device: 0, salah: 0, count: 0 };
+      const salahCount = [
+        entry.fajr_completed, entry.dhuhr_completed, entry.asr_completed,
+        entry.maghrib_completed, entry.isha_completed
+      ].filter(Boolean).length;
+
+      dateMap.set(entry.date, {
+        study: existing.study + (entry.focused_study_minutes || 0) + (entry.revision_minutes || 0),
+        device: existing.device + (entry.device_time_minutes || 0),
+        salah: existing.salah + salahCount,
+        count: existing.count + 1,
+      });
+    });
+
+    const chart: ChartData[] = Array.from(dateMap.entries()).map(([date, values]) => ({
+      date: format(new Date(date), 'MMM d'),
+      study: Math.round(values.study / values.count / 60 * 10) / 10,
+      device: Math.round(values.device / values.count / 60 * 10) / 10,
+      salah: Math.round(values.salah / values.count * 10) / 10,
+    }));
+
+    setChartData(chart);
+  };
+
+  const openUserInspector = async (userId: string, date: string) => {
+    const { data: entry } = await supabase
+      .from("daily_entries")
+      .select("*")
+      .eq("user_id", userId)
+      .eq("date", date)
+      .maybeSingle();
+
+    const { data: muhasaba } = await supabase
+      .from("night_muhasaba")
+      .select("*")
+      .eq("user_id", userId)
+      .eq("date", date)
+      .maybeSingle();
+
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("full_name")
+      .eq("user_id", userId)
+      .single();
+
+    if (entry) {
+      setInspectorData({
+        entry,
+        muhasaba,
+        userName: profile?.full_name || "Unknown User",
+        userId,
+      });
+    } else {
+      toast.error("No entry found for this date");
     }
+  };
+
+  const handleDayClick = (date: string) => {
+    if (selectedUserId) {
+      openUserInspector(selectedUserId, date);
+    }
+  };
+
+  const handleUserSelect = async (userId: string) => {
+    setSelectedUserId(userId);
+    await Promise.all([fetchHeatmapData(userId), fetchChartData(userId)]);
   };
 
   const updateUserRole = async (userId: string, newRole: "admin" | "moderator" | "user") => {
     setSavingRole(userId);
-
     const { error } = await supabase
       .from("user_roles")
       .update({ role: newRole })
       .eq("user_id", userId);
 
     if (error) {
-      toast.error(language === "bn" ? "রোল আপডেট করতে সমস্যা হয়েছে" : "Failed to update role");
+      toast.error("Failed to update role");
     } else {
-      toast.success(language === "bn" ? "রোল আপডেট হয়েছে" : "Role updated");
+      toast.success("Role updated");
       setUsers(users.map(u => u.user_id === userId ? { ...u, role: newRole } : u));
     }
-
     setSavingRole(null);
   };
 
@@ -195,9 +334,9 @@ export default function AdminDashboard() {
       .eq("key", key);
 
     if (error) {
-      toast.error(language === "bn" ? "সেটিং আপডেট করতে সমস্যা হয়েছে" : "Failed to update setting");
+      toast.error("Failed to update setting");
     } else {
-      toast.success(language === "bn" ? "সেটিং আপডেট হয়েছে" : "Setting updated");
+      toast.success("Setting updated");
       setSettings(settings.map(s => 
         s.key === key ? { ...s, value: { ...s.value, public: !currentValue } } : s
       ));
@@ -222,19 +361,17 @@ export default function AdminDashboard() {
     );
   }
 
-  if (!isAdmin) {
-    return null;
-  }
+  if (!isAdmin) return null;
 
   const statCards = [
-    { label: language === "bn" ? "মোট ব্যবহারকারী" : "Total Users", value: stats.totalUsers, icon: Users, color: "text-blue-500" },
-    { label: language === "bn" ? "মোট গোল" : "Total Goals", value: stats.totalGoals, icon: Target, color: "text-green-500" },
-    { label: language === "bn" ? "মোট হ্যাবিট" : "Total Habits", value: stats.totalHabits, icon: CheckSquare, color: "text-purple-500" },
-    { label: language === "bn" ? "হ্যাবিট এন্ট্রি" : "Habit Entries", value: stats.totalHabitEntries, icon: Flame, color: "text-orange-500" },
-    { label: language === "bn" ? "মোট সময়" : "Total Hours", value: stats.totalTimeHours.toFixed(0), icon: Clock, color: "text-cyan-500" },
-    { label: language === "bn" ? "জ্ঞান আইটেম" : "Knowledge Items", value: stats.totalKnowledgeItems, icon: BookOpen, color: "text-pink-500" },
-    { label: language === "bn" ? "হাইলাইট" : "Highlights", value: stats.totalHighlights, icon: Image, color: "text-yellow-500" },
-    { label: language === "bn" ? "স্মল উইন্স" : "Small Wins", value: stats.totalSmallWins, icon: TrendingUp, color: "text-emerald-500" },
+    { label: "Total Users", value: stats.totalUsers, icon: Users, color: "text-blue-500" },
+    { label: "Total Goals", value: stats.totalGoals, icon: Target, color: "text-green-500" },
+    { label: "Total Habits", value: stats.totalHabits, icon: CheckSquare, color: "text-purple-500" },
+    { label: "Habit Entries", value: stats.totalHabitEntries, icon: Flame, color: "text-orange-500" },
+    { label: "Total Hours", value: stats.totalTimeHours.toFixed(0), icon: Clock, color: "text-cyan-500" },
+    { label: "Knowledge Items", value: stats.totalKnowledgeItems, icon: BookOpen, color: "text-pink-500" },
+    { label: "Highlights", value: stats.totalHighlights, icon: Image, color: "text-yellow-500" },
+    { label: "Small Wins", value: stats.totalSmallWins, icon: TrendingUp, color: "text-emerald-500" },
   ];
 
   return (
@@ -245,48 +382,47 @@ export default function AdminDashboard() {
           <div>
             <h1 className="text-2xl sm:text-3xl font-bold flex items-center gap-2">
               <Shield className="h-7 w-7 sm:h-8 sm:w-8 text-primary" />
-              {language === "bn" ? "অ্যাডমিন ড্যাশবোর্ড" : "Admin Dashboard"}
+              Admin Command Center
             </h1>
-            <p className="text-muted-foreground mt-1 text-sm sm:text-base">
-              {language === "bn" ? "ব্যবহারকারী এবং অ্যাপ সেটিংস পরিচালনা করুন" : "Manage users and app settings"}
-            </p>
+            <p className="text-muted-foreground mt-1">Full visibility and control</p>
           </div>
         </div>
 
-        <Tabs defaultValue="stats" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-4 h-auto">
-            <TabsTrigger value="stats" className="text-xs sm:text-sm py-2.5 px-2 sm:px-4">
+        <Tabs defaultValue="dashboard" className="space-y-4">
+          <TabsList className="grid w-full grid-cols-5 h-auto">
+            <TabsTrigger value="dashboard" className="text-xs sm:text-sm py-2.5">
               <BarChart3 className="h-4 w-4 mr-1 sm:mr-2" />
-              <span className="hidden sm:inline">{language === "bn" ? "পরিসংখ্যান" : "Statistics"}</span>
-              <span className="sm:hidden">{language === "bn" ? "স্ট্যাটস" : "Stats"}</span>
+              <span className="hidden sm:inline">Dashboard</span>
             </TabsTrigger>
-            <TabsTrigger value="insights" className="text-xs sm:text-sm py-2.5 px-2 sm:px-4">
+            <TabsTrigger value="heatmap" className="text-xs sm:text-sm py-2.5">
+              <Calendar className="h-4 w-4 mr-1 sm:mr-2" />
+              <span className="hidden sm:inline">Heatmap</span>
+            </TabsTrigger>
+            <TabsTrigger value="insights" className="text-xs sm:text-sm py-2.5">
               <Brain className="h-4 w-4 mr-1 sm:mr-2" />
-              <span className="hidden sm:inline">{language === "bn" ? "ইনসাইটস" : "Insights"}</span>
-              <span className="sm:hidden">{language === "bn" ? "ইনসাইটস" : "Insights"}</span>
+              <span className="hidden sm:inline">Insights</span>
             </TabsTrigger>
-            <TabsTrigger value="users" className="text-xs sm:text-sm py-2.5 px-2 sm:px-4">
+            <TabsTrigger value="users" className="text-xs sm:text-sm py-2.5">
               <Users className="h-4 w-4 mr-1 sm:mr-2" />
-              <span className="hidden sm:inline">{language === "bn" ? "ব্যবহারকারী" : "Users"}</span>
-              <span className="sm:hidden">{language === "bn" ? "ইউজার" : "Users"}</span>
+              <span className="hidden sm:inline">Users</span>
             </TabsTrigger>
-            <TabsTrigger value="settings" className="text-xs sm:text-sm py-2.5 px-2 sm:px-4">
+            <TabsTrigger value="settings" className="text-xs sm:text-sm py-2.5">
               <Settings2 className="h-4 w-4 mr-1 sm:mr-2" />
-              <span className="hidden sm:inline">{language === "bn" ? "সেটিংস" : "Settings"}</span>
-              <span className="sm:hidden">{language === "bn" ? "সেটিং" : "Settings"}</span>
+              <span className="hidden sm:inline">Settings</span>
             </TabsTrigger>
           </TabsList>
 
-          {/* Statistics Tab */}
-          <TabsContent value="stats" className="space-y-4">
+          {/* Dashboard Tab */}
+          <TabsContent value="dashboard" className="space-y-6">
+            {/* Stats Grid */}
             <div className="grid gap-3 sm:gap-4 grid-cols-2 lg:grid-cols-4">
               {statCards.map((stat, index) => (
-                <Card key={index} className="overflow-hidden">
+                <Card key={index}>
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-3 sm:p-6 sm:pb-2">
-                    <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground line-clamp-1">
+                    <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">
                       {stat.label}
                     </CardTitle>
-                    <stat.icon className={`h-4 w-4 sm:h-5 sm:w-5 ${stat.color} shrink-0`} />
+                    <stat.icon className={`h-4 w-4 sm:h-5 sm:w-5 ${stat.color}`} />
                   </CardHeader>
                   <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
                     <div className="text-xl sm:text-2xl font-bold">{stat.value}</div>
@@ -294,101 +430,171 @@ export default function AdminDashboard() {
                 </Card>
               ))}
             </div>
+
+            {/* Charts */}
+            <div className="grid gap-6 lg:grid-cols-2">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Study vs Device Time (Last 30 Days)</CardTitle>
+                  <CardDescription>Average hours per user</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="h-[300px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={chartData}>
+                        <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                        <XAxis dataKey="date" className="text-xs" />
+                        <YAxis className="text-xs" />
+                        <Tooltip />
+                        <Legend />
+                        <Line type="monotone" dataKey="study" stroke="hsl(var(--primary))" strokeWidth={2} name="Study (h)" />
+                        <Line type="monotone" dataKey="device" stroke="hsl(var(--destructive))" strokeWidth={2} name="Device (h)" />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>Average Salah Completion</CardTitle>
+                  <CardDescription>Prayers per day (out of 5)</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="h-[300px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={chartData}>
+                        <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                        <XAxis dataKey="date" className="text-xs" />
+                        <YAxis domain={[0, 5]} className="text-xs" />
+                        <Tooltip />
+                        <Bar dataKey="salah" fill="hsl(142 76% 36%)" name="Salah" radius={[4, 4, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
           </TabsContent>
 
-          {/* Insights Tab - Admin view of user patterns */}
-          <TabsContent value="insights" className="space-y-4">
+          {/* Heatmap Tab */}
+          <TabsContent value="heatmap" className="space-y-4">
+            <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+              <div>
+                <h2 className="text-lg font-semibold">365-Day Productivity Heatmap</h2>
+                <p className="text-sm text-muted-foreground">Click on any day to inspect details</p>
+              </div>
+              <Select value={selectedUserId || "all"} onValueChange={(v) => handleUserSelect(v === "all" ? "" : v)}>
+                <SelectTrigger className="w-[200px]">
+                  <SelectValue placeholder="Select user" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Users</SelectItem>
+                  {users.map(u => (
+                    <SelectItem key={u.user_id} value={u.user_id}>
+                      {u.full_name || "Unknown"}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
             <Card>
-              <CardHeader className="p-4 sm:p-6">
-                <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
-                  <Brain className="h-5 w-5" />
-                  {language === "bn" ? "ইউজার ইনসাইটস" : "User Insights Overview"}
-                </CardTitle>
-                <CardDescription className="text-sm">
-                  {language === "bn" ? "বার্নআউট এলার্ট এবং ইউজার প্যাটার্ন মনিটর করুন" : "Monitor burnout alerts and user patterns"}
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="p-4 sm:p-6 pt-0 space-y-4">
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="p-4 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800">
-                    <div className="flex items-center gap-2 mb-2">
-                      <AlertTriangle className="h-5 w-5 text-amber-600" />
-                      <span className="font-medium text-amber-800 dark:text-amber-200">
-                        {language === "bn" ? "বার্নআউট মনিটরিং" : "Burnout Monitoring"}
-                      </span>
-                    </div>
-                    <p className="text-sm text-amber-700 dark:text-amber-300">
-                      {language === "bn" 
-                        ? "সক্রিয় ইউজারদের লো এনার্জি, লো স্লিপ ট্র্যাক করা হচ্ছে।"
-                        : "Actively tracking users with low energy and sleep patterns."
-                      }
-                    </p>
-                  </div>
-                  <div className="p-4 rounded-lg bg-primary/5 border border-primary/20">
-                    <div className="flex items-center gap-2 mb-2">
-                      <TrendingUp className="h-5 w-5 text-primary" />
-                      <span className="font-medium">
-                        {language === "bn" ? "মুড-প্রোডাক্টিভিটি করেলেশন" : "Mood-Productivity Correlation"}
-                      </span>
-                    </div>
-                    <p className="text-sm text-muted-foreground">
-                      {language === "bn" 
-                        ? "সকল ইউজারের মুড এবং প্রোডাক্টিভিটি প্যাটার্ন বিশ্লেষণ করা হচ্ছে।"
-                        : "Analyzing mood and productivity patterns across all users."
-                      }
-                    </p>
-                  </div>
-                </div>
-                <div className="text-center py-6 text-muted-foreground">
-                  <Brain className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                  <p className="text-sm">
-                    {language === "bn" 
-                      ? "বিস্তারিত ইনসাইটস আসছে..."
-                      : "Detailed insights dashboard coming soon..."
-                    }
-                  </p>
-                  <p className="text-xs mt-1">
-                    {language === "bn" 
-                      ? "ইউজারদের দৈনিক এন্ট্রি থেকে প্যাটার্ন বিশ্লেষণ করা হবে।"
-                      : "User patterns will be analyzed from daily entries."
-                    }
-                  </p>
-                </div>
+              <CardContent className="p-4 overflow-x-auto">
+                <ProductivityHeatmap 
+                  data={heatmapData} 
+                  onDayClick={handleDayClick}
+                />
               </CardContent>
             </Card>
+
+            {/* Day Inspector */}
+            {inspectorData && (
+              <UserDayInspector
+                entry={inspectorData.entry}
+                muhasaba={inspectorData.muhasaba}
+                userName={inspectorData.userName}
+                adminId={user?.id || ""}
+                onClose={() => setInspectorData(null)}
+                onRefresh={() => openUserInspector(inspectorData.userId, inspectorData.entry.date)}
+              />
+            )}
+          </TabsContent>
+
+          {/* Insights Tab */}
+          <TabsContent value="insights" className="space-y-4">
+            <div className="grid gap-6 lg:grid-cols-2">
+              <AdminAlertSystem onUserClick={openUserInspector} />
+              
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <TrendingUp className="h-5 w-5" />
+                    User Leaderboard
+                  </CardTitle>
+                  <CardDescription>Top performers by Deen & Discipline scores</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {users
+                      .sort((a, b) => ((b.deenScore || 0) + (b.disciplineScore || 0)) - ((a.deenScore || 0) + (a.disciplineScore || 0)))
+                      .slice(0, 5)
+                      .map((u, i) => (
+                        <div key={u.user_id} className="flex items-center gap-3 p-2 rounded-lg bg-muted/30">
+                          <span className="text-lg font-bold text-muted-foreground w-6">{i + 1}</span>
+                          <Avatar className="h-8 w-8">
+                            <AvatarImage src={u.avatar_url || undefined} />
+                            <AvatarFallback>{(u.full_name || "U")[0]}</AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1">
+                            <p className="font-medium text-sm">{u.full_name || "Unknown"}</p>
+                            <div className="flex gap-2 text-xs">
+                              <span className="text-emerald-600">Deen: {u.deenScore}</span>
+                              <span className="text-primary">Discipline: {u.disciplineScore}</span>
+                            </div>
+                          </div>
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-8 w-8"
+                            onClick={() => handleUserSelect(u.user_id)}
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ))}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
           </TabsContent>
 
           {/* Users Tab */}
           <TabsContent value="users" className="space-y-4">
             <Card>
-              <CardHeader className="p-4 sm:p-6">
-                <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
                   <UserCog className="h-5 w-5" />
-                  {language === "bn" ? "ব্যবহারকারী তালিকা" : "User Management"}
+                  User Management
                 </CardTitle>
-                <CardDescription className="text-sm">
-                  {language === "bn" ? "ব্যবহারকারীদের রোল পরিবর্তন করুন" : "Change user roles and permissions"}
-                </CardDescription>
+                <CardDescription>Manage user roles and view scores</CardDescription>
               </CardHeader>
-              <CardContent className="p-0 sm:p-6 sm:pt-0">
-                {/* Mobile User Cards */}
-                <div className="sm:hidden space-y-3 p-4 pt-0">
+              <CardContent className="p-0 sm:p-6">
+                {/* Mobile Cards */}
+                <div className="sm:hidden space-y-3 p-4">
                   {users.map((userProfile) => (
                     <Card key={userProfile.user_id} className="p-4">
                       <div className="flex items-center gap-3 mb-3">
                         <Avatar className="h-10 w-10">
                           <AvatarImage src={userProfile.avatar_url || undefined} />
-                          <AvatarFallback>
-                            {(userProfile.full_name || "U")[0].toUpperCase()}
-                          </AvatarFallback>
+                          <AvatarFallback>{(userProfile.full_name || "U")[0]}</AvatarFallback>
                         </Avatar>
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium truncate">
-                            {userProfile.full_name || (language === "bn" ? "অজানা" : "Unknown")}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            {new Date(userProfile.created_at).toLocaleDateString()}
-                          </p>
+                        <div className="flex-1">
+                          <p className="font-medium">{userProfile.full_name || "Unknown"}</p>
+                          <div className="flex gap-2 text-xs text-muted-foreground">
+                            <span>Deen: {userProfile.deenScore}</span>
+                            <span>Disc: {userProfile.disciplineScore}</span>
+                          </div>
                         </div>
                         <Badge variant={getRoleBadgeVariant(userProfile.role)}>
                           {userProfile.role}
@@ -396,16 +602,16 @@ export default function AdminDashboard() {
                       </div>
                       <Select
                         value={userProfile.role}
-                        onValueChange={(value) => updateUserRole(userProfile.user_id, value as "admin" | "moderator" | "user")}
+                        onValueChange={(value) => updateUserRole(userProfile.user_id, value as any)}
                         disabled={savingRole === userProfile.user_id || userProfile.user_id === user?.id}
                       >
                         <SelectTrigger className="w-full">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="user">{language === "bn" ? "ব্যবহারকারী" : "User"}</SelectItem>
-                          <SelectItem value="moderator">{language === "bn" ? "মডারেটর" : "Moderator"}</SelectItem>
-                          <SelectItem value="admin">{language === "bn" ? "অ্যাডমিন" : "Admin"}</SelectItem>
+                          <SelectItem value="user">User</SelectItem>
+                          <SelectItem value="moderator">Moderator</SelectItem>
+                          <SelectItem value="admin">Admin</SelectItem>
                         </SelectContent>
                       </Select>
                     </Card>
@@ -417,10 +623,11 @@ export default function AdminDashboard() {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>{language === "bn" ? "ব্যবহারকারী" : "User"}</TableHead>
-                        <TableHead>{language === "bn" ? "যোগদান" : "Joined"}</TableHead>
-                        <TableHead>{language === "bn" ? "বর্তমান রোল" : "Current Role"}</TableHead>
-                        <TableHead className="text-right">{language === "bn" ? "রোল পরিবর্তন" : "Change Role"}</TableHead>
+                        <TableHead>User</TableHead>
+                        <TableHead>Deen Score</TableHead>
+                        <TableHead>Discipline</TableHead>
+                        <TableHead>Role</TableHead>
+                        <TableHead>Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -430,36 +637,39 @@ export default function AdminDashboard() {
                             <div className="flex items-center gap-3">
                               <Avatar className="h-8 w-8">
                                 <AvatarImage src={userProfile.avatar_url || undefined} />
-                                <AvatarFallback>
-                                  {(userProfile.full_name || "U")[0].toUpperCase()}
-                                </AvatarFallback>
+                                <AvatarFallback>{(userProfile.full_name || "U")[0]}</AvatarFallback>
                               </Avatar>
-                              <span className="font-medium">
-                                {userProfile.full_name || (language === "bn" ? "অজানা" : "Unknown")}
-                              </span>
+                              <span className="font-medium">{userProfile.full_name || "Unknown"}</span>
                             </div>
                           </TableCell>
-                          <TableCell className="text-muted-foreground">
-                            {new Date(userProfile.created_at).toLocaleDateString()}
+                          <TableCell>
+                            <Badge variant="outline" className="text-emerald-600">
+                              {userProfile.deenScore}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className="text-primary">
+                              {userProfile.disciplineScore}
+                            </Badge>
                           </TableCell>
                           <TableCell>
                             <Badge variant={getRoleBadgeVariant(userProfile.role)}>
                               {userProfile.role}
                             </Badge>
                           </TableCell>
-                          <TableCell className="text-right">
+                          <TableCell>
                             <Select
                               value={userProfile.role}
-                              onValueChange={(value) => updateUserRole(userProfile.user_id, value as "admin" | "moderator" | "user")}
+                              onValueChange={(value) => updateUserRole(userProfile.user_id, value as any)}
                               disabled={savingRole === userProfile.user_id || userProfile.user_id === user?.id}
                             >
-                              <SelectTrigger className="w-32">
+                              <SelectTrigger className="w-[130px]">
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="user">{language === "bn" ? "ব্যবহারকারী" : "User"}</SelectItem>
-                                <SelectItem value="moderator">{language === "bn" ? "মডারেটর" : "Moderator"}</SelectItem>
-                                <SelectItem value="admin">{language === "bn" ? "অ্যাডমিন" : "Admin"}</SelectItem>
+                                <SelectItem value="user">User</SelectItem>
+                                <SelectItem value="moderator">Moderator</SelectItem>
+                                <SelectItem value="admin">Admin</SelectItem>
                               </SelectContent>
                             </Select>
                           </TableCell>
@@ -475,59 +685,29 @@ export default function AdminDashboard() {
           {/* Settings Tab */}
           <TabsContent value="settings" className="space-y-4">
             <Card>
-              <CardHeader className="p-4 sm:p-6">
-                <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
                   <Settings2 className="h-5 w-5" />
-                  {language === "bn" ? "অ্যাপ সেটিংস" : "App Settings"}
+                  App Settings
                 </CardTitle>
-                <CardDescription className="text-sm">
-                  {language === "bn" ? "গ্লোবাল অ্যাপ সেটিংস কনফিগার করুন" : "Configure global app settings"}
-                </CardDescription>
               </CardHeader>
-              <CardContent className="p-4 sm:p-6 pt-0 space-y-4">
+              <CardContent className="space-y-4">
                 {settings.map((setting) => (
-                  <div 
-                    key={setting.key} 
-                    className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-lg bg-muted/50"
-                  >
-                    <div className="flex items-center gap-3">
-                      {setting.value?.public ? (
-                        <Globe className="h-5 w-5 text-green-500 shrink-0" />
-                      ) : (
-                        <Lock className="h-5 w-5 text-muted-foreground shrink-0" />
-                      )}
-                      <div>
-                        <p className="font-medium text-sm sm:text-base">
-                          {setting.key === "leaderboard_visibility" 
-                            ? (language === "bn" ? "লিডারবোর্ড ভিজিবিলিটি" : "Leaderboard Visibility")
-                            : setting.key
-                          }
-                        </p>
-                        <p className="text-xs sm:text-sm text-muted-foreground">
-                          {setting.value?.public 
-                            ? (language === "bn" ? "সবার কাছে দৃশ্যমান" : "Visible to everyone")
-                            : (language === "bn" ? "শুধু এডমিন দেখতে পারে" : "Only admins can see")
-                          }
-                        </p>
-                      </div>
+                  <div key={setting.key} className="flex items-center justify-between p-4 bg-muted/30 rounded-lg">
+                    <div>
+                      <p className="font-medium">{setting.key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</p>
+                      <p className="text-sm text-muted-foreground">
+                        Currently: {setting.value.public ? 'Enabled' : 'Disabled'}
+                      </p>
                     </div>
-                    <div className="flex items-center gap-3 ml-8 sm:ml-0">
-                      <Label htmlFor={setting.key} className="text-sm">
-                        {language === "bn" ? "পাবলিক" : "Public"}
-                      </Label>
-                      <Switch
-                        id={setting.key}
-                        checked={setting.value?.public ?? false}
-                        onCheckedChange={() => toggleSetting(setting.key, setting.value?.public ?? false)}
-                      />
-                    </div>
+                    <Switch
+                      checked={!!setting.value.public}
+                      onCheckedChange={() => toggleSetting(setting.key, !!setting.value.public)}
+                    />
                   </div>
                 ))}
-
                 {settings.length === 0 && (
-                  <div className="text-center py-8 text-muted-foreground">
-                    {language === "bn" ? "কোন সেটিং পাওয়া যায়নি" : "No settings found"}
-                  </div>
+                  <p className="text-center text-muted-foreground py-8">No settings configured</p>
                 )}
               </CardContent>
             </Card>
