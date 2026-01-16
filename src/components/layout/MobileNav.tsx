@@ -28,14 +28,18 @@ import {
   Shield,
   Eye,
   ClipboardList,
-  Brain
+  Brain,
+  Compass,
+  Heart
 } from 'lucide-react';
+import { useAppMode } from '@/contexts/AppModeContext';
 import { supabase } from '@/integrations/supabase/client';
 
 export default function MobileNav() {
   const location = useLocation();
   const { user, signOut } = useAuth();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
+  const { mode } = useAppMode();
   const [open, setOpen] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const touchStartX = useRef(0);
@@ -56,6 +60,11 @@ export default function MobileNav() {
     const { data } = await supabase.rpc("has_role", { _user_id: user.id, _role: "admin" });
     setIsAdmin(data === true);
   };
+
+  // Mode-aware dashboard name
+  const unifiedDashboardName = mode === 'islamic' 
+    ? (language === 'bn' ? 'ইসলামিক ড্যাশবোর্ড' : 'Islamic Dashboard')
+    : (language === 'bn' ? 'লাইফ ড্যাশবোর্ড' : 'Life Dashboard');
 
   // Swipe gesture handling
   useEffect(() => {
@@ -93,9 +102,11 @@ export default function MobileNav() {
 
   const navigation = [
     { name: t('nav.dashboard'), href: '/dashboard', icon: LayoutDashboard },
+    { name: unifiedDashboardName, href: '/unified-dashboard', icon: Compass },
     { name: t('nav.dailyInput'), href: '/daily-input', icon: ClipboardList },
     { name: t('nav.intelligence'), href: '/intelligence', icon: Brain },
     { name: 'Advanced Insights', href: '/insights', icon: Eye },
+    { name: language === 'bn' ? 'ইসলামিক ড্যাশবোর্ড' : 'Islamic Dashboard', href: '/islamic-dashboard', icon: Heart },
     { name: t('nav.journey'), href: '/journey', icon: Map },
     { name: t('nav.goals'), href: '/goals', icon: Target },
     { name: t('nav.quarterlyGoals'), href: '/quarterly-goals', icon: Target },

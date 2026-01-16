@@ -32,13 +32,16 @@ import {
   FileText,
   Brain,
   Eye,
-  Heart
+  Heart,
+  Compass
 } from 'lucide-react';
+import { useAppMode } from '@/contexts/AppModeContext';
 
 export default function Sidebar() {
   const location = useLocation();
   const { user, signOut } = useAuth();
   const { t, language } = useLanguage();
+  const { mode, labels } = useAppMode();
   const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
@@ -53,8 +56,14 @@ export default function Sidebar() {
     setIsAdmin(data === true);
   };
 
+  // Mode-aware dashboard name
+  const unifiedDashboardName = mode === 'islamic' 
+    ? (language === 'bn' ? 'ইসলামিক ড্যাশবোর্ড' : 'Islamic Dashboard')
+    : (language === 'bn' ? 'লাইফ ড্যাশবোর্ড' : 'Life Dashboard');
+
   const navigation = [
     { name: t('nav.dashboard'), href: '/dashboard', icon: LayoutDashboard },
+    { name: unifiedDashboardName, href: '/unified-dashboard', icon: Compass },
     { name: t('nav.dailyInput'), href: '/daily-input', icon: ClipboardList },
     { name: t('nav.nightMuhasaba'), href: '/night-muhasaba', icon: Moon },
     { name: t('nav.weeklyReview'), href: '/weekly-review', icon: FileText },

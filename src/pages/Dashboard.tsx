@@ -2,18 +2,20 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useAppMode } from '@/contexts/AppModeContext';
 import { useStreak } from '@/hooks/useStreak';
 import AppLayout from '@/components/layout/AppLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { supabase } from '@/integrations/supabase/client';
-import { Target, CheckCircle2, TrendingUp, Flame, Plus, Sparkles } from 'lucide-react';
+import { Target, CheckCircle2, TrendingUp, Flame, Plus, Sparkles, Compass } from 'lucide-react';
 import { format } from 'date-fns';
 import TimeAwareness from '@/components/dashboard/TimeAwareness';
 import SmallWinsWidget from '@/components/dashboard/SmallWinsWidget';
 import LifeDistributionWidget from '@/components/dashboard/LifeDistributionWidget';
 import ContextualMotivation from '@/components/ContextualMotivation';
+import ModeOnboarding from '@/components/mode/ModeOnboarding';
 
 interface DashboardStats {
   totalGoals: number;
@@ -25,6 +27,7 @@ interface DashboardStats {
 export default function Dashboard() {
   const { user } = useAuth();
   const { t, language } = useLanguage();
+  const { mode, labels, isLoading: modeLoading } = useAppMode();
   const { currentStreak, consistencyScore, loading: streakLoading } = useStreak();
   const [stats, setStats] = useState<DashboardStats>({
     totalGoals: 0,
@@ -34,6 +37,17 @@ export default function Dashboard() {
   });
   const [recentHabits, setRecentHabits] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showOnboarding, setShowOnboarding] = useState(false);
+
+  // Check if onboarding is needed
+  useEffect(() => {
+    if (!modeLoading && user) {
+      const onboardingComplete = localStorage.getItem('mode_onboarding_complete');
+      if (!onboardingComplete) {
+        setShowOnboarding(true);
+      }
+    }
+  }, [modeLoading, user]);
 
   useEffect(() => {
     if (user) {
@@ -91,6 +105,12 @@ export default function Dashboard() {
 
   return (
     <AppLayout>
+      {/* Mode Onboarding Dialog */}
+      <ModeOnboarding 
+        isOpen={showOnboarding} 
+        onComplete={() => setShowOnboarding(false)} 
+      />
+
       <div className="p-6 lg:p-8">
         {/* Header */}
         <div className="mb-6">
@@ -101,6 +121,28 @@ export default function Dashboard() {
             {format(new Date(), 'EEEE, MMMM d, yyyy')}
           </p>
         </div>
+
+        {/* Quick Access to Unified Dashboard */}
+        <Card className={`mb-6 border-2 ${mode === 'islamic' ? 'border-emerald-500/30 bg-emerald-50/50 dark:bg-emerald-950/20' : 'border-blue-500/30 bg-blue-50/50 dark:bg-blue-950/20'}`}>
+          <CardContent className="py-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className={`p-2 rounded-full ${mode === 'islamic' ? 'bg-emerald-100 dark:bg-emerald-900/50' : 'bg-blue-100 dark:bg-blue-900/50'}`}>
+                  <Compass className={`h-5 w-5 ${mode === 'islamic' ? 'text-emerald-600 dark:text-emerald-400' : 'text-blue-600 dark:text-blue-400'}`} />
+                </div>
+                <div>
+                  <p className="font-medium">{mode === 'islamic' ? 'Islamic Dashboard' : 'Life Dashboard'}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {mode === 'islamic' ? 'Faith-centered productivity tools' : 'Secular productivity tools'}
+                  </p>
+                </div>
+              </div>
+              <Button asChild variant={mode === 'islamic' ? 'default' : 'default'} className={mode === 'islamic' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-blue-600 hover:bg-blue-700'}>
+                <Link to="/unified-dashboard">Open Dashboard</Link>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Contextual Motivation */}
         <ContextualMotivation />
