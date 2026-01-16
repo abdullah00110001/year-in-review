@@ -5,6 +5,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { Heart, Briefcase, Crown } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useAppMode } from '@/contexts/AppModeContext';
 
 interface NiyyahValidatorProps {
   isOpen: boolean;
@@ -13,41 +14,47 @@ interface NiyyahValidatorProps {
   sessionType?: string;
 }
 
-const niyyahOptions = [
-  {
-    value: 'allah',
-    label: 'For Allah (Deen)',
-    labelBn: 'আল্লাহর জন্য (দ্বীন)',
-    description: 'Seeking knowledge to serve Allah and the Ummah',
-    multiplier: 2,
-    icon: Heart,
-    color: 'text-emerald-500',
-    bgColor: 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800',
-  },
-  {
-    value: 'career',
-    label: 'For Career (Dunya)',
-    labelBn: 'ক্যারিয়ারের জন্য (দুনিয়া)',
-    description: 'Building skills for worldly success',
-    multiplier: 1,
-    icon: Briefcase,
-    color: 'text-blue-500',
-    bgColor: 'bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800',
-  },
-  {
-    value: 'ego',
-    label: 'Ego/Fame',
-    labelBn: 'অহংকার/খ্যাতি',
-    description: 'Seeking recognition from people',
-    multiplier: 0,
-    icon: Crown,
-    color: 'text-rose-500',
-    bgColor: 'bg-rose-50 dark:bg-rose-950/30 border-rose-200 dark:border-rose-800',
-  },
-];
-
 export default function NiyyahValidator({ isOpen, onClose, onConfirm, sessionType = 'study' }: NiyyahValidatorProps) {
   const [selectedNiyyah, setSelectedNiyyah] = useState<string>('');
+  const { mode, labels } = useAppMode();
+
+  const niyyahOptions = [
+    {
+      value: 'divine',
+      label: labels.intentionValidator.optionDivine,
+      description: mode === 'islamic' 
+        ? 'Seeking knowledge to serve Allah and the Ummah'
+        : 'Working toward your greater purpose and mission',
+      multiplier: 2,
+      icon: Heart,
+      color: mode === 'islamic' ? 'text-emerald-500' : 'text-blue-500',
+      bgColor: mode === 'islamic' 
+        ? 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800'
+        : 'bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800',
+    },
+    {
+      value: 'career',
+      label: labels.intentionValidator.optionWorld,
+      description: mode === 'islamic'
+        ? 'Building skills for worldly success'
+        : 'Developing career and professional growth',
+      multiplier: 1,
+      icon: Briefcase,
+      color: 'text-slate-500',
+      bgColor: 'bg-slate-50 dark:bg-slate-950/30 border-slate-200 dark:border-slate-800',
+    },
+    {
+      value: 'ego',
+      label: labels.intentionValidator.optionEgo,
+      description: mode === 'islamic'
+        ? 'Seeking recognition from people'
+        : 'Working primarily for external validation',
+      multiplier: 0,
+      icon: Crown,
+      color: 'text-rose-500',
+      bgColor: 'bg-rose-50 dark:bg-rose-950/30 border-rose-200 dark:border-rose-800',
+    },
+  ];
 
   const handleConfirm = () => {
     const option = niyyahOptions.find(o => o.value === selectedNiyyah);
@@ -58,25 +65,26 @@ export default function NiyyahValidator({ isOpen, onClose, onConfirm, sessionTyp
   };
 
   const selectedOption = niyyahOptions.find(o => o.value === selectedNiyyah);
+  const primaryColor = mode === 'islamic' ? 'emerald' : 'blue';
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="text-center text-xl">
-            🕋 Set Your Intention (Niyyah)
+            {mode === 'islamic' ? '🕋' : '🎯'} {labels.intentionValidator.title}
           </DialogTitle>
           <DialogDescription className="text-center">
-            Before you begin your {sessionType} session, purify your intention.
+            {labels.intentionValidator.subtitle}
             <br />
             <span className="text-muted-foreground italic">
-              "Actions are judged by intentions" — Hadith
+              {labels.intentionValidator.quote}
             </span>
           </DialogDescription>
         </DialogHeader>
 
         <div className="py-4">
-          <p className="text-center text-lg font-medium mb-4">For whose sake?</p>
+          <p className="text-center text-lg font-medium mb-4">{labels.intentionValidator.question}</p>
           
           <RadioGroup value={selectedNiyyah} onValueChange={setSelectedNiyyah} className="space-y-3">
             {niyyahOptions.map((option) => {
@@ -103,9 +111,13 @@ export default function NiyyahValidator({ isOpen, onClose, onConfirm, sessionTyp
                     </div>
                     <div className={cn(
                       "px-2 py-1 rounded text-xs font-bold",
-                      option.multiplier === 2 ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300" :
-                      option.multiplier === 1 ? "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300" :
-                      "bg-rose-100 text-rose-700 dark:bg-rose-900 dark:text-rose-300"
+                      option.multiplier === 2 
+                        ? mode === 'islamic'
+                          ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300"
+                          : "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300"
+                        : option.multiplier === 1 
+                          ? "bg-slate-100 text-slate-700 dark:bg-slate-900 dark:text-slate-300"
+                          : "bg-rose-100 text-rose-700 dark:bg-rose-900 dark:text-rose-300"
                     )}>
                       {option.multiplier}x
                     </div>
@@ -118,15 +130,25 @@ export default function NiyyahValidator({ isOpen, onClose, onConfirm, sessionTyp
           {selectedOption && selectedOption.multiplier === 0 && (
             <div className="mt-4 p-3 bg-amber-50 dark:bg-amber-950/30 rounded-lg border border-amber-200 dark:border-amber-800">
               <p className="text-sm text-amber-800 dark:text-amber-200 text-center">
-                ⚠️ Working for ego yields no reward. Consider redirecting your intention.
+                ⚠️ {labels.intentionValidator.egoWarning}
               </p>
             </div>
           )}
 
           {selectedOption && selectedOption.multiplier === 2 && (
-            <div className="mt-4 p-3 bg-emerald-50 dark:bg-emerald-950/30 rounded-lg border border-emerald-200 dark:border-emerald-800">
-              <p className="text-sm text-emerald-800 dark:text-emerald-200 text-center">
-                ✨ Barakah activated! Your effort will be counted double, In Sha Allah.
+            <div className={cn(
+              "mt-4 p-3 rounded-lg border",
+              mode === 'islamic'
+                ? "bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800"
+                : "bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800"
+            )}>
+              <p className={cn(
+                "text-sm text-center",
+                mode === 'islamic'
+                  ? "text-emerald-800 dark:text-emerald-200"
+                  : "text-blue-800 dark:text-blue-200"
+              )}>
+                ✨ {labels.intentionValidator.divineBonus}
               </p>
             </div>
           )}
@@ -139,9 +161,13 @@ export default function NiyyahValidator({ isOpen, onClose, onConfirm, sessionTyp
           <Button 
             onClick={handleConfirm} 
             disabled={!selectedNiyyah}
-            className="flex-1"
+            className={cn(
+              "flex-1",
+              mode === 'islamic' && "bg-emerald-600 hover:bg-emerald-700",
+              mode === 'regular' && "bg-blue-600 hover:bg-blue-700"
+            )}
           >
-            Begin with Bismillah
+            {labels.intentionValidator.confirmButton}
           </Button>
         </div>
       </DialogContent>
