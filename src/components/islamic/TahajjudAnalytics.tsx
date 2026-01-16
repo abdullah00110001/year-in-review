@@ -5,6 +5,7 @@ import { Label } from '@/components/ui/label';
 import { Moon, Sun, Zap, TrendingUp } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { cn } from '@/lib/utils';
+import { useAppMode } from '@/contexts/AppModeContext';
 
 interface TahajjudData {
   date: string;
@@ -27,7 +28,9 @@ export default function TahajjudAnalytics({
   tahajjudPerformed, 
   onTahajjudToggle,
 }: TahajjudAnalyticsProps) {
-  // Calculate correlation
+  const { mode, labels } = useAppMode();
+  const primaryColor = mode === 'islamic' ? 'emerald' : 'blue';
+
   const tahajjudDays = data.filter(d => d.tahajjud);
   const nonTahajjudDays = data.filter(d => !d.tahajjud);
 
@@ -50,17 +53,19 @@ export default function TahajjudAnalytics({
   const energyBoost = avgEnergyWithTahajjud - avgEnergyWithoutTahajjud;
   const productivityBoost = avgProductivityWithTahajjud - avgProductivityWithoutTahajjud;
 
-  // Prepare chart data
+  const earlyRiseLabel = mode === 'islamic' ? 'With Tahajjud' : 'With Early Rise';
+  const noEarlyRiseLabel = mode === 'islamic' ? 'Without Tahajjud' : 'Without Early Rise';
+
   const chartData = [
     {
       metric: 'Energy',
-      'With Tahajjud': avgEnergyWithTahajjud.toFixed(1),
-      'Without Tahajjud': avgEnergyWithoutTahajjud.toFixed(1),
+      [earlyRiseLabel]: avgEnergyWithTahajjud.toFixed(1),
+      [noEarlyRiseLabel]: avgEnergyWithoutTahajjud.toFixed(1),
     },
     {
       metric: 'Productivity',
-      'With Tahajjud': avgProductivityWithTahajjud.toFixed(1),
-      'Without Tahajjud': avgProductivityWithoutTahajjud.toFixed(1),
+      [earlyRiseLabel]: avgProductivityWithTahajjud.toFixed(1),
+      [noEarlyRiseLabel]: avgProductivityWithoutTahajjud.toFixed(1),
     },
   ];
 
@@ -71,30 +76,36 @@ export default function TahajjudAnalytics({
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
           <CardTitle className="text-sm font-medium flex items-center gap-2">
-            <Moon className="h-4 w-4 text-indigo-500" />
-            Tahajjud Analytics
+            <Moon className={cn("h-4 w-4", mode === 'islamic' ? "text-indigo-500" : "text-blue-500")} />
+            {labels.earlyRising.title}
           </CardTitle>
           <Badge 
             variant="outline" 
             className={cn(
               "text-xs",
               tahajjudPerformed 
-                ? "border-emerald-500 text-emerald-600" 
+                ? mode === 'islamic' ? "border-emerald-500 text-emerald-600" : "border-blue-500 text-blue-600"
                 : "border-muted text-muted-foreground"
             )}
           >
-            {tahajjudPerformed ? '✓ Prayed Tonight' : 'Not Yet'}
+            {tahajjudPerformed 
+              ? mode === 'islamic' ? '✓ Prayed Tonight' : '✓ Early Rise' 
+              : 'Not Yet'}
           </Badge>
         </div>
-        <CardDescription>Sleep Cycles vs. Night Prayer Impact</CardDescription>
+        <CardDescription>{labels.earlyRising.description}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Today's Toggle */}
-        <div className="flex items-center justify-between p-3 bg-indigo-50 dark:bg-indigo-950/30 rounded-lg border border-indigo-200 dark:border-indigo-800">
+        <div className={cn(
+          "flex items-center justify-between p-3 rounded-lg border",
+          mode === 'islamic'
+            ? "bg-indigo-50 dark:bg-indigo-950/30 border-indigo-200 dark:border-indigo-800"
+            : "bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800"
+        )}>
           <div className="flex items-center gap-2">
-            <Moon className="h-4 w-4 text-indigo-500" />
+            <Moon className={cn("h-4 w-4", mode === 'islamic' ? "text-indigo-500" : "text-blue-500")} />
             <Label htmlFor="tahajjud-toggle" className="text-sm font-medium">
-              Tahajjud Tonight
+              {labels.earlyRising.wakeUpLabel}
             </Label>
           </div>
           <Switch
@@ -104,23 +115,26 @@ export default function TahajjudAnalytics({
           />
         </div>
 
-        {/* Stats Comparison */}
         {hasEnoughData ? (
           <>
             <div className="grid grid-cols-2 gap-3">
               <div className={cn(
                 "p-3 rounded-lg text-center",
                 energyBoost > 0 
-                  ? "bg-emerald-50 dark:bg-emerald-950/30" 
+                  ? mode === 'islamic' ? "bg-emerald-50 dark:bg-emerald-950/30" : "bg-blue-50 dark:bg-blue-950/30"
                   : "bg-muted"
               )}>
                 <Zap className={cn(
                   "h-5 w-5 mx-auto mb-1",
-                  energyBoost > 0 ? "text-emerald-500" : "text-muted-foreground"
+                  energyBoost > 0 
+                    ? mode === 'islamic' ? "text-emerald-500" : "text-blue-500"
+                    : "text-muted-foreground"
                 )} />
                 <p className={cn(
                   "text-lg font-bold",
-                  energyBoost > 0 ? "text-emerald-700 dark:text-emerald-300" : "text-muted-foreground"
+                  energyBoost > 0 
+                    ? mode === 'islamic' ? "text-emerald-700 dark:text-emerald-300" : "text-blue-700 dark:text-blue-300"
+                    : "text-muted-foreground"
                 )}>
                   {energyBoost > 0 ? '+' : ''}{energyBoost.toFixed(1)}
                 </p>
@@ -129,16 +143,20 @@ export default function TahajjudAnalytics({
               <div className={cn(
                 "p-3 rounded-lg text-center",
                 productivityBoost > 0 
-                  ? "bg-emerald-50 dark:bg-emerald-950/30" 
+                  ? mode === 'islamic' ? "bg-emerald-50 dark:bg-emerald-950/30" : "bg-blue-50 dark:bg-blue-950/30"
                   : "bg-muted"
               )}>
                 <TrendingUp className={cn(
                   "h-5 w-5 mx-auto mb-1",
-                  productivityBoost > 0 ? "text-emerald-500" : "text-muted-foreground"
+                  productivityBoost > 0 
+                    ? mode === 'islamic' ? "text-emerald-500" : "text-blue-500"
+                    : "text-muted-foreground"
                 )} />
                 <p className={cn(
                   "text-lg font-bold",
-                  productivityBoost > 0 ? "text-emerald-700 dark:text-emerald-300" : "text-muted-foreground"
+                  productivityBoost > 0 
+                    ? mode === 'islamic' ? "text-emerald-700 dark:text-emerald-300" : "text-blue-700 dark:text-blue-300"
+                    : "text-muted-foreground"
                 )}>
                   {productivityBoost > 0 ? '+' : ''}{productivityBoost.toFixed(1)}
                 </p>
@@ -146,7 +164,6 @@ export default function TahajjudAnalytics({
               </div>
             </div>
 
-            {/* Comparison Chart */}
             <div className="h-40">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={chartData} layout="vertical">
@@ -160,21 +177,41 @@ export default function TahajjudAnalytics({
                     }}
                   />
                   <Legend wrapperStyle={{ fontSize: 10 }} />
-                  <Bar dataKey="With Tahajjud" fill="#10b981" radius={[0, 4, 4, 0]} />
-                  <Bar dataKey="Without Tahajjud" fill="#6b7280" radius={[0, 4, 4, 0]} />
+                  <Bar 
+                    dataKey={earlyRiseLabel} 
+                    fill={mode === 'islamic' ? "#10b981" : "#3b82f6"} 
+                    radius={[0, 4, 4, 0]} 
+                  />
+                  <Bar 
+                    dataKey={noEarlyRiseLabel} 
+                    fill="#6b7280" 
+                    radius={[0, 4, 4, 0]} 
+                  />
                 </BarChart>
               </ResponsiveContainer>
             </div>
 
-            {/* Insight */}
             {energyBoost > 0 && (
-              <div className="p-3 bg-emerald-50 dark:bg-emerald-950/30 rounded-lg border border-emerald-200 dark:border-emerald-800">
-                <p className="text-sm text-emerald-800 dark:text-emerald-200">
+              <div className={cn(
+                "p-3 rounded-lg border",
+                mode === 'islamic'
+                  ? "bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800"
+                  : "bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800"
+              )}>
+                <p className={cn(
+                  "text-sm",
+                  mode === 'islamic' ? "text-emerald-800 dark:text-emerald-200" : "text-blue-800 dark:text-blue-200"
+                )}>
                   📊 <strong>Data Proof:</strong> Your energy is {((energyBoost / avgEnergyWithoutTahajjud) * 100).toFixed(0)}% higher 
-                  on days you pray Tahajjud!
+                  on {mode === 'islamic' ? 'days you pray Tahajjud' : 'early rising days'}!
                 </p>
-                <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-1 italic">
-                  "Arise [to pray] the night, except for a little... Indeed, the hours of the night are more effective for concurrence [of heart and tongue]." — Al-Muzzammil 73:2-6
+                <p className={cn(
+                  "text-xs mt-1 italic",
+                  mode === 'islamic' ? "text-emerald-600 dark:text-emerald-400" : "text-blue-600 dark:text-blue-400"
+                )}>
+                  {mode === 'islamic'
+                    ? '"Arise [to pray] the night, except for a little..." — Al-Muzzammil 73:2-6'
+                    : '"The early morning has gold in its mouth." — Benjamin Franklin'}
                 </p>
               </div>
             )}
@@ -187,10 +224,11 @@ export default function TahajjudAnalytics({
           </div>
         )}
 
-        {/* Tahajjud Days Counter */}
         <div className="flex justify-between items-center text-sm pt-2 border-t">
-          <span className="text-muted-foreground">Tahajjud Days (Last 30)</span>
-          <span className="font-medium">{tahajjudDays.length} nights</span>
+          <span className="text-muted-foreground">
+            {mode === 'islamic' ? 'Tahajjud Days (Last 30)' : 'Early Rise Days (Last 30)'}
+          </span>
+          <span className="font-medium">{tahajjudDays.length} {mode === 'islamic' ? 'nights' : 'days'}</span>
         </div>
       </CardContent>
     </Card>

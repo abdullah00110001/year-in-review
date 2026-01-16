@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skull, Calendar, AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useAppMode } from '@/contexts/AppModeContext';
 
 interface MawtModeProps {
   isOpen: boolean;
@@ -16,6 +17,7 @@ interface MawtModeProps {
 export default function MawtMode({ isOpen, onClose, onSubmit, lastRating }: MawtModeProps) {
   const [preparedness, setPreparedness] = useState(lastRating || 5);
   const [showReflection, setShowReflection] = useState(true);
+  const { mode, labels } = useAppMode();
 
   const handleSubmit = () => {
     onSubmit(preparedness);
@@ -26,52 +28,86 @@ export default function MawtMode({ isOpen, onClose, onSubmit, lastRating }: Mawt
     if (value <= 2) return { text: 'Not Ready', color: 'text-rose-500' };
     if (value <= 4) return { text: 'Unprepared', color: 'text-amber-500' };
     if (value <= 6) return { text: 'Somewhat Ready', color: 'text-yellow-500' };
-    if (value <= 8) return { text: 'Prepared', color: 'text-emerald-500' };
-    return { text: 'Ready to Meet Allah', color: 'text-emerald-600' };
+    if (value <= 8) return { text: 'Prepared', color: mode === 'islamic' ? 'text-emerald-500' : 'text-blue-500' };
+    return { 
+      text: mode === 'islamic' ? 'Ready to Meet Allah' : 'Living Fully', 
+      color: mode === 'islamic' ? 'text-emerald-600' : 'text-blue-600' 
+    };
   };
 
   const label = getPreparednessLabel(preparedness);
 
+  const reflectionItems = mode === 'islamic' 
+    ? [
+        "Have you prayed all your prayers with presence?",
+        "Have you sought forgiveness from those you've wronged?",
+        "Have you paid your debts and fulfilled your trusts?",
+        "Have you prepared your soul for the questioning?",
+      ]
+    : [
+        "Are you living according to your values?",
+        "Have you made amends with those you've hurt?",
+        "Are you leaving a positive legacy?",
+        "Are you making the most of your time?",
+      ];
+
+  const actionItems = mode === 'islamic'
+    ? [
+        "Praying Fajr on time every day",
+        "Reading at least 1 page of Quran daily",
+        "Giving charity, even if small",
+        "Seeking forgiveness before sleeping",
+      ]
+    : [
+        "Starting each day with intention",
+        "Reading for personal growth daily",
+        "Performing one act of kindness",
+        "Reflecting on your day before sleep",
+      ];
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-lg bg-slate-950 text-slate-100 border-slate-800">
+      <DialogContent className={cn(
+        "sm:max-w-lg",
+        mode === 'islamic' 
+          ? "bg-slate-950 text-slate-100 border-slate-800"
+          : "bg-slate-900 text-slate-100 border-slate-700"
+      )}>
         <DialogHeader>
           <DialogTitle className="text-center text-xl flex items-center justify-center gap-2 text-slate-100">
             <Skull className="h-5 w-5" />
-            Mawt (Death) Contemplation
+            {labels.realityCheck.title}
           </DialogTitle>
           <DialogDescription className="text-center text-slate-400">
             <Calendar className="h-4 w-4 inline mr-1" />
-            Jumu'ah Reflection
+            {labels.realityCheck.weeklyTrigger}
           </DialogDescription>
         </DialogHeader>
 
         <div className="py-6 space-y-6">
           {showReflection ? (
             <>
-              {/* Contemplation Text */}
               <div className="text-center space-y-4">
                 <p className="text-lg text-slate-300 leading-relaxed">
-                  "Every soul will taste death. Then to Us will you be returned."
+                  {mode === 'islamic' 
+                    ? '"Every soul will taste death. Then to Us will you be returned."'
+                    : '"Memento Mori — Remember that you will die."'}
                 </p>
-                <p className="text-sm text-slate-500 italic">— Al-Ankabut 29:57</p>
+                <p className="text-sm text-slate-500 italic">
+                  {mode === 'islamic' ? '— Al-Ankabut 29:57' : '— Stoic Philosophy'}
+                </p>
               </div>
 
               <div className="p-4 border border-slate-700 rounded-lg bg-slate-900/50">
                 <p className="text-center text-slate-300">
-                  If this was your last week on Earth...
-                </p>
-                <p className="text-center text-lg font-medium mt-2 text-slate-100">
-                  Are you ready to meet your Lord?
+                  {labels.realityCheck.description}
                 </p>
               </div>
 
-              {/* Reminders */}
               <div className="space-y-2 text-sm text-slate-400">
-                <p>• Have you prayed all your prayers with presence?</p>
-                <p>• Have you sought forgiveness from those you've wronged?</p>
-                <p>• Have you paid your debts and fulfilled your trusts?</p>
-                <p>• Have you prepared your soul for the questioning?</p>
+                {reflectionItems.map((item, idx) => (
+                  <p key={idx}>• {item}</p>
+                ))}
               </div>
 
               <Button 
@@ -83,10 +119,9 @@ export default function MawtMode({ isOpen, onClose, onSubmit, lastRating }: Mawt
             </>
           ) : (
             <>
-              {/* Rating Section */}
               <div className="text-center">
                 <p className="text-sm text-slate-400 mb-4">
-                  How prepared are you to meet Allah today?
+                  {labels.realityCheck.prompt}
                 </p>
                 
                 <div className="py-6">
@@ -113,7 +148,6 @@ export default function MawtMode({ isOpen, onClose, onSubmit, lastRating }: Mawt
                 </div>
               </div>
 
-              {/* Low Preparedness Warning */}
               {preparedness <= 4 && (
                 <Card className="bg-rose-950/30 border-rose-800">
                   <CardContent className="py-3 px-4">
@@ -122,8 +156,9 @@ export default function MawtMode({ isOpen, onClose, onSubmit, lastRating }: Mawt
                       <div className="text-sm text-rose-200">
                         <p className="font-medium">Reflection Needed</p>
                         <p className="text-rose-300 text-xs mt-1">
-                          Consider making tawbah and increasing your good deeds this week.
-                          Death comes without warning.
+                          {mode === 'islamic'
+                            ? "Consider making tawbah and increasing your good deeds this week. Death comes without warning."
+                            : "Consider what changes you need to make to live more fully. Time waits for no one."}
                         </p>
                       </div>
                     </div>
@@ -131,16 +166,14 @@ export default function MawtMode({ isOpen, onClose, onSubmit, lastRating }: Mawt
                 </Card>
               )}
 
-              {/* Action Items */}
               <div className="p-4 bg-slate-900/50 border border-slate-700 rounded-lg">
                 <p className="text-sm font-medium text-slate-300 mb-2">
                   This week, focus on:
                 </p>
                 <ul className="text-xs text-slate-400 space-y-1">
-                  <li>✓ Praying Fajr on time every day</li>
-                  <li>✓ Reading at least 1 page of Quran daily</li>
-                  <li>✓ Giving charity, even if small</li>
-                  <li>✓ Seeking forgiveness before sleeping</li>
+                  {actionItems.map((item, idx) => (
+                    <li key={idx}>✓ {item}</li>
+                  ))}
                 </ul>
               </div>
 
@@ -154,7 +187,12 @@ export default function MawtMode({ isOpen, onClose, onSubmit, lastRating }: Mawt
                 </Button>
                 <Button 
                   onClick={handleSubmit}
-                  className="flex-1 bg-emerald-800 hover:bg-emerald-700 text-emerald-100"
+                  className={cn(
+                    "flex-1",
+                    mode === 'islamic' 
+                      ? "bg-emerald-800 hover:bg-emerald-700 text-emerald-100"
+                      : "bg-blue-800 hover:bg-blue-700 text-blue-100"
+                  )}
                 >
                   Save Reflection
                 </Button>

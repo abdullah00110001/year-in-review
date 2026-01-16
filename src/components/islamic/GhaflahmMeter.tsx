@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Eye, EyeOff, AlertTriangle, Brain, Smartphone } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useAppMode } from '@/contexts/AppModeContext';
 
 interface GhaflahMeterProps {
   activeLearningMinutes: number;
@@ -18,6 +19,7 @@ export default function GhaflahMeter({
   onGrayscaleChange 
 }: GhaflahMeterProps) {
   const [grayscaleEnabled, setGrayscaleEnabled] = useState(false);
+  const { mode, labels } = useAppMode();
 
   const totalScreenTime = activeLearningMinutes + mindlessScrollingMinutes;
   const mindlessPercentage = totalScreenTime > 0 
@@ -28,14 +30,14 @@ export default function GhaflahMeter({
                        mindlessScrollingMinutes > 60 ? 'high' :
                        mindlessScrollingMinutes > 30 ? 'moderate' : 'low';
 
-  // Enable grayscale if mindless time > 60 minutes
+  const primaryColor = mode === 'islamic' ? 'emerald' : 'blue';
+
   useEffect(() => {
     const shouldEnableGrayscale = mindlessScrollingMinutes > 60;
     if (shouldEnableGrayscale !== grayscaleEnabled) {
       setGrayscaleEnabled(shouldEnableGrayscale);
       onGrayscaleChange?.(shouldEnableGrayscale);
       
-      // Apply grayscale filter to body
       if (shouldEnableGrayscale) {
         document.body.style.filter = 'grayscale(80%)';
         document.body.style.transition = 'filter 2s ease';
@@ -56,18 +58,18 @@ export default function GhaflahMeter({
           color: 'text-rose-500',
           bgColor: 'bg-rose-50 dark:bg-rose-950/30',
           borderColor: 'border-rose-200 dark:border-rose-800',
-          label: 'Critical Ghaflah',
+          label: mode === 'islamic' ? 'Critical Ghaflah' : 'Critical Overload',
           icon: EyeOff,
-          message: 'Dopamine Burnout Risk: Your screen is now in grayscale mode.',
+          message: labels.dopamineMeter.criticalMessage,
         };
       case 'high':
         return {
           color: 'text-amber-500',
           bgColor: 'bg-amber-50 dark:bg-amber-950/30',
           borderColor: 'border-amber-200 dark:border-amber-800',
-          label: 'High Ghaflah',
+          label: mode === 'islamic' ? 'High Ghaflah' : 'High Overload',
           icon: AlertTriangle,
-          message: 'Warning: Mindless scrolling exceeds 1 hour. Dashboard entering grayscale.',
+          message: `${labels.dopamineMeter.warningLabel}: Dashboard entering grayscale.`,
         };
       case 'moderate':
         return {
@@ -80,9 +82,13 @@ export default function GhaflahMeter({
         };
       default:
         return {
-          color: 'text-emerald-500',
-          bgColor: 'bg-emerald-50 dark:bg-emerald-950/30',
-          borderColor: 'border-emerald-200 dark:border-emerald-800',
+          color: mode === 'islamic' ? 'text-emerald-500' : 'text-blue-500',
+          bgColor: mode === 'islamic' 
+            ? 'bg-emerald-50 dark:bg-emerald-950/30'
+            : 'bg-blue-50 dark:bg-blue-950/30',
+          borderColor: mode === 'islamic'
+            ? 'border-emerald-200 dark:border-emerald-800'
+            : 'border-blue-200 dark:border-blue-800',
           label: 'Mindful',
           icon: Brain,
           message: 'Great balance! Keep using your time wisely.',
@@ -108,24 +114,25 @@ export default function GhaflahMeter({
         <div className="flex items-center justify-between">
           <CardTitle className="text-sm font-medium flex items-center gap-2">
             <Icon className={cn("h-4 w-4", config.color)} />
-            Ghaflah (Heedlessness) Meter
+            {labels.dopamineMeter.title}
           </CardTitle>
           <Badge variant="outline" className={cn("text-xs", config.color)}>
             {config.label}
           </Badge>
         </div>
-        <CardDescription>Active Learning vs. Mindless Scrolling</CardDescription>
+        <CardDescription>{labels.dopamineMeter.description}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Comparison Bars */}
         <div className="space-y-3">
           <div className="space-y-1">
             <div className="flex justify-between text-xs">
               <span className="flex items-center gap-1">
-                <Brain className="h-3 w-3 text-emerald-500" />
-                Active Learning
+                <Brain className={cn("h-3 w-3", mode === 'islamic' ? "text-emerald-500" : "text-blue-500")} />
+                {labels.dopamineMeter.activeLearning}
               </span>
-              <span className="font-medium text-emerald-600">{formatTime(activeLearningMinutes)}</span>
+              <span className={cn("font-medium", mode === 'islamic' ? "text-emerald-600" : "text-blue-600")}>
+                {formatTime(activeLearningMinutes)}
+              </span>
             </div>
             <Progress value={totalScreenTime > 0 ? (activeLearningMinutes / totalScreenTime) * 100 : 0} className="h-2" />
           </div>
@@ -134,7 +141,7 @@ export default function GhaflahMeter({
             <div className="flex justify-between text-xs">
               <span className="flex items-center gap-1">
                 <Smartphone className="h-3 w-3 text-rose-500" />
-                Mindless Scrolling
+                {labels.dopamineMeter.mindlessScrolling}
               </span>
               <span className="font-medium text-rose-600">{formatTime(mindlessScrollingMinutes)}</span>
             </div>
@@ -147,7 +154,6 @@ export default function GhaflahMeter({
           </div>
         </div>
 
-        {/* Ratio Display */}
         <div className={cn("p-3 rounded-lg", config.bgColor)}>
           <div className="flex items-center justify-between">
             <span className="text-sm font-medium">Mindfulness Ratio</span>
@@ -160,7 +166,6 @@ export default function GhaflahMeter({
           <p className={cn("text-xs mt-1", config.color)}>{config.message}</p>
         </div>
 
-        {/* Grayscale Warning */}
         {grayscaleEnabled && (
           <Alert className="bg-rose-100 dark:bg-rose-900/30 border-rose-300 dark:border-rose-700">
             <EyeOff className="h-4 w-4 text-rose-600" />
@@ -171,12 +176,13 @@ export default function GhaflahMeter({
           </Alert>
         )}
 
-        {/* Tips */}
         <div className="text-xs text-muted-foreground space-y-1 pt-2 border-t">
           <p>💡 <strong>Tip:</strong> For every 30 min of passive consumption, do 15 min of active learning.</p>
           {mindlessScrollingMinutes > 30 && (
             <p className="text-amber-600 dark:text-amber-400">
-              ⚠️ "Verily, the hearing, sight, and heart - all of them will be questioned." — Al-Isra 17:36
+              {mode === 'islamic' 
+                ? '⚠️ "Verily, the hearing, sight, and heart - all of them will be questioned." — Al-Isra 17:36'
+                : '⚠️ "It is not that we have a short time to live, but that we waste a lot of it." — Seneca'}
             </p>
           )}
         </div>
