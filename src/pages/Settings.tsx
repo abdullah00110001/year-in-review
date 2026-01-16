@@ -2,15 +2,17 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useAppMode } from '@/contexts/AppModeContext';
 import AppLayout from '@/components/layout/AppLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
-import { Loader2, User, Mail, Save, Palette, Globe } from 'lucide-react';
+import { Loader2, User, Mail, Save, Palette, Globe, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import ModeSwitcher from '@/components/mode/ModeSwitcher';
 
 export default function Settings() {
   const { user, signOut } = useAuth();
@@ -137,6 +139,9 @@ export default function Settings() {
                 </Button>
               </CardContent>
             </Card>
+
+            {/* Experience Mode Card */}
+            <ModeSwitcher />
 
             {/* Appearance Card */}
             <Card>
