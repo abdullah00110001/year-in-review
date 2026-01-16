@@ -30,6 +30,8 @@ import ProductivityHeatmap from "@/components/admin/ProductivityHeatmap";
 import UserDayInspector from "@/components/admin/UserDayInspector";
 import AdminAlertSystem from "@/components/admin/AdminAlertSystem";
 import ImanDunyaGraphs from "@/components/admin/ImanDunyaGraphs";
+import UserModeAnalytics from "@/components/admin/UserModeAnalytics";
+import AdaptiveFeedbackModal from "@/components/admin/AdaptiveFeedbackModal";
 
 interface UserProfile {
   user_id: string;
@@ -89,6 +91,12 @@ export default function AdminDashboard() {
   const [heatmapData, setHeatmapData] = useState<HeatmapData[]>([]);
   const [chartData, setChartData] = useState<ChartData[]>([]);
   const [inspectorData, setInspectorData] = useState<any>(null);
+  const [feedbackModal, setFeedbackModal] = useState<{
+    isOpen: boolean;
+    userId: string;
+    userName: string;
+    userMode: string;
+  }>({ isOpen: false, userId: '', userName: '', userMode: 'islamic' });
 
   useEffect(() => {
     checkAdminAndFetch();
@@ -524,6 +532,13 @@ export default function AdminDashboard() {
 
           {/* Insights Tab */}
           <TabsContent value="insights" className="space-y-4">
+            {/* User Mode Analytics */}
+            <UserModeAnalytics 
+              onSendFeedback={(userId, userName, mode) => 
+                setFeedbackModal({ isOpen: true, userId, userName, userMode: mode })
+              }
+            />
+
             {/* Iman & Dunya Graphs */}
             <ImanDunyaGraphs 
               selectedUserId={selectedUserId}
@@ -720,6 +735,15 @@ export default function AdminDashboard() {
             </Card>
           </TabsContent>
         </Tabs>
+
+        {/* Adaptive Feedback Modal */}
+        <AdaptiveFeedbackModal
+          isOpen={feedbackModal.isOpen}
+          onClose={() => setFeedbackModal({ ...feedbackModal, isOpen: false })}
+          userId={feedbackModal.userId}
+          userName={feedbackModal.userName}
+          userMode={feedbackModal.userMode}
+        />
       </div>
     </AppLayout>
   );
