@@ -38,6 +38,7 @@ import MonthlyReview from "./pages/MonthlyReview";
 import IntelligenceEngine from "./pages/IntelligenceEngine";
 import Insights from "./pages/Insights";
 import IslamicDashboard from "./pages/IslamicDashboard";
+import UnifiedDashboard from "./pages/UnifiedDashboard";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -292,6 +293,14 @@ const App = () => (
                   element={
                     <ProtectedRoute>
                       <IslamicDashboard />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/unified"
+                  element={
+                    <ProtectedRoute>
+                      <UnifiedDashboard />
                     </ProtectedRoute>
                   }
                 />
