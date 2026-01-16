@@ -10,8 +10,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import { format, subDays, startOfWeek, endOfWeek, eachDayOfInterval } from "date-fns";
-import { Clock, Plus, TrendingUp, Calendar } from "lucide-react";
+import { Clock, Plus, TrendingUp, Calendar, Play, Pause, Square } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from "recharts";
+import NiyyahValidator from "@/components/islamic/NiyyahValidator";
 
 interface TimeEntry {
   id: string;
@@ -41,10 +42,28 @@ export default function TimeTracking() {
   const [activity, setActivity] = useState("");
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
+  
+  // Niyyah & Timer state
+  const [showNiyyah, setShowNiyyah] = useState(false);
+  const [currentNiyyah, setCurrentNiyyah] = useState<{ type: string; multiplier: number } | null>(null);
+  const [isTimerRunning, setIsTimerRunning] = useState(false);
+  const [timerSeconds, setTimerSeconds] = useState(0);
+  const [timerStartTime, setTimerStartTime] = useState<Date | null>(null);
 
   useEffect(() => {
     if (user) fetchEntries();
   }, [user]);
+
+  // Timer effect
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (isTimerRunning) {
+      interval = setInterval(() => {
+        setTimerSeconds(prev => prev + 1);
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [isTimerRunning]);
 
   const fetchEntries = async () => {
     const thirtyDaysAgo = format(subDays(new Date(), 30), "yyyy-MM-dd");
@@ -85,6 +104,78 @@ export default function TimeTracking() {
     setSaving(false);
   };
 
+  // Niyyah handlers
+  const handleStartSession = () => {
+    setShowNiyyah(true);
+  };
+
+  const handleNiyyahConfirm = async (niyyah: string, multiplier: number) => {
+    setCurrentNiyyah({ type: niyyah, multiplier });
+    setShowNiyyah(false);
+    setIsTimerRunning(true);
+    setTimerStartTime(new Date());
+    setTimerSeconds(0);
+    
+    // Save session start to database
+    if (user) {
+      await supabase.from("study_sessions").insert({
+        user_id: user.id,
+        date: format(new Date(), "yyyy-MM-dd"),
+        niyyah: niyyah,
+        niyyah_multiplier: multiplier,
+        started_at: new Date().toISOString(),
+        duration_minutes: 0,
+      });
+    }
+    
+    toast.success(language === "bn" ? "বিসমিল্লাহ! সেশন শুরু হয়েছে" : "Bismillah! Session started");
+  };
+
+  const handlePauseTimer = () => {
+    setIsTimerRunning(false);
+  };
+
+  const handleResumeTimer = () => {
+    setIsTimerRunning(true);
+  };
+
+  const handleStopTimer = async () => {
+    setIsTimerRunning(false);
+    const durationMinutes = Math.round(timerSeconds / 60);
+    
+    if (user && timerStartTime) {
+      // Update the session
+      await supabase
+        .from("study_sessions")
+        .update({
+          ended_at: new Date().toISOString(),
+          duration_minutes: durationMinutes,
+        })
+        .eq("user_id", user.id)
+        .eq("started_at", timerStartTime.toISOString());
+
+      // Calculate barakah score
+      const barakahScore = durationMinutes * (currentNiyyah?.multiplier || 1);
+      
+      toast.success(
+        language === "bn" 
+          ? `সেশন শেষ! ${durationMinutes} মিনিট × ${currentNiyyah?.multiplier || 1}x = ${barakahScore} বারাকাহ পয়েন্ট` 
+          : `Session complete! ${durationMinutes} min × ${currentNiyyah?.multiplier || 1}x = ${barakahScore} Barakah points`
+      );
+    }
+    
+    setTimerSeconds(0);
+    setTimerStartTime(null);
+    setCurrentNiyyah(null);
+  };
+
+  const formatTime = (seconds: number) => {
+    const hrs = Math.floor(seconds / 3600);
+    const mins = Math.floor((seconds % 3600) / 60);
+    const secs = seconds % 60;
+    return `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
+
   // Prepare chart data - last 7 days
   const weekStart = startOfWeek(new Date(), { weekStartsOn: 0 });
   const weekEnd = endOfWeek(new Date(), { weekStartsOn: 0 });
@@ -119,6 +210,14 @@ export default function TimeTracking() {
   return (
     <AppLayout>
       <div className="space-y-6">
+        {/* Niyyah Modal */}
+        <NiyyahValidator
+          isOpen={showNiyyah}
+          onClose={() => setShowNiyyah(false)}
+          onConfirm={handleNiyyahConfirm}
+          sessionType="deep work"
+        />
+
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
@@ -130,6 +229,75 @@ export default function TimeTracking() {
             </p>
           </div>
         </div>
+
+        {/* Deep Work Timer with Niyyah */}
+        <Card className={currentNiyyah ? "border-primary/50 bg-primary/5" : ""}>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Clock className="h-5 w-5" />
+              {language === "bn" ? "ডিপ ওয়ার্ক টাইমার" : "Deep Work Timer"}
+              {currentNiyyah && (
+                <span className={`text-sm font-normal px-2 py-0.5 rounded ${
+                  currentNiyyah.multiplier === 2 ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300" :
+                  currentNiyyah.multiplier === 1 ? "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300" :
+                  "bg-rose-100 text-rose-700 dark:bg-rose-900 dark:text-rose-300"
+                }`}>
+                  {currentNiyyah.multiplier}x Barakah
+                </span>
+              )}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-col items-center gap-4">
+              <div className="text-5xl font-mono font-bold tabular-nums">
+                {formatTime(timerSeconds)}
+              </div>
+              
+              <div className="flex gap-3">
+                {!isTimerRunning && !currentNiyyah && (
+                  <Button onClick={handleStartSession} size="lg" className="gap-2">
+                    <Play className="h-5 w-5" />
+                    {language === "bn" ? "সেশন শুরু করুন" : "Start Session"}
+                  </Button>
+                )}
+                
+                {isTimerRunning && (
+                  <>
+                    <Button onClick={handlePauseTimer} variant="outline" size="lg" className="gap-2">
+                      <Pause className="h-5 w-5" />
+                      {language === "bn" ? "বিরতি" : "Pause"}
+                    </Button>
+                    <Button onClick={handleStopTimer} variant="destructive" size="lg" className="gap-2">
+                      <Square className="h-5 w-5" />
+                      {language === "bn" ? "শেষ করুন" : "Stop"}
+                    </Button>
+                  </>
+                )}
+                
+                {!isTimerRunning && currentNiyyah && (
+                  <>
+                    <Button onClick={handleResumeTimer} size="lg" className="gap-2">
+                      <Play className="h-5 w-5" />
+                      {language === "bn" ? "চালিয়ে যান" : "Resume"}
+                    </Button>
+                    <Button onClick={handleStopTimer} variant="destructive" size="lg" className="gap-2">
+                      <Square className="h-5 w-5" />
+                      {language === "bn" ? "শেষ করুন" : "Stop"}
+                    </Button>
+                  </>
+                )}
+              </div>
+
+              {currentNiyyah && (
+                <p className="text-sm text-muted-foreground text-center">
+                  {language === "bn" 
+                    ? `নিয়ত: ${currentNiyyah.type === 'allah' ? 'আল্লাহর জন্য' : currentNiyyah.type === 'career' ? 'ক্যারিয়ারের জন্য' : 'অহংকার'}` 
+                    : `Niyyah: ${currentNiyyah.type === 'allah' ? 'For Allah' : currentNiyyah.type === 'career' ? 'For Career' : 'Ego/Fame'}`}
+                </p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Stats Cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

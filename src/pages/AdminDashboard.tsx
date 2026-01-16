@@ -29,6 +29,7 @@ import {
 import ProductivityHeatmap from "@/components/admin/ProductivityHeatmap";
 import UserDayInspector from "@/components/admin/UserDayInspector";
 import AdminAlertSystem from "@/components/admin/AdminAlertSystem";
+import ImanDunyaGraphs from "@/components/admin/ImanDunyaGraphs";
 
 interface UserProfile {
   user_id: string;
@@ -523,6 +524,12 @@ export default function AdminDashboard() {
 
           {/* Insights Tab */}
           <TabsContent value="insights" className="space-y-4">
+            {/* Iman & Dunya Graphs */}
+            <ImanDunyaGraphs 
+              selectedUserId={selectedUserId}
+              onUserAlert={openUserInspector}
+            />
+
             <div className="grid gap-6 lg:grid-cols-2">
               <AdminAlertSystem onUserClick={openUserInspector} />
               
