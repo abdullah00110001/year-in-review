@@ -36,6 +36,7 @@ import Gamification from "./pages/Gamification";
 import MonthlyReview from "./pages/MonthlyReview";
 import IntelligenceEngine from "./pages/IntelligenceEngine";
 import Insights from "./pages/Insights";
+import IslamicDashboard from "./pages/IslamicDashboard";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -281,6 +282,14 @@ const App = () => (
                   element={
                     <ProtectedRoute>
                       <Insights />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/islamic-dashboard"
+                  element={
+                    <ProtectedRoute>
+                      <IslamicDashboard />
                     </ProtectedRoute>
                   }
                 />
