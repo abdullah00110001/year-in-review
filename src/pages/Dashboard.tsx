@@ -13,6 +13,7 @@ import { format } from 'date-fns';
 import TimeAwareness from '@/components/dashboard/TimeAwareness';
 import SmallWinsWidget from '@/components/dashboard/SmallWinsWidget';
 import LifeDistributionWidget from '@/components/dashboard/LifeDistributionWidget';
+import ContextualMotivation from '@/components/ContextualMotivation';
 
 interface DashboardStats {
   totalGoals: number;
@@ -100,6 +101,9 @@ export default function Dashboard() {
             {format(new Date(), 'EEEE, MMMM d, yyyy')}
           </p>
         </div>
+
+        {/* Contextual Motivation */}
+        <ContextualMotivation />
 
         {/* Time Awareness Hero */}
         <TimeAwareness />
