@@ -146,11 +146,11 @@ export default function Goals() {
 
   return (
     <AppLayout>
-      <div className="p-6 lg:p-8">
-        <div className="mb-8 flex items-center justify-between">
+      <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto">
+        <div className="mb-6 sm:mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Goals</h1>
-            <p className="mt-1 text-muted-foreground">
+            <h1 className="text-headline font-bold tracking-tight">Goals</h1>
+            <p className="mt-1 text-body text-muted-foreground">
               Set and track your yearly objectives
             </p>
           </div>
@@ -230,8 +230,8 @@ export default function Goals() {
               <div className="mb-4 rounded-full bg-muted p-4">
                 <Target className="h-8 w-8 text-muted-foreground" />
               </div>
-              <h3 className="mb-2 text-lg font-semibold">No goals yet</h3>
-              <p className="mb-4 text-center text-sm text-muted-foreground">
+              <h3 className="mb-2 text-subtitle font-semibold">No goals yet</h3>
+              <p className="mb-4 text-center text-caption text-muted-foreground">
                 Start by creating your first yearly goal
               </p>
               <Button onClick={() => setIsDialogOpen(true)}>
@@ -258,8 +258,8 @@ export default function Goals() {
                         <Target className="h-5 w-5" style={{ color: goal.color }} />
                       </div>
                       <div>
-                        <CardTitle className="text-lg">{goal.title}</CardTitle>
-                        <CardDescription>{goal.year}</CardDescription>
+                        <CardTitle className="text-subtitle">{goal.title}</CardTitle>
+                        <CardDescription className="text-caption">{goal.year}</CardDescription>
                       </div>
                     </div>
                     <div className="flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
@@ -284,7 +284,7 @@ export default function Goals() {
                 </CardHeader>
                 {goal.description && (
                   <CardContent>
-                    <p className="text-sm text-muted-foreground">{goal.description}</p>
+                    <p className="text-caption text-muted-foreground">{goal.description}</p>
                   </CardContent>
                 )}
               </Card>

@@ -122,10 +122,10 @@ export default function Journal() {
 
   return (
     <AppLayout>
-      <div className="p-4 sm:p-6 lg:p-8 pb-24 lg:pb-8">
+      <div className="p-4 sm:p-6 lg:p-8 pb-24 lg:pb-8 max-w-7xl mx-auto">
         <div className="mb-6 sm:mb-8">
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">{t('journal.title')}</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
+          <h1 className="text-headline font-bold tracking-tight">{t('journal.title')}</h1>
+          <p className="mt-1 text-body text-muted-foreground">
             {t('journal.subtitle')}
           </p>
         </div>
@@ -137,8 +137,8 @@ export default function Journal() {
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <div>
-                    <CardTitle>{t('journal.thisWeek')}</CardTitle>
-                    <CardDescription>{weekDisplay}</CardDescription>
+                    <CardTitle className="text-subtitle">{t('journal.thisWeek')}</CardTitle>
+                    <CardDescription className="text-caption">{weekDisplay}</CardDescription>
                   </div>
                   <div className="flex gap-2">
                     <Button
@@ -250,11 +250,11 @@ export default function Journal() {
           <div>
             <Card>
               <CardHeader>
-                <CardTitle>{t('journal.pastReflections')}</CardTitle>
+                <CardTitle className="text-subtitle">{t('journal.pastReflections')}</CardTitle>
               </CardHeader>
               <CardContent>
                 {pastReflections.length === 0 ? (
-                  <p className="text-sm text-muted-foreground text-center py-8">
+                  <p className="text-caption text-muted-foreground text-center py-8">
                     {t('journal.noReflections')}
                   </p>
                 ) : (
