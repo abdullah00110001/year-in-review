@@ -111,33 +111,33 @@ export default function Dashboard() {
         onComplete={() => setShowOnboarding(false)} 
       />
 
-      <div className="p-6 lg:p-8">
+      <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto">
         {/* Header */}
-        <div className="mb-6">
-          <h1 className="text-3xl font-bold tracking-tight">
+        <div className="mb-4 sm:mb-6">
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight break-words">
             {getGreeting()}, {user?.email?.split('@')[0]}!
           </h1>
-          <p className="mt-1 text-muted-foreground">
+          <p className="mt-1 text-sm sm:text-base text-muted-foreground">
             {format(new Date(), 'EEEE, MMMM d, yyyy')}
           </p>
         </div>
 
         {/* Quick Access to Unified Dashboard */}
-        <Card className={`mb-6 border-2 ${mode === 'islamic' ? 'border-emerald-500/30 bg-emerald-50/50 dark:bg-emerald-950/20' : 'border-blue-500/30 bg-blue-50/50 dark:bg-blue-950/20'}`}>
-          <CardContent className="py-4">
-            <div className="flex items-center justify-between">
+        <Card className={`mb-4 sm:mb-6 border-2 ${mode === 'islamic' ? 'border-emerald-500/30 bg-emerald-50/50 dark:bg-emerald-950/20' : 'border-blue-500/30 bg-blue-50/50 dark:bg-blue-950/20'}`}>
+          <CardContent className="py-3 sm:py-4">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:justify-between">
               <div className="flex items-center gap-3">
-                <div className={`p-2 rounded-full ${mode === 'islamic' ? 'bg-emerald-100 dark:bg-emerald-900/50' : 'bg-blue-100 dark:bg-blue-900/50'}`}>
+                <div className={`p-2 rounded-full shrink-0 ${mode === 'islamic' ? 'bg-emerald-100 dark:bg-emerald-900/50' : 'bg-blue-100 dark:bg-blue-900/50'}`}>
                   <Compass className={`h-5 w-5 ${mode === 'islamic' ? 'text-emerald-600 dark:text-emerald-400' : 'text-blue-600 dark:text-blue-400'}`} />
                 </div>
-                <div>
-                  <p className="font-medium">{mode === 'islamic' ? 'Islamic Dashboard' : 'Life Dashboard'}</p>
-                  <p className="text-sm text-muted-foreground">
+                <div className="min-w-0">
+                  <p className="font-medium text-sm sm:text-base">{mode === 'islamic' ? 'Islamic Dashboard' : 'Life Dashboard'}</p>
+                  <p className="text-xs sm:text-sm text-muted-foreground truncate">
                     {mode === 'islamic' ? 'Faith-centered productivity tools' : 'Secular productivity tools'}
                   </p>
                 </div>
               </div>
-              <Button asChild variant={mode === 'islamic' ? 'default' : 'default'} className={mode === 'islamic' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-blue-600 hover:bg-blue-700'}>
+              <Button asChild size="sm" className={`w-full sm:w-auto ${mode === 'islamic' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-blue-600 hover:bg-blue-700'}`}>
                 <Link to="/unified-dashboard">Open Dashboard</Link>
               </Button>
             </div>
@@ -151,85 +151,85 @@ export default function Dashboard() {
         <TimeAwareness />
 
         {/* Stats Grid */}
-        <div className="mb-8 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <div className="mb-6 sm:mb-8 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
+            <CardHeader className="flex flex-row items-center justify-between p-3 sm:p-4 pb-1 sm:pb-2">
+              <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">
                 {t('dashboard.todayProgress')}
               </CardTitle>
-              <CheckCircle2 className="h-4 w-4 text-primary" />
+              <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.todayCompleted}/{stats.todayTotal}</div>
-              <Progress value={completionRate} className="mt-2" />
+            <CardContent className="p-3 sm:p-4 pt-0">
+              <div className="text-xl sm:text-2xl font-bold">{stats.todayCompleted}/{stats.todayTotal}</div>
+              <Progress value={completionRate} className="mt-2 h-2" />
             </CardContent>
           </Card>
 
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
+            <CardHeader className="flex flex-row items-center justify-between p-3 sm:p-4 pb-1 sm:pb-2">
+              <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">
                 {t('dashboard.activeGoals')}
               </CardTitle>
-              <Target className="h-4 w-4 text-secondary" />
+              <Target className="h-4 w-4 text-secondary shrink-0" />
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.totalGoals}</div>
+            <CardContent className="p-3 sm:p-4 pt-0">
+              <div className="text-xl sm:text-2xl font-bold">{stats.totalGoals}</div>
               <p className="text-xs text-muted-foreground">{t('common.for')} {new Date().getFullYear()}</p>
             </CardContent>
           </Card>
 
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
+            <CardHeader className="flex flex-row items-center justify-between p-3 sm:p-4 pb-1 sm:pb-2">
+              <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground truncate">
                 {t('dashboard.currentStreak')}
               </CardTitle>
-              <Flame className="h-4 w-4 text-secondary" />
+              <Flame className="h-4 w-4 text-secondary shrink-0" />
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {streakLoading ? '...' : currentStreak} {t('dashboard.days')}
+            <CardContent className="p-3 sm:p-4 pt-0">
+              <div className="text-xl sm:text-2xl font-bold">
+                {streakLoading ? '...' : currentStreak} <span className="text-sm sm:text-base">{t('dashboard.days')}</span>
               </div>
-              <p className="text-xs text-muted-foreground">{t('dashboard.keepGoing')}</p>
+              <p className="text-xs text-muted-foreground truncate">{t('dashboard.keepGoing')}</p>
             </CardContent>
           </Card>
 
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
+            <CardHeader className="flex flex-row items-center justify-between p-3 sm:p-4 pb-1 sm:pb-2">
+              <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">
                 {t('dashboard.consistency')}
               </CardTitle>
-              <Sparkles className="h-4 w-4 text-accent" />
+              <Sparkles className="h-4 w-4 text-accent shrink-0" />
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{streakLoading ? '...' : consistencyScore}%</div>
+            <CardContent className="p-3 sm:p-4 pt-0">
+              <div className="text-xl sm:text-2xl font-bold">{streakLoading ? '...' : consistencyScore}%</div>
               <p className="text-xs text-muted-foreground">Last 30 days</p>
             </CardContent>
           </Card>
         </div>
 
         {/* Quick Actions & Recent Habits */}
-        <div className="grid gap-6 lg:grid-cols-2">
+        <div className="grid gap-4 sm:gap-6 lg:grid-cols-2">
           {/* Today's Habits */}
           <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
+            <CardHeader className="p-4 sm:p-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <div>
-                  <CardTitle>{t('dashboard.todayHabits')}</CardTitle>
-                  <CardDescription>{t('dashboard.completeDaily')}</CardDescription>
+                  <CardTitle className="text-base sm:text-lg">{t('dashboard.todayHabits')}</CardTitle>
+                  <CardDescription className="text-xs sm:text-sm">{t('dashboard.completeDaily')}</CardDescription>
                 </div>
-                <Button asChild variant="outline" size="sm">
+                <Button asChild variant="outline" size="sm" className="w-full sm:w-auto">
                   <Link to="/habits">{t('dashboard.viewAll')}</Link>
                 </Button>
               </div>
             </CardHeader>
-            <CardContent>
+            <CardContent className="p-4 sm:p-6 pt-0">
               {recentHabits.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-8 text-center">
-                  <div className="mb-4 rounded-full bg-muted p-3">
-                    <CheckCircle2 className="h-6 w-6 text-muted-foreground" />
+                <div className="flex flex-col items-center justify-center py-6 sm:py-8 text-center">
+                  <div className="mb-3 sm:mb-4 rounded-full bg-muted p-3">
+                    <CheckCircle2 className="h-5 w-5 sm:h-6 sm:w-6 text-muted-foreground" />
                   </div>
-                  <p className="text-sm text-muted-foreground">{t('dashboard.noHabits')}</p>
-                  <Button asChild className="mt-4" size="sm">
+                  <p className="text-xs sm:text-sm text-muted-foreground">{t('dashboard.noHabits')}</p>
+                  <Button asChild className="mt-3 sm:mt-4" size="sm">
                     <Link to="/habits/new">
                       <Plus className="mr-2 h-4 w-4" />
                       {t('dashboard.createFirst')}
@@ -237,21 +237,21 @@ export default function Dashboard() {
                   </Button>
                 </div>
               ) : (
-                <div className="space-y-3">
+                <div className="space-y-2 sm:space-y-3">
                   {recentHabits.map((habit) => (
                     <div
                       key={habit.id}
-                      className="flex items-center justify-between rounded-lg border p-3"
+                      className="flex items-center justify-between rounded-lg border p-2 sm:p-3"
                     >
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-2 sm:gap-3 min-w-0">
                         <div
-                          className="h-3 w-3 rounded-full"
+                          className="h-2.5 w-2.5 sm:h-3 sm:w-3 rounded-full shrink-0"
                           style={{ backgroundColor: habit.color }}
                         />
-                        <span className="font-medium">{habit.name}</span>
+                        <span className="font-medium text-sm sm:text-base truncate">{habit.name}</span>
                       </div>
-                      <Button variant="ghost" size="sm">
-                        <CheckCircle2 className="h-5 w-5" />
+                      <Button variant="ghost" size="sm" className="shrink-0">
+                        <CheckCircle2 className="h-4 w-4 sm:h-5 sm:w-5" />
                       </Button>
                     </div>
                   ))}
@@ -262,25 +262,25 @@ export default function Dashboard() {
 
           {/* Goals Overview */}
           <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
+            <CardHeader className="p-4 sm:p-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <div>
-                  <CardTitle>{t('dashboard.goalsOverview')}</CardTitle>
-                  <CardDescription>{t('dashboard.yearlyObjectives')}</CardDescription>
+                  <CardTitle className="text-base sm:text-lg">{t('dashboard.goalsOverview')}</CardTitle>
+                  <CardDescription className="text-xs sm:text-sm">{t('dashboard.yearlyObjectives')}</CardDescription>
                 </div>
-                <Button asChild variant="outline" size="sm">
+                <Button asChild variant="outline" size="sm" className="w-full sm:w-auto">
                   <Link to="/goals">{t('dashboard.viewAll')}</Link>
                 </Button>
               </div>
             </CardHeader>
-            <CardContent>
+            <CardContent className="p-4 sm:p-6 pt-0">
               {stats.totalGoals === 0 ? (
-                <div className="flex flex-col items-center justify-center py-8 text-center">
-                  <div className="mb-4 rounded-full bg-muted p-3">
-                    <Target className="h-6 w-6 text-muted-foreground" />
+                <div className="flex flex-col items-center justify-center py-6 sm:py-8 text-center">
+                  <div className="mb-3 sm:mb-4 rounded-full bg-muted p-3">
+                    <Target className="h-5 w-5 sm:h-6 sm:w-6 text-muted-foreground" />
                   </div>
-                  <p className="text-sm text-muted-foreground">{t('dashboard.noGoals')}</p>
-                  <Button asChild className="mt-4" size="sm">
+                  <p className="text-xs sm:text-sm text-muted-foreground">{t('dashboard.noGoals')}</p>
+                  <Button asChild className="mt-3 sm:mt-4" size="sm">
                     <Link to="/goals/new">
                       <Plus className="mr-2 h-4 w-4" />
                       {t('dashboard.setFirst')}
@@ -288,11 +288,11 @@ export default function Dashboard() {
                   </Button>
                 </div>
               ) : (
-                <div className="flex flex-col items-center justify-center py-8">
-                  <p className="text-sm text-muted-foreground">
+                <div className="flex flex-col items-center justify-center py-6 sm:py-8">
+                  <p className="text-xs sm:text-sm text-muted-foreground text-center">
                     You have {stats.totalGoals} active goal{stats.totalGoals !== 1 ? 's' : ''}
                   </p>
-                  <Button asChild className="mt-4" size="sm">
+                  <Button asChild className="mt-3 sm:mt-4" size="sm">
                     <Link to="/goals">
                       <Target className="mr-2 h-4 w-4" />
                       {t('dashboard.viewAll')}
@@ -305,7 +305,7 @@ export default function Dashboard() {
         </div>
 
         {/* Small Wins & Life Distribution */}
-        <div className="mt-6 grid gap-6 lg:grid-cols-2">
+        <div className="mt-4 sm:mt-6 grid gap-4 sm:gap-6 lg:grid-cols-2">
           <SmallWinsWidget />
           <LifeDistributionWidget />
         </div>

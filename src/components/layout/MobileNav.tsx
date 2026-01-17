@@ -126,72 +126,85 @@ export default function MobileNav() {
   ];
 
   return (
-    <Sheet open={open} onOpenChange={setOpen}>
-      <SheetTrigger asChild>
-        <Button 
-          variant="ghost" 
-          size="icon" 
-          className="md:hidden fixed top-3 left-3 z-50 h-10 w-10 rounded-full bg-background/80 backdrop-blur-sm shadow-lg border"
-        >
-          <Menu className="h-5 w-5" />
-          <span className="sr-only">Toggle menu</span>
-        </Button>
-      </SheetTrigger>
-      <SheetContent side="left" className="w-[280px] p-0">
-        <div className="flex h-full flex-col">
-          {/* Logo */}
-          <div className="flex h-16 items-center gap-2 border-b px-6">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary">
-              <Target className="h-5 w-5 text-primary-foreground" />
-            </div>
-            <div className="flex flex-col">
-              <span className="text-lg font-semibold">{t('app.name')}</span>
-              <span className="text-[10px] text-muted-foreground -mt-1">{t('app.tagline')}</span>
-            </div>
-          </div>
-
-          {/* Navigation */}
-          <ScrollArea className="flex-1 py-4">
-            <nav className="space-y-1 px-3">
-              {navigation.map((item) => {
-                const isActive = location.pathname === item.href || 
-                               (item.href !== '/dashboard' && location.pathname.startsWith(item.href));
-                return (
-                  <Link
-                    key={item.href}
-                    to={item.href}
-                    onClick={() => setOpen(false)}
-                    className={cn(
-                      'flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium transition-all active:scale-[0.98]',
-                      isActive
-                        ? 'bg-primary text-primary-foreground'
-                        : 'text-foreground hover:bg-muted active:bg-muted'
-                    )}
-                  >
-                    <item.icon className="h-5 w-5" />
-                    {item.name}
-                  </Link>
-                );
-              })}
-            </nav>
-          </ScrollArea>
-
-          {/* Footer */}
-          <div className="border-t p-4">
-            <Button
-              variant="ghost"
-              className="w-full justify-start gap-3 text-foreground hover:bg-muted active:scale-[0.98]"
-              onClick={() => {
-                signOut();
-                setOpen(false);
-              }}
+    <>
+      {/* Fixed Header for Mobile */}
+      <div className="fixed top-0 left-0 right-0 z-40 lg:hidden bg-background/95 backdrop-blur-sm border-b h-14 flex items-center px-4">
+        <Sheet open={open} onOpenChange={setOpen}>
+          <SheetTrigger asChild>
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="h-9 w-9 rounded-lg"
             >
-              <LogOut className="h-5 w-5" />
-              {t('nav.signOut')}
+              <Menu className="h-5 w-5" />
+              <span className="sr-only">Toggle menu</span>
             </Button>
+          </SheetTrigger>
+          <SheetContent side="left" className="w-[280px] sm:w-[320px] p-0">
+            <div className="flex h-full flex-col">
+              {/* Logo */}
+              <div className="flex h-14 sm:h-16 items-center gap-2 border-b px-4 sm:px-6">
+                <div className="flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-xl bg-primary">
+                  <Target className="h-4 w-4 sm:h-5 sm:w-5 text-primary-foreground" />
+                </div>
+                <div className="flex flex-col min-w-0">
+                  <span className="text-base sm:text-lg font-semibold truncate">{t('app.name')}</span>
+                  <span className="text-[9px] sm:text-[10px] text-muted-foreground -mt-0.5 truncate">{t('app.tagline')}</span>
+                </div>
+              </div>
+
+              {/* Navigation */}
+              <ScrollArea className="flex-1 py-3 sm:py-4">
+                <nav className="space-y-0.5 sm:space-y-1 px-2 sm:px-3">
+                  {navigation.map((item) => {
+                    const isActive = location.pathname === item.href || 
+                                   (item.href !== '/dashboard' && location.pathname.startsWith(item.href));
+                    return (
+                      <Link
+                        key={item.href}
+                        to={item.href}
+                        onClick={() => setOpen(false)}
+                        className={cn(
+                          'flex items-center gap-2.5 sm:gap-3 rounded-lg px-3 py-2.5 sm:py-3 text-sm font-medium transition-all active:scale-[0.98]',
+                          isActive
+                            ? 'bg-primary text-primary-foreground'
+                            : 'text-foreground hover:bg-muted active:bg-muted'
+                        )}
+                      >
+                        <item.icon className="h-4 w-4 sm:h-5 sm:w-5 shrink-0" />
+                        <span className="truncate">{item.name}</span>
+                      </Link>
+                    );
+                  })}
+                </nav>
+              </ScrollArea>
+
+              {/* Footer */}
+              <div className="border-t p-3 sm:p-4">
+                <Button
+                  variant="ghost"
+                  className="w-full justify-start gap-2.5 sm:gap-3 text-foreground hover:bg-muted active:scale-[0.98]"
+                  onClick={() => {
+                    signOut();
+                    setOpen(false);
+                  }}
+                >
+                  <LogOut className="h-4 w-4 sm:h-5 sm:w-5" />
+                  {t('nav.signOut')}
+                </Button>
+              </div>
+            </div>
+          </SheetContent>
+        </Sheet>
+        
+        {/* App Name in Header */}
+        <div className="flex items-center gap-2 ml-2">
+          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary">
+            <Target className="h-4 w-4 text-primary-foreground" />
           </div>
+          <span className="font-semibold text-sm">{t('app.name')}</span>
         </div>
-      </SheetContent>
-    </Sheet>
+      </div>
+    </>
   );
 }

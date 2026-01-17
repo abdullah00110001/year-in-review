@@ -157,14 +157,14 @@ export default function Auth() {
   );
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-background via-muted/30 to-background p-4">
+    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-background via-muted/30 to-background p-4 sm:p-6">
       <div className="w-full max-w-md">
-        <div className="mb-8 text-center">
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-primary">
-            <Target className="h-8 w-8 text-primary-foreground" />
+        <div className="mb-6 sm:mb-8 text-center">
+          <div className="mx-auto mb-3 sm:mb-4 flex h-14 w-14 sm:h-16 sm:w-16 items-center justify-center rounded-2xl bg-primary">
+            <Target className="h-7 w-7 sm:h-8 sm:w-8 text-primary-foreground" />
           </div>
-          <h1 className="text-3xl font-bold tracking-tight">Yearly Track</h1>
-          <p className="mt-2 text-muted-foreground">
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Yearly Track</h1>
+          <p className="mt-1.5 sm:mt-2 text-sm sm:text-base text-muted-foreground px-4">
             Build habits. Achieve goals. Transform your year.
           </p>
         </div>

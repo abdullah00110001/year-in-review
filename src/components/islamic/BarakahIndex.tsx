@@ -95,25 +95,25 @@ export default function BarakahIndex({ sessions, bestTimeSlot, averageBarakah }:
 
   return (
     <Card>
-      <CardHeader className="pb-2">
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-sm font-medium flex items-center gap-2">
-            <Sparkles className={cn("h-4 w-4", mode === 'islamic' ? "text-amber-500" : "text-blue-500")} />
-            {labels.qualityIndex.title}
+      <CardHeader className="pb-2 p-4 sm:p-6 sm:pb-2">
+        <div className="flex items-center justify-between gap-2">
+          <CardTitle className="text-xs sm:text-sm font-medium flex items-center gap-1.5 sm:gap-2">
+            <Sparkles className={cn("h-3.5 w-3.5 sm:h-4 sm:w-4", mode === 'islamic' ? "text-amber-500" : "text-blue-500")} />
+            <span className="truncate">{labels.qualityIndex.title}</span>
           </CardTitle>
-          <Badge className={cn("text-xs", barakahLevel.bg, barakahLevel.color)}>
+          <Badge className={cn("text-[10px] sm:text-xs shrink-0", barakahLevel.bg, barakahLevel.color)}>
             {averageBarakah.toFixed(1)}/10
           </Badge>
         </div>
-        <CardDescription>{labels.qualityIndex.description}</CardDescription>
+        <CardDescription className="text-xs sm:text-sm">{labels.qualityIndex.description}</CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-3 sm:space-y-4 p-4 sm:p-6 pt-0">
         <div className="space-y-2">
-          <div className="flex justify-between text-sm">
-            <span>{barakahLevel.label}</span>
-            <span className="text-muted-foreground">{(averageBarakah * 10).toFixed(0)}%</span>
+          <div className="flex justify-between text-xs sm:text-sm">
+            <span className="truncate">{barakahLevel.label}</span>
+            <span className="text-muted-foreground shrink-0">{(averageBarakah * 10).toFixed(0)}%</span>
           </div>
-          <Progress value={averageBarakah * 10} className="h-3" />
+          <Progress value={averageBarakah * 10} className="h-2 sm:h-3" />
         </div>
 
         {bestTimeSlot && (
