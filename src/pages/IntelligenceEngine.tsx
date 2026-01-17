@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
+import { cn } from '@/lib/utils';
 import { 
   Brain, TrendingUp, TrendingDown, Target, Zap, 
   AlertTriangle, CheckCircle2, Clock, BookOpen,
@@ -257,8 +258,8 @@ export default function IntelligenceEngine() {
           </Card>
         ) : (
           <>
-            {/* Score Cards */}
-            <div className="grid gap-3 grid-cols-2 lg:grid-cols-5">
+            {/* Score Cards with Animation */}
+            <div className="grid gap-2 sm:gap-3 grid-cols-2 lg:grid-cols-5">
               {[
                 { label: language === 'bn' ? 'উৎপাদনশীলতা' : 'Productivity', score: insights.productivityScore, icon: '🎯' },
                 { label: language === 'bn' ? 'দ্বীন স্কোর' : 'Deen Score', score: insights.deenScore, icon: '🕌' },
@@ -266,35 +267,42 @@ export default function IntelligenceEngine() {
                 { label: language === 'bn' ? 'ফোকাস' : 'Focus', score: insights.focusScore, icon: '🎯' },
                 { label: language === 'bn' ? 'ধারাবাহিকতা' : 'Consistency', score: insights.consistencyScore, icon: '🔥', suffix: '%' },
               ].map((item, i) => (
-                <Card key={i} className={`border ${getScoreBg(item.score)}`}>
-                  <CardContent className="pt-4 pb-3">
-                    <p className="text-xs text-muted-foreground mb-1">{item.icon} {item.label}</p>
-                    <div className={`text-2xl sm:text-3xl font-bold ${getScoreColor(item.score)}`}>
+                <Card 
+                  key={i} 
+                  className={cn(
+                    "border animate-fade-in",
+                    getScoreBg(item.score)
+                  )}
+                  style={{ animationDelay: `${i * 100}ms` }}
+                >
+                  <CardContent className="pt-3 sm:pt-4 pb-2 sm:pb-3 px-3 sm:px-4">
+                    <p className="text-[10px] sm:text-xs text-muted-foreground mb-0.5 sm:mb-1">{item.icon} {item.label}</p>
+                    <div className={`text-xl sm:text-2xl lg:text-3xl font-bold ${getScoreColor(item.score)}`}>
                       {item.score}{item.suffix || ''}
                     </div>
-                    <Progress value={item.score} className="mt-2 h-1.5" />
+                    <Progress value={item.score} className="mt-1.5 sm:mt-2 h-1 sm:h-1.5" />
                   </CardContent>
                 </Card>
               ))}
             </div>
 
             {/* Charts Grid */}
-            <div className="grid gap-4 lg:grid-cols-2">
-              {/* Radar Chart */}
-              <Card>
+            <div className="grid gap-3 sm:gap-4 lg:grid-cols-2">
+              {/* Radar Chart with Animation */}
+              <Card className="animate-fade-in" style={{ animationDelay: '300ms' }}>
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-base flex items-center gap-2">
+                  <CardTitle className="text-sm sm:text-base flex items-center gap-2">
                     <Sparkles className="h-4 w-4 text-primary" />
                     {language === 'bn' ? 'পারফরম্যান্স রাডার' : 'Performance Radar'}
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="h-[250px]">
+                  <div className="h-[200px] sm:h-[250px]">
                     <ResponsiveContainer width="100%" height="100%">
                       <RadarChart data={radarData}>
                         <PolarGrid strokeDasharray="3 3" />
-                        <PolarAngleAxis dataKey="subject" tick={{ fontSize: 10 }} />
-                        <PolarRadiusAxis angle={30} domain={[0, 100]} tick={{ fontSize: 9 }} />
+                        <PolarAngleAxis dataKey="subject" tick={{ fontSize: 9 }} />
+                        <PolarRadiusAxis angle={30} domain={[0, 100]} tick={{ fontSize: 8 }} />
                         <Radar 
                           name="Score" 
                           dataKey="value" 
@@ -302,6 +310,7 @@ export default function IntelligenceEngine() {
                           fill="hsl(var(--primary))" 
                           fillOpacity={0.3}
                           strokeWidth={2}
+                          animationDuration={1000}
                         />
                       </RadarChart>
                     </ResponsiveContainer>
@@ -309,9 +318,9 @@ export default function IntelligenceEngine() {
                 </CardContent>
               </Card>
 
-              {/* Weekly Trend */}
+              {/* Weekly Trend with Animation */}
               {insights.weeklyTrend.length > 0 && (
-                <Card>
+                <Card className="animate-fade-in">
                   <CardHeader className="pb-2">
                     <CardTitle className="text-base flex items-center gap-2">
                       <TrendingUp className="h-4 w-4 text-primary" />
@@ -324,7 +333,7 @@ export default function IntelligenceEngine() {
                         <AreaChart data={insights.weeklyTrend}>
                           <defs>
                             <linearGradient id="colorScore" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3}/>
+                              <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.4}/>
                               <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0}/>
                             </linearGradient>
                           </defs>
@@ -338,6 +347,7 @@ export default function IntelligenceEngine() {
                               backgroundColor: 'hsl(var(--background))',
                               fontSize: '12px'
                             }}
+                            animationDuration={200}
                           />
                           <Area 
                             type="monotone" 
@@ -346,6 +356,8 @@ export default function IntelligenceEngine() {
                             fillOpacity={1} 
                             fill="url(#colorScore)" 
                             strokeWidth={2}
+                            animationDuration={1000}
+                            animationBegin={200}
                           />
                         </AreaChart>
                       </ResponsiveContainer>

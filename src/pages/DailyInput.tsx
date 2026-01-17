@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { format, isToday, parseISO, differenceInHours, setHours, setMinutes } from 'date-fns';
 import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -14,12 +14,13 @@ import { Slider } from '@/components/ui/slider';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
 import HabitFrictionSystem from '@/components/insights/HabitFrictionSystem';
 import { cn } from '@/lib/utils';
 import { 
   BookOpen, Clock, Dumbbell, Moon, Brain, Target, Smartphone,
-  CheckCircle2, AlertTriangle, Save, Lock, Eye, AlertCircle, Check, X
+  CheckCircle2, AlertTriangle, Save, Lock, Eye, AlertCircle, Check, X, CircleCheck
 } from 'lucide-react';
 
 interface DailyEntry {
@@ -253,6 +254,38 @@ export default function DailyInput() {
     return { status: 'qaza', color: 'text-secondary', icon: AlertCircle };
   };
 
+  // Check if current tab is complete
+  const getTabCompletionStatus = useMemo(() => {
+    const salahComplete = SALAH_PRAYERS.every(prayer => {
+      const completed = entry[`${prayer.key}_completed` as keyof DailyEntry];
+      const onTime = entry[`${prayer.key}_on_time` as keyof DailyEntry];
+      // A prayer is "answered" if it's marked as on-time, qaza, or explicitly missed
+      return completed !== undefined;
+    });
+    
+    const quranComplete = entry.quran_read !== undefined;
+    const studyComplete = entry.focused_study_minutes > 0 || entry.revision_minutes > 0;
+    const digitalComplete = entry.device_time_minutes > 0;
+    const healthComplete = entry.exercise_done !== undefined && entry.sleep_duration_minutes > 0;
+    const energyComplete = entry.energy_level > 0 && entry.focus_level > 0;
+    const reflectComplete = entry.overall_day_rating > 0;
+
+    return {
+      salah: salahComplete,
+      quran: quranComplete,
+      study: studyComplete,
+      digital: digitalComplete,
+      health: healthComplete,
+      energy: energyComplete,
+      reflect: reflectComplete,
+    };
+  }, [entry]);
+
+  // Check if all tabs are complete
+  const allComplete = useMemo(() => {
+    return Object.values(getTabCompletionStatus).every(Boolean);
+  }, [getTabCompletionStatus]);
+
   if (loading) {
     return (
       <AppLayout>
@@ -265,60 +298,67 @@ export default function DailyInput() {
 
   return (
     <AppLayout>
-      <div className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto space-y-4 sm:space-y-6 pb-24">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-4">
-          <div>
-            <h1 className="text-xl sm:text-2xl font-bold">
-              {language === 'bn' ? 'দৈনিক ইনপুট' : 'Daily Life Input'}
-            </h1>
-            <p className="text-sm text-muted-foreground">
-              {language === 'bn' ? 'মনোযোগ দিয়ে আপনার দিন ট্র্যাক করুন' : 'Track your day mindfully'}
-            </p>
-          </div>
-          <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
-            <Input
-              type="date"
-              value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
-              className="flex-1 sm:flex-none sm:w-40"
-              max={today}
-            />
-            {viewMode && !entry.is_locked && selectedDate !== today && (
-              <Badge variant="outline" className="shrink-0 gap-1">
-                <Eye className="h-3 w-3" />
-                <span className="text-xs">{language === 'bn' ? 'শুধু দেখা' : 'View Only'}</span>
-              </Badge>
-            )}
-            {entry.is_locked && (
-              <Badge variant="secondary" className="shrink-0 gap-1">
-                <Lock className="h-3 w-3" />
-                <span className="text-xs">{language === 'bn' ? 'লক করা' : 'Locked'}</span>
-              </Badge>
-            )}
-            {isLateSubmission && !entry.is_locked && (
-              <Badge variant="destructive" className="shrink-0 gap-1">
-                <AlertCircle className="h-3 w-3" />
-                <span className="text-xs">{language === 'bn' ? 'লেট' : 'Late'}</span>
-              </Badge>
-            )}
+      <div className="p-3 sm:p-4 lg:p-8 max-w-5xl mx-auto space-y-3 sm:space-y-4 pb-28 lg:pb-8">
+        {/* Header with Completion Indicator */}
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-wrap justify-between items-start gap-2">
+            <div className="flex items-center gap-2">
+              <div>
+                <h1 className="text-lg sm:text-xl lg:text-2xl font-bold flex items-center gap-2">
+                  {language === 'bn' ? 'দৈনিক ইনপুট' : 'Daily Life Input'}
+                  {allComplete && (
+                    <CircleCheck className="h-5 w-5 text-green-500 animate-scale-in" />
+                  )}
+                </h1>
+                <p className="text-xs sm:text-sm text-muted-foreground">
+                  {language === 'bn' ? 'মনোযোগ দিয়ে আপনার দিন ট্র্যাক করুন' : 'Track your day mindfully'}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <Input
+                type="date"
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+                className="w-32 sm:w-40 text-xs sm:text-sm h-9"
+                max={today}
+              />
+              {viewMode && !entry.is_locked && selectedDate !== today && (
+                <Badge variant="outline" className="shrink-0 gap-1 text-[10px] sm:text-xs">
+                  <Eye className="h-3 w-3" />
+                  <span>{language === 'bn' ? 'দেখা' : 'View'}</span>
+                </Badge>
+              )}
+              {entry.is_locked && (
+                <Badge variant="secondary" className="shrink-0 gap-1 text-[10px] sm:text-xs">
+                  <Lock className="h-3 w-3" />
+                  <span>{language === 'bn' ? 'লক' : 'Locked'}</span>
+                </Badge>
+              )}
+              {isLateSubmission && !entry.is_locked && (
+                <Badge variant="destructive" className="shrink-0 gap-1 text-[10px] sm:text-xs">
+                  <AlertCircle className="h-3 w-3" />
+                  <span>{language === 'bn' ? 'লেট' : 'Late'}</span>
+                </Badge>
+              )}
+            </div>
           </div>
         </div>
 
         {/* View-only notice for past days */}
         {viewMode && !entry.is_locked && selectedDate !== today && (
           <Card className="border-muted bg-muted/50">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <Eye className="h-5 w-5 text-muted-foreground shrink-0" />
+            <CardContent className="p-3 sm:p-4">
+              <div className="flex items-center gap-2 sm:gap-3">
+                <Eye className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground shrink-0" />
                 <div>
-                  <p className="font-medium text-sm">
+                  <p className="font-medium text-xs sm:text-sm">
                     {language === 'bn' ? 'শুধুমাত্র দেখার মোড' : 'View-Only Mode'}
                   </p>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-[10px] sm:text-xs text-muted-foreground">
                     {language === 'bn' 
-                      ? 'আগের দিনের এন্ট্রি এডিট করা যাবে না। লেট সাবমিশন রাত ১২টা থেকে সকাল ৬টার মধ্যে সম্ভব।'
-                      : "Past entries can't be edited. Late submission available 12 AM - 6 AM."}
+                      ? 'লেট সাবমিশন রাত ১২টা থেকে সকাল ৬টার মধ্যে সম্ভব।'
+                      : 'Late submission available 12 AM - 6 AM.'}
                   </p>
                 </div>
               </div>
@@ -327,89 +367,104 @@ export default function DailyInput() {
         )}
 
         <Tabs defaultValue="salah" className="w-full">
-          <TabsList className="w-full h-auto flex-wrap grid grid-cols-4 sm:grid-cols-7 gap-1">
-            <TabsTrigger value="salah" className="text-[10px] sm:text-xs px-2 py-1.5">🕌 Salah</TabsTrigger>
-            <TabsTrigger value="quran" className="text-[10px] sm:text-xs px-2 py-1.5">📖 Qur'an</TabsTrigger>
-            <TabsTrigger value="study" className="text-[10px] sm:text-xs px-2 py-1.5">📚 Study</TabsTrigger>
-            <TabsTrigger value="digital" className="text-[10px] sm:text-xs px-2 py-1.5">📱 Digital</TabsTrigger>
-            <TabsTrigger value="health" className="text-[10px] sm:text-xs px-2 py-1.5">🏃 Health</TabsTrigger>
-            <TabsTrigger value="energy" className="text-[10px] sm:text-xs px-2 py-1.5">😴 Energy</TabsTrigger>
-            <TabsTrigger value="reflect" className="text-[10px] sm:text-xs px-2 py-1.5">🧠 Reflect</TabsTrigger>
+          <TabsList className="w-full h-auto flex-wrap grid grid-cols-4 sm:grid-cols-7 gap-0.5 sm:gap-1 p-1">
+            {[
+              { value: 'salah', label: '🕌', full: 'Salah' },
+              { value: 'quran', label: '📖', full: "Qur'an" },
+              { value: 'study', label: '📚', full: 'Study' },
+              { value: 'digital', label: '📱', full: 'Digital' },
+              { value: 'health', label: '🏃', full: 'Health' },
+              { value: 'energy', label: '😴', full: 'Energy' },
+              { value: 'reflect', label: '🧠', full: 'Reflect' },
+            ].map((tab) => (
+              <TabsTrigger 
+                key={tab.value}
+                value={tab.value} 
+                className="text-[10px] sm:text-xs px-1.5 sm:px-2 py-1.5 flex items-center gap-1"
+              >
+                <span>{tab.label}</span>
+                <span className="hidden sm:inline">{tab.full}</span>
+                {getTabCompletionStatus[tab.value as keyof typeof getTabCompletionStatus] && (
+                  <Check className="h-3 w-3 text-green-500 hidden sm:block" />
+                )}
+              </TabsTrigger>
+            ))}
           </TabsList>
 
-          {/* Salah Tab */}
-          <TabsContent value="salah">
+          {/* Salah Tab - Checkbox System */}
+          <TabsContent value="salah" className="animate-fade-in">
             <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  🕌 {language === 'bn' ? 'নামাজ ট্র্যাকার' : 'Salah Tracker'}
-                </CardTitle>
-                <CardDescription>
-                  {language === 'bn' ? 'প্রতিদিনের নামাজ ট্র্যাক করুন' : 'Track your daily prayers with quality'}
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {/* Salah Status Legend */}
-                <div className="flex flex-wrap gap-3 text-xs mb-4 p-3 bg-muted/30 rounded-lg">
-                  <div className="flex items-center gap-1.5">
-                    <Check className="h-3.5 w-3.5 text-primary" />
-                    <span>{language === 'bn' ? 'সময়মতো' : 'On Time'}</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <AlertCircle className="h-3.5 w-3.5 text-secondary" />
-                    <span>{language === 'bn' ? 'কাযা' : 'Qaza'}</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <X className="h-3.5 w-3.5 text-muted-foreground" />
-                    <span>{language === 'bn' ? 'মিস' : 'Missed'}</span>
+              <CardHeader className="pb-3 sm:pb-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                      🕌 {language === 'bn' ? 'নামাজ ট্র্যাকার' : 'Salah Tracker'}
+                      {getTabCompletionStatus.salah && (
+                        <CircleCheck className="h-4 w-4 text-green-500" />
+                      )}
+                    </CardTitle>
+                    <CardDescription className="text-xs sm:text-sm">
+                      {language === 'bn' ? 'প্রতিটি নামাজের জন্য একটি অপশন সিলেক্ট করুন' : 'Select one option for each prayer'}
+                    </CardDescription>
                   </div>
                 </div>
-
-                <div className="grid gap-3">
+              </CardHeader>
+              <CardContent className="space-y-3 sm:space-y-4">
+                {/* Prayer Cards with Checkbox System */}
+                <div className="space-y-2 sm:space-y-3">
                   {SALAH_PRAYERS.map((prayer) => {
                     const completed = entry[`${prayer.key}_completed` as keyof DailyEntry] as boolean;
                     const onTime = entry[`${prayer.key}_on_time` as keyof DailyEntry] as boolean;
-                    const status = getSalahStatus(completed, onTime);
-                    const StatusIcon = status.icon;
+                    
+                    // Determine current status
+                    const isOnTime = completed && onTime;
+                    const isQaza = completed && !onTime;
+                    const isMissed = !completed;
 
                     return (
                       <div 
                         key={prayer.key} 
                         className={cn(
-                          "flex items-center justify-between p-3 sm:p-4 rounded-lg border transition-colors",
-                          completed && onTime && "bg-primary/5 border-primary/30",
-                          completed && !onTime && "bg-secondary/5 border-secondary/30",
-                          !completed && "bg-muted/30 border-border"
+                          "p-3 sm:p-4 rounded-lg border transition-all",
+                          isOnTime && "bg-green-500/10 border-green-500/30",
+                          isQaza && "bg-yellow-500/10 border-yellow-500/30",
+                          isMissed && "bg-muted/30 border-border"
                         )}
                       >
-                        <div className="flex items-center gap-2 sm:gap-3">
-                          <span className="text-lg sm:text-xl">{prayer.icon}</span>
-                          <div>
-                            <span className="font-medium text-sm sm:text-base">{prayer.name}</span>
-                            <span className="text-muted-foreground text-xs sm:text-sm ml-1">({prayer.namebn})</span>
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center gap-2">
+                            <span className="text-lg sm:text-xl">{prayer.icon}</span>
+                            <div>
+                              <span className="font-medium text-sm sm:text-base">{prayer.name}</span>
+                              <span className="text-muted-foreground text-xs ml-1">({prayer.namebn})</span>
+                            </div>
                           </div>
+                          {/* Status Badge */}
+                          {isOnTime && (
+                            <Badge variant="default" className="bg-green-500 text-[10px] sm:text-xs">
+                              ✓ {language === 'bn' ? 'আদায়' : 'On Time'}
+                            </Badge>
+                          )}
+                          {isQaza && (
+                            <Badge variant="secondary" className="bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 text-[10px] sm:text-xs">
+                              ⏰ {language === 'bn' ? 'কাযা' : 'Qaza'}
+                            </Badge>
+                          )}
                         </div>
-                        
-                        <div className="flex items-center gap-2 sm:gap-4">
-                          {/* Status indicator */}
-                          <div className={cn("flex items-center gap-1", status.color)}>
-                            <StatusIcon className="h-4 w-4" />
-                            <span className="text-xs hidden sm:inline">
-                              {completed 
-                                ? (onTime 
-                                    ? (language === 'bn' ? 'সময়মতো' : 'On Time')
-                                    : (language === 'bn' ? 'কাযা' : 'Qaza'))
-                                : (language === 'bn' ? 'মিস' : 'Missed')}
-                            </span>
-                          </div>
 
-                          {/* Toggle buttons */}
-                          <div className="flex gap-1">
-                            <Button
-                              variant={completed && onTime ? "default" : "outline"}
-                              size="sm"
-                              className="h-8 px-2 sm:px-3 text-xs"
-                              onClick={() => {
+                        {/* Checkbox Options - Responsive Grid */}
+                        <div className="grid grid-cols-3 gap-2">
+                          {/* On Time */}
+                          <label 
+                            className={cn(
+                              "flex items-center gap-1.5 sm:gap-2 p-2 sm:p-3 rounded-lg border cursor-pointer transition-all",
+                              isOnTime ? "border-green-500 bg-green-500/10" : "border-border hover:border-primary/50",
+                              viewMode && "cursor-not-allowed opacity-60"
+                            )}
+                          >
+                            <Checkbox
+                              checked={isOnTime}
+                              onCheckedChange={() => {
                                 if (viewMode) return;
                                 setEntry({ 
                                   ...entry, 
@@ -418,15 +473,24 @@ export default function DailyInput() {
                                 });
                               }}
                               disabled={viewMode}
-                            >
-                              <Check className="h-3.5 w-3.5 sm:mr-1" />
-                              <span className="hidden sm:inline">{language === 'bn' ? 'আদায়' : 'Done'}</span>
-                            </Button>
-                            <Button
-                              variant={completed && !onTime ? "secondary" : "outline"}
-                              size="sm"
-                              className="h-8 px-2 sm:px-3 text-xs"
-                              onClick={() => {
+                              className="data-[state=checked]:bg-green-500 data-[state=checked]:border-green-500"
+                            />
+                            <span className="text-[10px] sm:text-xs font-medium">
+                              {language === 'bn' ? 'সময়মতো' : 'On Time'}
+                            </span>
+                          </label>
+
+                          {/* Qaza */}
+                          <label 
+                            className={cn(
+                              "flex items-center gap-1.5 sm:gap-2 p-2 sm:p-3 rounded-lg border cursor-pointer transition-all",
+                              isQaza ? "border-yellow-500 bg-yellow-500/10" : "border-border hover:border-primary/50",
+                              viewMode && "cursor-not-allowed opacity-60"
+                            )}
+                          >
+                            <Checkbox
+                              checked={isQaza}
+                              onCheckedChange={() => {
                                 if (viewMode) return;
                                 setEntry({ 
                                   ...entry, 
@@ -435,15 +499,24 @@ export default function DailyInput() {
                                 });
                               }}
                               disabled={viewMode}
-                            >
-                              <AlertCircle className="h-3.5 w-3.5 sm:mr-1" />
-                              <span className="hidden sm:inline">{language === 'bn' ? 'কাযা' : 'Qaza'}</span>
-                            </Button>
-                            <Button
-                              variant={!completed ? "ghost" : "outline"}
-                              size="sm"
-                              className="h-8 px-2 text-xs text-muted-foreground"
-                              onClick={() => {
+                              className="data-[state=checked]:bg-yellow-500 data-[state=checked]:border-yellow-500"
+                            />
+                            <span className="text-[10px] sm:text-xs font-medium">
+                              {language === 'bn' ? 'কাযা' : 'Qaza'}
+                            </span>
+                          </label>
+
+                          {/* Missed */}
+                          <label 
+                            className={cn(
+                              "flex items-center gap-1.5 sm:gap-2 p-2 sm:p-3 rounded-lg border cursor-pointer transition-all",
+                              isMissed && !completed ? "border-muted-foreground/50 bg-muted/50" : "border-border hover:border-primary/50",
+                              viewMode && "cursor-not-allowed opacity-60"
+                            )}
+                          >
+                            <Checkbox
+                              checked={isMissed}
+                              onCheckedChange={() => {
                                 if (viewMode) return;
                                 setEntry({ 
                                   ...entry, 
@@ -452,18 +525,19 @@ export default function DailyInput() {
                                 });
                               }}
                               disabled={viewMode}
-                            >
-                              <X className="h-3.5 w-3.5" />
-                            </Button>
-                          </div>
+                            />
+                            <span className="text-[10px] sm:text-xs font-medium text-muted-foreground">
+                              {language === 'bn' ? 'মিস' : 'Miss'}
+                            </span>
+                          </label>
                         </div>
                       </div>
                     );
                   })}
                 </div>
                 
-                <div className="space-y-2 pt-4">
-                  <Label>{language === 'bn' ? 'খুশু লেভেল (মনোযোগ)' : 'Khushu Level (Concentration)'}: {entry.khushu_level}</Label>
+                <div className="space-y-2 pt-3 sm:pt-4 border-t">
+                  <Label className="text-xs sm:text-sm">{language === 'bn' ? 'খুশু লেভেল (মনোযোগ)' : 'Khushu Level (Concentration)'}: {entry.khushu_level}/5</Label>
                   <Slider
                     value={[entry.khushu_level]}
                     onValueChange={([value]) => !viewMode && setEntry({ ...entry, khushu_level: value })}
@@ -472,7 +546,7 @@ export default function DailyInput() {
                     step={1}
                     disabled={viewMode}
                   />
-                  <div className="flex justify-between text-xs text-muted-foreground">
+                  <div className="flex justify-between text-[10px] sm:text-xs text-muted-foreground">
                     <span>{language === 'bn' ? 'বিভ্রান্ত' : 'Distracted'}</span>
                     <span>{language === 'bn' ? 'খুব ফোকাসড' : 'Very Focused'}</span>
                   </div>
