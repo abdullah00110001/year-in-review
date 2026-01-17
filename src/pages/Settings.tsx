@@ -78,10 +78,10 @@ export default function Settings() {
 
   return (
     <AppLayout>
-      <div className="p-6 lg:p-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold tracking-tight">{t('settings.title')}</h1>
-          <p className="mt-1 text-muted-foreground">
+      <div className="p-4 sm:p-6 lg:p-8 max-w-2xl mx-auto">
+        <div className="mb-6 sm:mb-8">
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">{t('settings.title')}</h1>
+          <p className="mt-1 text-sm sm:text-base text-muted-foreground">
             {t('settings.subtitle')}
           </p>
         </div>
@@ -91,7 +91,7 @@ export default function Settings() {
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
           </div>
         ) : (
-          <div className="max-w-2xl space-y-6">
+          <div className="space-y-4 sm:space-y-6">
             {/* Profile Card */}
             <Card>
               <CardHeader>
@@ -155,13 +155,14 @@ export default function Settings() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="flex gap-2">
+                <div className="flex flex-col sm:flex-row gap-2">
                   {themeOptions.map((option) => (
                     <Button
                       key={option.value}
                       variant={theme === option.value ? 'default' : 'outline'}
                       onClick={() => setTheme(option.value)}
                       className="flex-1"
+                      size="sm"
                     >
                       {option.label}
                     </Button>
@@ -172,20 +173,21 @@ export default function Settings() {
 
             {/* Language Card */}
             <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
+              <CardHeader className="p-4 sm:p-6">
+                <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
                   <Globe className="h-5 w-5" />
                   {t('settings.language')}
                 </CardTitle>
               </CardHeader>
-              <CardContent>
-                <div className="flex gap-2">
+              <CardContent className="p-4 sm:p-6 pt-0">
+                <div className="flex flex-col sm:flex-row gap-2">
                   {languageOptions.map((option) => (
                     <Button
                       key={option.value}
                       variant={language === option.value ? 'default' : 'outline'}
                       onClick={() => setLanguage(option.value)}
                       className="flex-1"
+                      size="sm"
                     >
                       {option.native}
                     </Button>

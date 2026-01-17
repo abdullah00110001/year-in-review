@@ -273,27 +273,27 @@ export default function UnifiedDashboard() {
         onSubmit={handleMawtSubmit}
       />
 
-      <div className="p-6 lg:p-8">
+      <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto">
         {/* Header */}
-        <div className="mb-6 flex items-center justify-between flex-wrap gap-4">
+        <div className="mb-4 sm:mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
-              {mode === 'islamic' ? <Moon className="h-7 w-7" /> : <Sun className="h-7 w-7" />}
-              {mode === 'islamic' ? 'Islamic Dashboard' : 'Life Dashboard'}
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight flex items-center gap-2">
+              {mode === 'islamic' ? <Moon className="h-6 w-6 sm:h-7 sm:w-7" /> : <Sun className="h-6 w-6 sm:h-7 sm:w-7" />}
+              <span className="break-words">{mode === 'islamic' ? 'Islamic Dashboard' : 'Life Dashboard'}</span>
             </h1>
-            <p className="mt-1 text-muted-foreground">
+            <p className="mt-1 text-sm sm:text-base text-muted-foreground">
               {mode === 'islamic' 
                 ? 'Track your spiritual and worldly progress'
                 : 'Track your goals, habits, and performance'}
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <Button onClick={refetch} variant="outline" size="sm">
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Refresh
+              <RefreshCw className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">Refresh</span>
             </Button>
             <Badge variant="outline" className={cn(
-              "text-sm px-3 py-1",
+              "text-xs sm:text-sm px-2 sm:px-3 py-1",
               mode === 'islamic' 
                 ? "border-emerald-500 text-emerald-600" 
                 : "border-blue-500 text-blue-600"
@@ -304,7 +304,7 @@ export default function UnifiedDashboard() {
         </div>
 
         {/* Main Grid */}
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-4 sm:gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
           {/* Weighted Score */}
           <AkhirahRatio
             worshipScore={scores.worshipScore}

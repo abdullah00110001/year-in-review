@@ -216,39 +216,39 @@ export default function DailyInput() {
 
   return (
     <AppLayout>
-      <div className="space-y-6 pb-20">
+      <div className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto space-y-4 sm:space-y-6 pb-24">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-4">
           <div>
-            <h1 className="text-2xl font-bold">Daily Life Input</h1>
-            <p className="text-muted-foreground">Track your day mindfully</p>
+            <h1 className="text-xl sm:text-2xl font-bold">Daily Life Input</h1>
+            <p className="text-sm text-muted-foreground">Track your day mindfully</p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
             <Input
               type="date"
               value={selectedDate}
               onChange={(e) => setSelectedDate(e.target.value)}
-              className="w-40"
+              className="flex-1 sm:flex-none sm:w-40"
               max={format(new Date(), 'yyyy-MM-dd')}
             />
             {entry.is_locked && (
-              <div className="flex items-center gap-1 text-amber-600">
+              <div className="flex items-center gap-1 text-amber-600 shrink-0">
                 <Lock className="h-4 w-4" />
-                <span className="text-sm">Locked</span>
+                <span className="text-sm hidden sm:inline">Locked</span>
               </div>
             )}
           </div>
         </div>
 
         <Tabs defaultValue="study" className="w-full">
-          <TabsList className="grid grid-cols-4 lg:grid-cols-7 w-full">
-            <TabsTrigger value="study" className="text-xs">📚 Study</TabsTrigger>
-            <TabsTrigger value="salah" className="text-xs">🕌 Salah</TabsTrigger>
-            <TabsTrigger value="quran" className="text-xs">📖 Qur'an</TabsTrigger>
-            <TabsTrigger value="digital" className="text-xs">📱 Digital</TabsTrigger>
-            <TabsTrigger value="health" className="text-xs">🏃 Health</TabsTrigger>
-            <TabsTrigger value="energy" className="text-xs">😴 Energy</TabsTrigger>
-            <TabsTrigger value="reflect" className="text-xs">🧠 Reflect</TabsTrigger>
+          <TabsList className="w-full h-auto flex-wrap grid grid-cols-4 sm:grid-cols-7 gap-1">
+            <TabsTrigger value="study" className="text-[10px] sm:text-xs px-2 py-1.5">📚 Study</TabsTrigger>
+            <TabsTrigger value="salah" className="text-[10px] sm:text-xs px-2 py-1.5">🕌 Salah</TabsTrigger>
+            <TabsTrigger value="quran" className="text-[10px] sm:text-xs px-2 py-1.5">📖 Qur'an</TabsTrigger>
+            <TabsTrigger value="digital" className="text-[10px] sm:text-xs px-2 py-1.5">📱 Digital</TabsTrigger>
+            <TabsTrigger value="health" className="text-[10px] sm:text-xs px-2 py-1.5">🏃 Health</TabsTrigger>
+            <TabsTrigger value="energy" className="text-[10px] sm:text-xs px-2 py-1.5">😴 Energy</TabsTrigger>
+            <TabsTrigger value="reflect" className="text-[10px] sm:text-xs px-2 py-1.5">🧠 Reflect</TabsTrigger>
           </TabsList>
 
           {/* Study Time Tab */}

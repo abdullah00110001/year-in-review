@@ -113,10 +113,20 @@
     @apply border-border;
   }
 
+  html {
+    -webkit-tap-highlight-color: transparent;
+    scroll-behavior: smooth;
+  }
+
   body {
     @apply bg-background text-foreground antialiased;
     font-family: 'Inter', sans-serif;
     font-feature-settings: "rlig" 1, "calt" 1;
+    /* Safe area for notched devices */
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
   }
 
   h1, h2, h3, h4, h5, h6 {
@@ -125,6 +135,62 @@
 
   code, pre, .font-mono {
     font-family: 'Space Mono', monospace;
+  }
+
+  /* Better touch targets for mobile */
+  button, [role="button"], a {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  /* Exception for inline links and small icons */
+  a:not(.btn), .inline-link {
+    min-height: unset;
+    min-width: unset;
+  }
+
+  /* Prevent horizontal overflow on mobile */
+  .overflow-x-auto {
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+@layer utilities {
+  .gradient-primary {
+    @apply bg-gradient-to-br from-primary to-accent;
+  }
+  
+  .gradient-cool {
+    @apply bg-gradient-to-br from-primary/20 to-accent/10;
+  }
+  
+  .glass {
+    @apply bg-card/80 backdrop-blur-sm shadow-sm;
+  }
+
+  .shadow-glacier {
+    box-shadow: 0 4px 20px -4px hsl(var(--primary) / 0.15);
+  }
+
+  /* Touch-friendly scrolling */
+  .touch-scroll {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
+  }
+
+  /* Hide scrollbar on mobile but keep functionality */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Safe bottom spacing for fixed bottom elements */
+  .safe-bottom {
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
   }
 }
 

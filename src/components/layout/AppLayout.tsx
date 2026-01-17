@@ -8,17 +8,20 @@ interface AppLayoutProps {
 
 export default function AppLayout({ children }: AppLayoutProps) {
   return (
-    <div className="flex h-screen overflow-hidden bg-background">
+    <div className="flex min-h-screen w-full bg-background">
       {/* Desktop Sidebar - hidden on mobile */}
-      <div className="hidden md:block">
+      <div className="hidden lg:block lg:fixed lg:inset-y-0 lg:z-50 lg:w-64">
         <Sidebar />
       </div>
       
       {/* Mobile Navigation */}
       <MobileNav />
       
-      <main className="flex-1 overflow-auto pt-14 md:pt-0">
-        {children}
+      {/* Main content with proper spacing */}
+      <main className="flex-1 w-full overflow-x-hidden pt-16 lg:pt-0 lg:pl-64">
+        <div className="min-h-screen">
+          {children}
+        </div>
       </main>
     </div>
   );

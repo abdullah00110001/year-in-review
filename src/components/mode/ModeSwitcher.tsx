@@ -52,19 +52,19 @@ export default function ModeSwitcher({ showDescription = true, className }: Mode
 
   return (
     <Card className={cn("transition-all duration-300", className)}>
-      <CardHeader className="pb-3">
-        <CardTitle className="flex items-center gap-2 text-lg">
-          <Sparkles className="h-5 w-5" />
+      <CardHeader className="pb-2 sm:pb-3 p-4 sm:p-6">
+        <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+          <Sparkles className="h-4 w-4 sm:h-5 sm:w-5" />
           Experience Mode
         </CardTitle>
         {showDescription && (
-          <CardDescription>
+          <CardDescription className="text-xs sm:text-sm">
             Choose your productivity philosophy. You can switch anytime.
           </CardDescription>
         )}
       </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <CardContent className="p-4 sm:p-6 pt-0 space-y-3 sm:space-y-4">
+        <div className="grid grid-cols-1 gap-2 sm:gap-3">
           {modes.map((m) => {
             const Icon = m.icon;
             const isSelected = selectedMode === m.value;
