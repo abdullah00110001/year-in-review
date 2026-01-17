@@ -127,40 +127,40 @@ export default function QuranHeatmap({ year = new Date().getFullYear() }: { year
   }
 
   return (
-    <Card>
-      <CardHeader className="pb-2">
-        <CardTitle className="flex items-center gap-2">
+    <Card className="overflow-hidden">
+      <CardHeader className="pb-2 px-3 sm:px-6">
+        <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
           <BookOpen className="h-5 w-5 text-emerald-600" />
           Qur'an Consistency
         </CardTitle>
-        <CardDescription>365-day heatmap of your Qur'an engagement</CardDescription>
+        <CardDescription className="text-xs sm:text-sm">365-day heatmap of your Qur'an engagement</CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4">
-        {/* Stats */}
-        <div className="grid grid-cols-3 gap-2 text-center">
-          <div className="p-2 rounded-lg bg-emerald-50 dark:bg-emerald-950/30">
-            <p className="text-xl font-bold text-emerald-600">{stats.totalDays}</p>
-            <p className="text-xs text-muted-foreground">Total Days</p>
+      <CardContent className="space-y-4 px-3 sm:px-6">
+        {/* Stats - Mobile Optimized */}
+        <div className="grid grid-cols-3 gap-2 sm:gap-3 text-center">
+          <div className="p-2 sm:p-3 rounded-lg bg-emerald-50 dark:bg-emerald-950/30">
+            <p className="text-lg sm:text-2xl font-bold text-emerald-600">{stats.totalDays}</p>
+            <p className="text-[10px] sm:text-xs text-muted-foreground">Total Days</p>
           </div>
-          <div className="p-2 rounded-lg bg-primary/10">
-            <p className="text-xl font-bold text-primary">{stats.currentStreak}</p>
-            <p className="text-xs text-muted-foreground">Current Streak</p>
+          <div className="p-2 sm:p-3 rounded-lg bg-primary/10">
+            <p className="text-lg sm:text-2xl font-bold text-primary">{stats.currentStreak}</p>
+            <p className="text-[10px] sm:text-xs text-muted-foreground">Current Streak</p>
           </div>
-          <div className="p-2 rounded-lg bg-amber-50 dark:bg-amber-950/30">
-            <p className="text-xl font-bold text-amber-600">{stats.longestStreak}</p>
-            <p className="text-xs text-muted-foreground">Best Streak</p>
+          <div className="p-2 sm:p-3 rounded-lg bg-amber-50 dark:bg-amber-950/30">
+            <p className="text-lg sm:text-2xl font-bold text-amber-600">{stats.longestStreak}</p>
+            <p className="text-[10px] sm:text-xs text-muted-foreground">Best Streak</p>
           </div>
         </div>
 
-        {/* Heatmap */}
-        <div className="overflow-x-auto">
-          <div className="min-w-[700px]">
+        {/* Heatmap - Scrollable on mobile */}
+        <div className="overflow-x-auto -mx-3 sm:mx-0 px-3 sm:px-0 touch-scroll">
+          <div className="min-w-[600px] sm:min-w-[700px]">
             {/* Month labels */}
             <div className="mb-1 flex">
-              <div className="w-5" />
+              <div className="w-4 sm:w-5" />
               <div className="flex flex-1">
                 {months.map((month) => (
-                  <div key={month} className="flex-1 text-center text-[10px] text-muted-foreground">
+                  <div key={month} className="flex-1 text-center text-[8px] sm:text-[10px] text-muted-foreground">
                     {month}
                   </div>
                 ))}
@@ -169,18 +169,18 @@ export default function QuranHeatmap({ year = new Date().getFullYear() }: { year
 
             <div className="flex gap-[2px]">
               {/* Day labels */}
-              <div className="flex w-5 flex-col gap-[2px]">
+              <div className="flex w-4 sm:w-5 flex-col gap-[2px]">
                 {days.map((day, i) => (
-                  <div key={i} className="flex h-[10px] items-center text-[8px] text-muted-foreground">
+                  <div key={i} className="flex h-2 sm:h-[10px] items-center text-[6px] sm:text-[8px] text-muted-foreground">
                     {i % 2 === 1 ? day : ''}
                   </div>
                 ))}
               </div>
 
               {/* Grid */}
-              <div className="flex flex-1 gap-[2px]">
+              <div className="flex flex-1 gap-[1px] sm:gap-[2px]">
                 {weeks.map((week, weekIndex) => (
-                  <div key={weekIndex} className="flex flex-col gap-[2px]">
+                  <div key={weekIndex} className="flex flex-col gap-[1px] sm:gap-[2px]">
                     {week.map((day) => {
                       const dateStr = format(day, 'yyyy-MM-dd');
                       const isCurrentYear = day.getFullYear() === year;
@@ -191,7 +191,7 @@ export default function QuranHeatmap({ year = new Date().getFullYear() }: { year
                           <TooltipTrigger asChild>
                             <div
                               className={cn(
-                                'h-[10px] w-[10px] rounded-sm transition-colors',
+                                'h-2 w-2 sm:h-[10px] sm:w-[10px] rounded-sm transition-colors',
                                 isCurrentYear ? getIntensityClass(data) : 'bg-transparent'
                               )}
                             />
@@ -213,19 +213,24 @@ export default function QuranHeatmap({ year = new Date().getFullYear() }: { year
             </div>
 
             {/* Legend */}
-            <div className="mt-3 flex items-center justify-end gap-1 text-[10px] text-muted-foreground">
+            <div className="mt-3 flex items-center justify-end gap-1 text-[8px] sm:text-[10px] text-muted-foreground">
               <span>Less</span>
-              <div className="flex gap-[2px]">
-                <div className="h-[10px] w-[10px] rounded-sm bg-muted" />
-                <div className="h-[10px] w-[10px] rounded-sm bg-emerald-300" />
-                <div className="h-[10px] w-[10px] rounded-sm bg-emerald-400" />
-                <div className="h-[10px] w-[10px] rounded-sm bg-emerald-500" />
-                <div className="h-[10px] w-[10px] rounded-sm bg-emerald-600" />
+              <div className="flex gap-[1px] sm:gap-[2px]">
+                <div className="h-2 w-2 sm:h-[10px] sm:w-[10px] rounded-sm bg-muted" />
+                <div className="h-2 w-2 sm:h-[10px] sm:w-[10px] rounded-sm bg-emerald-300" />
+                <div className="h-2 w-2 sm:h-[10px] sm:w-[10px] rounded-sm bg-emerald-400" />
+                <div className="h-2 w-2 sm:h-[10px] sm:w-[10px] rounded-sm bg-emerald-500" />
+                <div className="h-2 w-2 sm:h-[10px] sm:w-[10px] rounded-sm bg-emerald-600" />
               </div>
               <span>More</span>
             </div>
           </div>
         </div>
+
+        {/* Mobile tip */}
+        <p className="text-[10px] text-muted-foreground text-center sm:hidden">
+          ← Scroll to see full year →
+        </p>
       </CardContent>
     </Card>
   );
