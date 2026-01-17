@@ -10,9 +10,9 @@ import { supabase } from '@/integrations/supabase/client';
 import { 
   Brain, TrendingUp, TrendingDown, Target, Zap, 
   AlertTriangle, CheckCircle2, Clock, BookOpen,
-  Smartphone, Moon, Activity
+  Smartphone, Moon, Activity, Sparkles
 } from 'lucide-react';
-import { RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, ResponsiveContainer } from 'recharts';
+import { RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 
 interface InsightData {
   productivityScore: number;
@@ -25,6 +25,7 @@ interface InsightData {
   harmfulPattern: string;
   focusDropDetected: boolean;
   recommendations: string[];
+  weeklyTrend: { day: string; score: number }[];
 }
 
 interface RadarDataPoint {
@@ -135,26 +136,26 @@ export default function IntelligenceEngine() {
     
     if (avgSalah < 4) {
       recommendations.push(language === 'bn' 
-        ? 'প্রতিদিন ৫ ওয়াক্ত নামাজ পড়ার চেষ্টা করুন'
-        : 'Try to complete all 5 daily prayers');
+        ? '🕌 প্রতিদিন ৫ ওয়াক্ত নামাজ পড়ার চেষ্টা করুন'
+        : '🕌 Try to complete all 5 daily prayers');
     }
     
     if (avgDevice > 180) {
       recommendations.push(language === 'bn'
-        ? 'দৈনিক স্ক্রিন টাইম ৩ ঘণ্টার নিচে রাখুন'
-        : 'Keep daily screen time under 3 hours');
+        ? '📱 দৈনিক স্ক্রিন টাইম ৩ ঘণ্টার নিচে রাখুন'
+        : '📱 Keep daily screen time under 3 hours');
     }
     
     if (avgStudy < 60) {
       recommendations.push(language === 'bn'
-        ? 'প্রতিদিন কমপক্ষে ১ ঘণ্টা মনোযোগী পড়াশোনা করুন'
-        : 'Aim for at least 1 hour of focused study daily');
+        ? '📚 প্রতিদিন কমপক্ষে ১ ঘণ্টা মনোযোগী পড়াশোনা করুন'
+        : '📚 Aim for at least 1 hour of focused study daily');
     }
     
     if (quranDays < entries.length * 0.5) {
       recommendations.push(language === 'bn'
-        ? 'প্রতিদিন অন্তত কিছু আয়াত তিলাওয়াত করুন'
-        : 'Read at least a few verses of Quran daily');
+        ? '📖 প্রতিদিন অন্তত কিছু আয়াত তিলাওয়াত করুন'
+        : '📖 Read at least a few verses of Quran daily');
     }
 
     if (focusDropDetected) {
@@ -162,6 +163,12 @@ export default function IntelligenceEngine() {
         ? '⚠️ ফোকাস হ্রাস সনাক্ত হয়েছে। বিশ্রাম নিন।'
         : '⚠️ Focus drop detected. Consider taking breaks.');
     }
+
+    // Weekly trend data
+    const weeklyTrend = recentEntries.slice(0, 7).reverse().map(e => ({
+      day: format(new Date(e.date), 'EEE'),
+      score: Math.round(((e.focus_level || 0) + (e.discipline_level || 0) + (e.energy_level || 0)) / 3 * 20)
+    }));
 
     setInsights({
       productivityScore,
@@ -174,6 +181,7 @@ export default function IntelligenceEngine() {
       harmfulPattern,
       focusDropDetected,
       recommendations: recommendations.slice(0, 4),
+      weeklyTrend,
     });
 
     setRadarData([
@@ -197,9 +205,9 @@ export default function IntelligenceEngine() {
 
   const getTrendText = (trend: string) => {
     if (language === 'bn') {
-      return trend === 'improving' ? 'উন্নতি হচ্ছে' : trend === 'declining' ? 'হ্রাস পাচ্ছে' : 'স্থিতিশীল';
+      return trend === 'improving' ? 'উন্নতি হচ্ছে 📈' : trend === 'declining' ? 'হ্রাস পাচ্ছে 📉' : 'স্থিতিশীল ➡️';
     }
-    return trend === 'improving' ? 'Improving' : trend === 'declining' ? 'Declining' : 'Stable';
+    return trend === 'improving' ? 'Improving 📈' : trend === 'declining' ? 'Declining 📉' : 'Stable ➡️';
   };
 
   const getScoreColor = (score: number) => {
@@ -208,28 +216,40 @@ export default function IntelligenceEngine() {
     return 'text-red-500';
   };
 
+  const getScoreBg = (score: number) => {
+    if (score >= 70) return 'bg-green-500/10 border-green-500/20';
+    if (score >= 40) return 'bg-yellow-500/10 border-yellow-500/20';
+    return 'bg-red-500/10 border-red-500/20';
+  };
+
   return (
     <AppLayout>
-      <div className="p-6 lg:p-8 space-y-6">
+      <div className="p-4 sm:p-6 lg:p-8 space-y-6 pb-24 lg:pb-8">
         {/* Header */}
         <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
+          <h1 className="text-2xl sm:text-3xl font-bold flex items-center gap-2">
             <Brain className="h-7 w-7 text-primary" />
             {language === 'bn' ? 'ইন্টেলিজেন্স ইঞ্জিন' : 'Intelligence Engine'}
           </h1>
-          <p className="text-muted-foreground">
-            {language === 'bn' ? 'AI-চালিত অন্তর্দৃষ্টি ও বিশ্লেষণ' : 'AI-powered insights and analysis'}
+          <p className="text-sm text-muted-foreground mt-1">
+            {language === 'bn' ? '🤖 AI-চালিত অন্তর্দৃষ্টি ও বিশ্লেষণ' : '🤖 AI-powered insights and analysis'}
           </p>
         </div>
 
         {loading ? (
-          <div className="flex items-center justify-center h-64">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+          <div className="flex flex-col items-center justify-center h-64 gap-4">
+            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary" />
+            <p className="text-sm text-muted-foreground">
+              {language === 'bn' ? 'ডেটা বিশ্লেষণ করা হচ্ছে...' : 'Analyzing your data...'}
+            </p>
           </div>
         ) : !insights ? (
-          <Card className="p-12 text-center">
+          <Card className="p-8 sm:p-12 text-center">
             <Brain className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
-            <p className="text-muted-foreground">
+            <h3 className="text-lg font-semibold mb-2">
+              {language === 'bn' ? 'পর্যাপ্ত ডেটা নেই' : 'Not Enough Data'}
+            </h3>
+            <p className="text-muted-foreground text-sm">
               {language === 'bn' 
                 ? 'বিশ্লেষণের জন্য পর্যাপ্ত ডেটা নেই। দৈনিক এন্ট্রি জমা দিন।'
                 : 'Not enough data for analysis. Submit daily entries to see insights.'}
@@ -238,103 +258,50 @@ export default function IntelligenceEngine() {
         ) : (
           <>
             {/* Score Cards */}
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm text-muted-foreground">
-                    {language === 'bn' ? 'উৎপাদনশীলতা' : 'Productivity'}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className={`text-3xl font-bold ${getScoreColor(insights.productivityScore)}`}>
-                    {insights.productivityScore}
-                  </div>
-                  <Progress value={insights.productivityScore} className="mt-2" />
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm text-muted-foreground">
-                    {language === 'bn' ? 'দ্বীন স্কোর' : 'Deen Score'}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className={`text-3xl font-bold ${getScoreColor(insights.deenScore)}`}>
-                    {insights.deenScore}
-                  </div>
-                  <Progress value={insights.deenScore} className="mt-2" />
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm text-muted-foreground">
-                    {language === 'bn' ? 'শৃঙ্খলা' : 'Discipline'}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className={`text-3xl font-bold ${getScoreColor(insights.disciplineScore)}`}>
-                    {insights.disciplineScore}
-                  </div>
-                  <Progress value={insights.disciplineScore} className="mt-2" />
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm text-muted-foreground">
-                    {language === 'bn' ? 'ফোকাস' : 'Focus'}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className={`text-3xl font-bold ${getScoreColor(insights.focusScore)}`}>
-                    {insights.focusScore}
-                  </div>
-                  <Progress value={insights.focusScore} className="mt-2" />
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm text-muted-foreground">
-                    {language === 'bn' ? 'ধারাবাহিকতা' : 'Consistency'}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className={`text-3xl font-bold ${getScoreColor(insights.consistencyScore)}`}>
-                    {insights.consistencyScore}%
-                  </div>
-                  <Progress value={insights.consistencyScore} className="mt-2" />
-                </CardContent>
-              </Card>
+            <div className="grid gap-3 grid-cols-2 lg:grid-cols-5">
+              {[
+                { label: language === 'bn' ? 'উৎপাদনশীলতা' : 'Productivity', score: insights.productivityScore, icon: '🎯' },
+                { label: language === 'bn' ? 'দ্বীন স্কোর' : 'Deen Score', score: insights.deenScore, icon: '🕌' },
+                { label: language === 'bn' ? 'শৃঙ্খলা' : 'Discipline', score: insights.disciplineScore, icon: '💪' },
+                { label: language === 'bn' ? 'ফোকাস' : 'Focus', score: insights.focusScore, icon: '🎯' },
+                { label: language === 'bn' ? 'ধারাবাহিকতা' : 'Consistency', score: insights.consistencyScore, icon: '🔥', suffix: '%' },
+              ].map((item, i) => (
+                <Card key={i} className={`border ${getScoreBg(item.score)}`}>
+                  <CardContent className="pt-4 pb-3">
+                    <p className="text-xs text-muted-foreground mb-1">{item.icon} {item.label}</p>
+                    <div className={`text-2xl sm:text-3xl font-bold ${getScoreColor(item.score)}`}>
+                      {item.score}{item.suffix || ''}
+                    </div>
+                    <Progress value={item.score} className="mt-2 h-1.5" />
+                  </CardContent>
+                </Card>
+              ))}
             </div>
 
-            {/* Radar Chart & Patterns */}
-            <div className="grid gap-6 lg:grid-cols-2">
+            {/* Charts Grid */}
+            <div className="grid gap-4 lg:grid-cols-2">
               {/* Radar Chart */}
               <Card>
-                <CardHeader>
-                  <CardTitle>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Sparkles className="h-4 w-4 text-primary" />
                     {language === 'bn' ? 'পারফরম্যান্স রাডার' : 'Performance Radar'}
                   </CardTitle>
-                  <CardDescription>
-                    {language === 'bn' ? 'সার্বিক কর্মক্ষমতা বিশ্লেষণ' : 'Overall performance analysis'}
-                  </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="h-[300px]">
+                  <div className="h-[250px]">
                     <ResponsiveContainer width="100%" height="100%">
                       <RadarChart data={radarData}>
-                        <PolarGrid />
-                        <PolarAngleAxis dataKey="subject" className="text-xs" />
-                        <PolarRadiusAxis angle={30} domain={[0, 100]} />
+                        <PolarGrid strokeDasharray="3 3" />
+                        <PolarAngleAxis dataKey="subject" tick={{ fontSize: 10 }} />
+                        <PolarRadiusAxis angle={30} domain={[0, 100]} tick={{ fontSize: 9 }} />
                         <Radar 
                           name="Score" 
                           dataKey="value" 
                           stroke="hsl(var(--primary))" 
                           fill="hsl(var(--primary))" 
                           fillOpacity={0.3}
+                          strokeWidth={2}
                         />
                       </RadarChart>
                     </ResponsiveContainer>
@@ -342,89 +309,130 @@ export default function IntelligenceEngine() {
                 </CardContent>
               </Card>
 
-              {/* Pattern Analysis */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>
-                    {language === 'bn' ? 'প্যাটার্ন বিশ্লেষণ' : 'Pattern Analysis'}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                  {/* Mood Trend */}
-                  <div className="flex items-center justify-between p-4 bg-muted/30 rounded-lg">
-                    <div>
-                      <p className="font-medium">
-                        {language === 'bn' ? 'এনার্জি ট্রেন্ড' : 'Energy Trend'}
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        {language === 'bn' ? 'গত সপ্তাহে' : 'Last 7 days'}
-                      </p>
+              {/* Weekly Trend */}
+              {insights.weeklyTrend.length > 0 && (
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <TrendingUp className="h-4 w-4 text-primary" />
+                      {language === 'bn' ? 'সাপ্তাহিক প্রবণতা' : 'Weekly Trend'}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="h-[250px]">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart data={insights.weeklyTrend}>
+                          <defs>
+                            <linearGradient id="colorScore" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3}/>
+                              <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0}/>
+                            </linearGradient>
+                          </defs>
+                          <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                          <XAxis dataKey="day" tick={{ fontSize: 10 }} />
+                          <YAxis domain={[0, 100]} tick={{ fontSize: 10 }} />
+                          <Tooltip 
+                            contentStyle={{ 
+                              borderRadius: '8px',
+                              border: '1px solid hsl(var(--border))',
+                              backgroundColor: 'hsl(var(--background))',
+                              fontSize: '12px'
+                            }}
+                          />
+                          <Area 
+                            type="monotone" 
+                            dataKey="score" 
+                            stroke="hsl(var(--primary))" 
+                            fillOpacity={1} 
+                            fill="url(#colorScore)" 
+                            strokeWidth={2}
+                          />
+                        </AreaChart>
+                      </ResponsiveContainer>
                     </div>
-                    <div className="flex items-center gap-2">
-                      {getTrendIcon(insights.moodTrend)}
-                      <span className="font-medium">{getTrendText(insights.moodTrend)}</span>
-                    </div>
-                  </div>
-
-                  {/* Top Habit */}
-                  <div className="flex items-center justify-between p-4 bg-green-500/10 rounded-lg">
-                    <div>
-                      <p className="font-medium text-green-700">
-                        {language === 'bn' ? 'সেরা অভ্যাস' : 'Top Habit'}
-                      </p>
-                    </div>
-                    <Badge variant="outline" className="text-green-700 border-green-500">
-                      <CheckCircle2 className="h-3 w-3 mr-1" />
-                      {insights.topHabit}
-                    </Badge>
-                  </div>
-
-                  {/* Harmful Pattern */}
-                  <div className="flex items-center justify-between p-4 bg-red-500/10 rounded-lg">
-                    <div>
-                      <p className="font-medium text-red-700">
-                        {language === 'bn' ? 'উন্নতির জায়গা' : 'Area to Improve'}
-                      </p>
-                    </div>
-                    <Badge variant="outline" className="text-red-700 border-red-500">
-                      <AlertTriangle className="h-3 w-3 mr-1" />
-                      {insights.harmfulPattern}
-                    </Badge>
-                  </div>
-
-                  {/* Focus Alert */}
-                  {insights.focusDropDetected && (
-                    <div className="flex items-center gap-3 p-4 bg-yellow-500/10 rounded-lg">
-                      <Zap className="h-5 w-5 text-yellow-600" />
-                      <p className="text-yellow-700">
-                        {language === 'bn' 
-                          ? 'সম্প্রতি ফোকাস হ্রাস সনাক্ত হয়েছে'
-                          : 'Focus drop detected recently'}
-                      </p>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
+                  </CardContent>
+                </Card>
+              )}
             </div>
 
-            {/* AI Recommendations */}
-            <Card className="border-primary/30 bg-primary/5">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Zap className="h-5 w-5 text-primary" />
-                  {language === 'bn' ? 'AI সুপারিশ' : 'AI Recommendations'}
+            {/* Pattern Analysis */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">
+                  {language === 'bn' ? '📊 প্যাটার্ন বিশ্লেষণ' : '📊 Pattern Analysis'}
                 </CardTitle>
-                <CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {/* Mood Trend */}
+                <div className="flex items-center justify-between p-3 bg-muted/30 rounded-xl">
+                  <div>
+                    <p className="font-medium text-sm">
+                      {language === 'bn' ? 'এনার্জি ট্রেন্ড' : 'Energy Trend'}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {language === 'bn' ? 'গত সপ্তাহে' : 'Last 7 days'}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {getTrendIcon(insights.moodTrend)}
+                    <span className="font-medium text-sm">{getTrendText(insights.moodTrend)}</span>
+                  </div>
+                </div>
+
+                {/* Top Habit */}
+                <div className="flex items-center justify-between p-3 bg-green-500/10 rounded-xl">
+                  <p className="font-medium text-sm text-green-700 dark:text-green-400">
+                    {language === 'bn' ? '🌟 সেরা অভ্যাস' : '🌟 Top Habit'}
+                  </p>
+                  <Badge variant="outline" className="text-green-700 dark:text-green-400 border-green-500/50">
+                    <CheckCircle2 className="h-3 w-3 mr-1" />
+                    {insights.topHabit}
+                  </Badge>
+                </div>
+
+                {/* Harmful Pattern */}
+                <div className="flex items-center justify-between p-3 bg-red-500/10 rounded-xl">
+                  <p className="font-medium text-sm text-red-700 dark:text-red-400">
+                    {language === 'bn' ? '⚠️ উন্নতির জায়গা' : '⚠️ Area to Improve'}
+                  </p>
+                  <Badge variant="outline" className="text-red-700 dark:text-red-400 border-red-500/50">
+                    <AlertTriangle className="h-3 w-3 mr-1" />
+                    {insights.harmfulPattern}
+                  </Badge>
+                </div>
+
+                {/* Focus Alert */}
+                {insights.focusDropDetected && (
+                  <div className="flex items-center gap-3 p-3 bg-yellow-500/10 rounded-xl">
+                    <Zap className="h-5 w-5 text-yellow-600 shrink-0" />
+                    <p className="text-sm text-yellow-700 dark:text-yellow-400">
+                      {language === 'bn' 
+                        ? 'সম্প্রতি ফোকাস হ্রাস সনাক্ত হয়েছে'
+                        : 'Focus drop detected recently'}
+                    </p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* AI Recommendations */}
+            <Card className="border-primary/30 bg-gradient-to-br from-primary/5 to-purple-500/5">
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Zap className="h-5 w-5 text-primary" />
+                  {language === 'bn' ? '🤖 AI সুপারিশ' : '🤖 AI Recommendations'}
+                </CardTitle>
+                <CardDescription className="text-xs">
                   {language === 'bn' 
                     ? 'আপনার ডেটা বিশ্লেষণের উপর ভিত্তি করে'
                     : 'Based on your data analysis'}
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="grid gap-3 md:grid-cols-2">
+                <div className="grid gap-2 sm:grid-cols-2">
                   {insights.recommendations.map((rec, index) => (
-                    <div key={index} className="flex items-start gap-3 p-3 bg-background rounded-lg">
-                      <div className="h-6 w-6 rounded-full bg-primary/20 flex items-center justify-center text-sm font-medium text-primary">
+                    <div key={index} className="flex items-start gap-3 p-3 bg-background rounded-xl border">
+                      <div className="h-6 w-6 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold text-primary shrink-0">
                         {index + 1}
                       </div>
                       <p className="text-sm">{rec}</p>
