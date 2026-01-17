@@ -215,11 +215,11 @@ export default function Habits() {
 
   return (
     <AppLayout>
-      <div className="p-6 lg:p-8">
-        <div className="mb-8 flex items-center justify-between">
+      <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto">
+        <div className="mb-6 sm:mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Habits</h1>
-            <p className="mt-1 text-muted-foreground">
+            <h1 className="text-headline font-bold tracking-tight">Habits</h1>
+            <p className="mt-1 text-body text-muted-foreground">
               {completedCount} of {habits.length} completed today
             </p>
           </div>
@@ -329,8 +329,8 @@ export default function Habits() {
               <div className="mb-4 rounded-full bg-muted p-4">
                 <CheckSquare className="h-8 w-8 text-muted-foreground" />
               </div>
-              <h3 className="mb-2 text-lg font-semibold">No habits yet</h3>
-              <p className="mb-4 text-center text-sm text-muted-foreground">
+              <h3 className="mb-2 text-subtitle font-semibold">No habits yet</h3>
+              <p className="mb-4 text-center text-caption text-muted-foreground">
                 Start by creating your first habit to track
               </p>
               <Button onClick={() => setIsDialogOpen(true)}>
@@ -378,7 +378,7 @@ export default function Habits() {
                           {habit.name}
                         </h3>
                         {habit.description && (
-                          <p className="text-sm text-muted-foreground">
+                          <p className="text-caption text-muted-foreground">
                             {habit.description}
                           </p>
                         )}
