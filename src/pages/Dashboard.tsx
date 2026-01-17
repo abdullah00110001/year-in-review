@@ -114,10 +114,10 @@ export default function Dashboard() {
       <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-4 sm:mb-6">
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight break-words">
+          <h1 className="text-headline font-bold tracking-tight break-words">
             {getGreeting()}, {user?.email?.split('@')[0]}!
           </h1>
-          <p className="mt-1 text-sm sm:text-base text-muted-foreground">
+          <p className="mt-1 text-body text-muted-foreground">
             {format(new Date(), 'EEEE, MMMM d, yyyy')}
           </p>
         </div>
@@ -154,55 +154,55 @@ export default function Dashboard() {
         <div className="mb-6 sm:mb-8 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between p-3 sm:p-4 pb-1 sm:pb-2">
-              <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">
+              <CardTitle className="text-caption font-medium text-muted-foreground">
                 {t('dashboard.todayProgress')}
               </CardTitle>
               <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />
             </CardHeader>
             <CardContent className="p-3 sm:p-4 pt-0">
-              <div className="text-xl sm:text-2xl font-bold">{stats.todayCompleted}/{stats.todayTotal}</div>
+              <div className="text-title font-bold">{stats.todayCompleted}/{stats.todayTotal}</div>
               <Progress value={completionRate} className="mt-2 h-2" />
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between p-3 sm:p-4 pb-1 sm:pb-2">
-              <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">
+              <CardTitle className="text-caption font-medium text-muted-foreground">
                 {t('dashboard.activeGoals')}
               </CardTitle>
               <Target className="h-4 w-4 text-secondary shrink-0" />
             </CardHeader>
             <CardContent className="p-3 sm:p-4 pt-0">
-              <div className="text-xl sm:text-2xl font-bold">{stats.totalGoals}</div>
-              <p className="text-xs text-muted-foreground">{t('common.for')} {new Date().getFullYear()}</p>
+              <div className="text-title font-bold">{stats.totalGoals}</div>
+              <p className="text-caption text-muted-foreground">{t('common.for')} {new Date().getFullYear()}</p>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between p-3 sm:p-4 pb-1 sm:pb-2">
-              <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground truncate">
+              <CardTitle className="text-caption font-medium text-muted-foreground truncate">
                 {t('dashboard.currentStreak')}
               </CardTitle>
               <Flame className="h-4 w-4 text-secondary shrink-0" />
             </CardHeader>
             <CardContent className="p-3 sm:p-4 pt-0">
-              <div className="text-xl sm:text-2xl font-bold">
-                {streakLoading ? '...' : currentStreak} <span className="text-sm sm:text-base">{t('dashboard.days')}</span>
+              <div className="text-title font-bold">
+                {streakLoading ? '...' : currentStreak} <span className="text-body">{t('dashboard.days')}</span>
               </div>
-              <p className="text-xs text-muted-foreground truncate">{t('dashboard.keepGoing')}</p>
+              <p className="text-caption text-muted-foreground truncate">{t('dashboard.keepGoing')}</p>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between p-3 sm:p-4 pb-1 sm:pb-2">
-              <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">
+              <CardTitle className="text-caption font-medium text-muted-foreground">
                 {t('dashboard.consistency')}
               </CardTitle>
               <Sparkles className="h-4 w-4 text-accent shrink-0" />
             </CardHeader>
             <CardContent className="p-3 sm:p-4 pt-0">
-              <div className="text-xl sm:text-2xl font-bold">{streakLoading ? '...' : consistencyScore}%</div>
-              <p className="text-xs text-muted-foreground">Last 30 days</p>
+              <div className="text-title font-bold">{streakLoading ? '...' : consistencyScore}%</div>
+              <p className="text-caption text-muted-foreground">Last 30 days</p>
             </CardContent>
           </Card>
         </div>
@@ -214,8 +214,8 @@ export default function Dashboard() {
             <CardHeader className="p-4 sm:p-6">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <div>
-                  <CardTitle className="text-base sm:text-lg">{t('dashboard.todayHabits')}</CardTitle>
-                  <CardDescription className="text-xs sm:text-sm">{t('dashboard.completeDaily')}</CardDescription>
+                  <CardTitle className="text-subtitle">{t('dashboard.todayHabits')}</CardTitle>
+                  <CardDescription className="text-caption">{t('dashboard.completeDaily')}</CardDescription>
                 </div>
                 <Button asChild variant="outline" size="sm" className="w-full sm:w-auto">
                   <Link to="/habits">{t('dashboard.viewAll')}</Link>
@@ -265,8 +265,8 @@ export default function Dashboard() {
             <CardHeader className="p-4 sm:p-6">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <div>
-                  <CardTitle className="text-base sm:text-lg">{t('dashboard.goalsOverview')}</CardTitle>
-                  <CardDescription className="text-xs sm:text-sm">{t('dashboard.yearlyObjectives')}</CardDescription>
+                  <CardTitle className="text-subtitle">{t('dashboard.goalsOverview')}</CardTitle>
+                  <CardDescription className="text-caption">{t('dashboard.yearlyObjectives')}</CardDescription>
                 </div>
                 <Button asChild variant="outline" size="sm" className="w-full sm:w-auto">
                   <Link to="/goals">{t('dashboard.viewAll')}</Link>
