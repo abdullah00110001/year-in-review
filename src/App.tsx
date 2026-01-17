@@ -30,6 +30,7 @@ import UserInspector from "./pages/admin/UserInspector";
 import AtRiskUsers from "./pages/admin/AtRiskUsers";
 import FeedbackCenter from "./pages/admin/FeedbackCenter";
 import AdminAnalytics from "./pages/admin/AdminAnalytics";
+import AdminCommandCenter from "./pages/admin/AdminCommandCenter";
 import AdminProtectedRoute from "./components/admin/AdminProtectedRoute";
 import YearEndWrapped from "./pages/YearEndWrapped";
 import DataExport from "./pages/DataExport";
@@ -324,6 +325,14 @@ const App = () => (
                     <ProtectedRoute>
                       <UnifiedDashboard />
                     </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/admin/command"
+                  element={
+                    <AdminProtectedRoute>
+                      <AdminCommandCenter />
+                    </AdminProtectedRoute>
                   }
                 />
                 <Route path="*" element={<NotFound />} />

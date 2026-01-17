@@ -16,6 +16,7 @@ import SmallWinsWidget from '@/components/dashboard/SmallWinsWidget';
 import LifeDistributionWidget from '@/components/dashboard/LifeDistributionWidget';
 import ContextualMotivation from '@/components/ContextualMotivation';
 import ModeOnboarding from '@/components/mode/ModeOnboarding';
+import AdminFeedbackNotifications from '@/components/dashboard/AdminFeedbackNotifications';
 
 interface DashboardStats {
   totalGoals: number;
@@ -143,6 +144,9 @@ export default function Dashboard() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Admin Feedback Notifications */}
+        <AdminFeedbackNotifications />
 
         {/* Contextual Motivation */}
         <ContextualMotivation />

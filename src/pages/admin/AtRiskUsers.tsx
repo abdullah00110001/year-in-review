@@ -3,6 +3,7 @@ import AdminLayout from '@/components/admin/AdminLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 import { supabase } from '@/integrations/supabase/client';
 import { 
   AlertTriangle, 
@@ -12,10 +13,13 @@ import {
   MessageSquare,
   ChevronRight,
   Clock,
-  TrendingDown
+  TrendingDown,
+  Send,
+  Users
 } from 'lucide-react';
 import { format, subDays } from 'date-fns';
 import { Link } from 'react-router-dom';
+import BatchEncouragementModal from '@/components/admin/BatchEncouragementModal';
 
 interface AtRiskUser {
   user_id: string;
@@ -30,7 +34,8 @@ interface AtRiskUser {
 export default function AtRiskUsers() {
   const [users, setUsers] = useState<AtRiskUser[]>([]);
   const [loading, setLoading] = useState(true);
-
+  const [selectedUsers, setSelectedUsers] = useState<Set<string>>(new Set());
+  const [showBatchModal, setShowBatchModal] = useState(false);
   useEffect(() => {
     fetchAtRiskUsers();
   }, []);
@@ -116,6 +121,30 @@ export default function AtRiskUsers() {
     return { label: 'Medium', variant: 'secondary' as const };
   };
 
+  const toggleSelectUser = (userId: string) => {
+    setSelectedUsers(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(userId)) {
+        newSet.delete(userId);
+      } else {
+        newSet.add(userId);
+      }
+      return newSet;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedUsers.size === users.length) {
+      setSelectedUsers(new Set());
+    } else {
+      setSelectedUsers(new Set(users.map(u => u.user_id)));
+    }
+  };
+
+  const getSelectedUsersList = () => {
+    return users.filter(u => selectedUsers.has(u.user_id));
+  };
+
   if (loading) {
     return (
       <AdminLayout>
@@ -130,14 +159,22 @@ export default function AtRiskUsers() {
     <AdminLayout>
       <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto">
         {/* Header */}
-        <div className="mb-6">
-          <h1 className="text-headline font-bold tracking-tight flex items-center gap-2">
-            <AlertTriangle className="h-7 w-7 text-destructive" />
-            At-Risk Users
-          </h1>
-          <p className="text-body text-muted-foreground">
-            Users who haven't logged data for 3+ days and may need support
-          </p>
+        <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-headline font-bold tracking-tight flex items-center gap-2">
+              <AlertTriangle className="h-7 w-7 text-destructive" />
+              At-Risk Users
+            </h1>
+            <p className="text-body text-muted-foreground">
+              Users who haven't logged data for 3+ days and may need support
+            </p>
+          </div>
+          {selectedUsers.size > 0 && (
+            <Button onClick={() => setShowBatchModal(true)} className="shrink-0">
+              <Send className="h-4 w-4 mr-2" />
+              Send to {selectedUsers.size} Selected
+            </Button>
+          )}
         </div>
 
         {/* Stats */}
@@ -169,10 +206,20 @@ export default function AtRiskUsers() {
         {/* User List */}
         <Card>
           <CardHeader className="p-4 sm:p-6">
-            <CardTitle className="text-subtitle">At-Risk User List</CardTitle>
-            <CardDescription className="text-caption">
-              Sorted by days inactive (highest first)
-            </CardDescription>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-subtitle">At-Risk User List</CardTitle>
+                <CardDescription className="text-caption">
+                  Sorted by days inactive (highest first)
+                </CardDescription>
+              </div>
+              {users.length > 0 && (
+                <Button variant="outline" size="sm" onClick={toggleSelectAll}>
+                  <Users className="h-4 w-4 mr-2" />
+                  {selectedUsers.size === users.length ? 'Deselect All' : 'Select All'}
+                </Button>
+              )}
+            </div>
           </CardHeader>
           <CardContent className="p-4 sm:p-6 pt-0">
             {users.length === 0 ? (
@@ -189,12 +236,20 @@ export default function AtRiskUsers() {
               <div className="space-y-3">
                 {users.map((user) => {
                   const severity = getSeverity(user.days_inactive);
+                  const isSelected = selectedUsers.has(user.user_id);
                   return (
                     <div 
                       key={user.user_id} 
-                      className="flex items-center justify-between p-4 rounded-xl border bg-card hover:bg-muted/50 transition-colors"
+                      className={`flex items-center justify-between p-4 rounded-xl border bg-card hover:bg-muted/50 transition-colors ${
+                        isSelected ? 'border-primary/50 bg-primary/5' : ''
+                      }`}
                     >
                       <div className="flex items-center gap-4">
+                        <Checkbox
+                          checked={isSelected}
+                          onCheckedChange={() => toggleSelectUser(user.user_id)}
+                          className="shrink-0"
+                        />
                         <div className={`h-12 w-12 rounded-full flex items-center justify-center ${
                           severity.label === 'Critical' ? 'bg-red-500/10' : 
                           severity.label === 'High' ? 'bg-orange-500/10' : 'bg-yellow-500/10'
@@ -252,6 +307,17 @@ export default function AtRiskUsers() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Batch Encouragement Modal */}
+      <BatchEncouragementModal
+        isOpen={showBatchModal}
+        onClose={() => setShowBatchModal(false)}
+        users={getSelectedUsersList()}
+        onSuccess={() => {
+          setSelectedUsers(new Set());
+          fetchAtRiskUsers();
+        }}
+      />
     </AdminLayout>
   );
 }
