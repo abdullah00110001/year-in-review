@@ -1,20 +1,11 @@
-import { useEffect, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
-import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
-import { Badge } from '@/components/ui/badge';
 import { CalendarDays, Clock, Sparkles } from 'lucide-react';
-
-interface Quote {
-  quote: string;
-  quote_bn: string;
-  author: string | null;
-}
+import UnifiedQuotes from './UnifiedQuotes';
 
 export default function TimeAwareness() {
-  const { t, language } = useLanguage();
-  const [quote, setQuote] = useState<Quote | null>(null);
+  const { language } = useLanguage();
 
   const now = new Date();
   const year = now.getFullYear();
@@ -26,51 +17,10 @@ export default function TimeAwareness() {
   const daysRemaining = totalDays - dayOfYear;
   const yearProgress = Math.round((dayOfYear / totalDays) * 100);
 
-  useEffect(() => {
-    fetchDailyQuote();
-  }, []);
-
-  const fetchDailyQuote = async () => {
-    // Get a quote based on day of year for consistency
-    const { data } = await supabase
-      .from('motivational_quotes')
-      .select('*');
-    
-    if (data && data.length > 0) {
-      const quoteIndex = dayOfYear % data.length;
-      setQuote(data[quoteIndex]);
-    }
-  };
-
   return (
     <div className="mb-4 sm:mb-8 space-y-4">
-      {/* Daily Quote - Separate Card */}
-      {quote && (
-        <Card className="overflow-hidden border-0 bg-gradient-to-br from-accent/10 via-background to-primary/5">
-          <CardContent className="p-4 sm:p-6">
-            <div className="flex items-start gap-3">
-              <div className="mt-0.5 flex h-8 w-8 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
-                <Sparkles className="h-4 w-4 sm:h-5 sm:w-5" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-2">
-                  <Badge variant="secondary" className="text-[10px] sm:text-xs">
-                    📿 {language === 'bn' ? 'ইসলামিক রিমাইন্ডার' : 'Islamic Reminder'}
-                  </Badge>
-                </div>
-                <p className="text-sm sm:text-base italic text-foreground/90 leading-relaxed">
-                  "{language === 'bn' ? quote.quote_bn : quote.quote}"
-                </p>
-                {quote.author && (
-                  <p className="mt-2 text-xs sm:text-sm text-muted-foreground font-medium">
-                    — {quote.author}
-                  </p>
-                )}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      {/* Unified Quotes - Mixed Islamic & General */}
+      <UnifiedQuotes />
 
       {/* Year Progress - Separate Card */}
       <Card className="overflow-hidden border-0 bg-gradient-to-br from-primary/10 via-background to-secondary/10">

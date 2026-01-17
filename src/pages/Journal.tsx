@@ -122,15 +122,15 @@ export default function Journal() {
 
   return (
     <AppLayout>
-      <div className="p-6 lg:p-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold tracking-tight">{t('journal.title')}</h1>
-          <p className="mt-1 text-muted-foreground">
+      <div className="p-4 sm:p-6 lg:p-8 pb-24 lg:pb-8">
+        <div className="mb-6 sm:mb-8">
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">{t('journal.title')}</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
             {t('journal.subtitle')}
           </p>
         </div>
 
-        <div className="grid gap-6 lg:grid-cols-3">
+        <div className="grid gap-4 sm:gap-6 lg:grid-cols-3">
           {/* Current Week Reflection */}
           <div className="lg:col-span-2">
             <Card>
@@ -177,20 +177,20 @@ export default function Journal() {
                     {/* Mood Selection */}
                     <div className="space-y-3">
                       <Label>{t('journal.mood')}</Label>
-                      <div className="flex gap-2">
+                      <div className="grid grid-cols-5 gap-1 sm:gap-2">
                         {moodIcons.map(({ value, icon: Icon, label, color }) => (
                           <Button
                             key={value}
                             variant={reflection.mood === value ? 'default' : 'outline'}
-                            size="lg"
+                            size="sm"
                             className={cn(
-                              'flex-1 flex-col gap-1 h-auto py-3',
+                              'flex flex-col gap-0.5 sm:gap-1 h-auto py-2 sm:py-3 px-1 sm:px-2',
                               reflection.mood === value && 'ring-2 ring-primary'
                             )}
                             onClick={() => setReflection({ ...reflection, mood: value })}
                           >
-                            <Icon className={cn('h-6 w-6', reflection.mood !== value && color)} />
-                            <span className="text-xs">{label}</span>
+                            <Icon className={cn('h-4 w-4 sm:h-6 sm:w-6', reflection.mood !== value && color)} />
+                            <span className="text-[9px] sm:text-xs truncate">{label}</span>
                           </Button>
                         ))}
                       </div>
