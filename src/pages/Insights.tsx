@@ -40,7 +40,7 @@ export default function Insights() {
 
   return (
     <AppLayout>
-      <div className="space-y-6 pb-20">
+      <div className="space-y-6 pb-24 lg:pb-6">
         {/* Header */}
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
@@ -68,29 +68,30 @@ export default function Insights() {
         </div>
 
         <Tabs defaultValue="overview" className="space-y-4">
-          <TabsList className="grid grid-cols-3 lg:grid-cols-6 w-full">
-            <TabsTrigger value="overview" className="text-xs">
-              <Sparkles className="h-4 w-4 mr-1" />
-              Overview
+          <TabsList className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 w-full h-auto gap-1 p-1">
+            <TabsTrigger value="overview" className="text-xs px-2 py-2">
+              <Sparkles className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1" />
+              <span className="hidden sm:inline">Overview</span>
+              <span className="sm:hidden">View</span>
             </TabsTrigger>
-            <TabsTrigger value="mental" className="text-xs">
-              <Brain className="h-4 w-4 mr-1" />
+            <TabsTrigger value="mental" className="text-xs px-2 py-2">
+              <Brain className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1" />
               Mental
             </TabsTrigger>
-            <TabsTrigger value="spiritual" className="text-xs">
-              <Heart className="h-4 w-4 mr-1" />
+            <TabsTrigger value="spiritual" className="text-xs px-2 py-2">
+              <Heart className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1" />
               Spiritual
             </TabsTrigger>
-            <TabsTrigger value="balance" className="text-xs">
-              <Activity className="h-4 w-4 mr-1" />
+            <TabsTrigger value="balance" className="text-xs px-2 py-2">
+              <Activity className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1" />
               Balance
             </TabsTrigger>
-            <TabsTrigger value="quran" className="text-xs">
-              <BookOpen className="h-4 w-4 mr-1" />
+            <TabsTrigger value="quran" className="text-xs px-2 py-2">
+              <BookOpen className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1" />
               Qur'an
             </TabsTrigger>
-            <TabsTrigger value="goals" className="text-xs">
-              <Target className="h-4 w-4 mr-1" />
+            <TabsTrigger value="goals" className="text-xs px-2 py-2">
+              <Target className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1" />
               Goals
             </TabsTrigger>
           </TabsList>

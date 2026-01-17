@@ -70,7 +70,6 @@ export default function Sidebar() {
     { name: t('nav.monthlyReview'), href: '/monthly-review', icon: Calendar },
     { name: t('nav.intelligence'), href: '/intelligence', icon: Brain },
     { name: 'Advanced Insights', href: '/insights', icon: Eye },
-    { name: language === 'bn' ? 'ইসলামিক ড্যাশবোর্ড' : 'Islamic Dashboard', href: '/islamic-dashboard', icon: Heart },
     { name: t('nav.gamification'), href: '/gamification', icon: Trophy },
     { name: t('nav.journey'), href: '/journey', icon: Map },
     { name: t('nav.goals'), href: '/goals', icon: Target },

@@ -3,6 +3,7 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
+import { Badge } from '@/components/ui/badge';
 import { CalendarDays, Clock, Sparkles } from 'lucide-react';
 
 interface Quote {
@@ -42,27 +43,38 @@ export default function TimeAwareness() {
   };
 
   return (
-    <div className="mb-4 sm:mb-8">
-      <Card className="overflow-hidden border-0 bg-gradient-to-br from-primary/10 via-background to-secondary/10">
-        <CardContent className="p-4 sm:p-6 space-y-4 sm:space-y-5">
-          {/* Daily Quote - Now at top */}
-          {quote && (
-            <div className="flex items-start gap-2 sm:gap-3 pb-3 sm:pb-4 border-b border-border/50">
-              <div className="mt-0.5 flex h-7 w-7 sm:h-8 sm:w-8 shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent">
-                <Sparkles className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+    <div className="mb-4 sm:mb-8 space-y-4">
+      {/* Daily Quote - Separate Card */}
+      {quote && (
+        <Card className="overflow-hidden border-0 bg-gradient-to-br from-accent/10 via-background to-primary/5">
+          <CardContent className="p-4 sm:p-6">
+            <div className="flex items-start gap-3">
+              <div className="mt-0.5 flex h-8 w-8 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                <Sparkles className="h-4 w-4 sm:h-5 sm:w-5" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-xs sm:text-sm italic text-foreground/80 break-words">
+                <div className="flex items-center gap-2 mb-2">
+                  <Badge variant="secondary" className="text-[10px] sm:text-xs">
+                    📿 {language === 'bn' ? 'ইসলামিক রিমাইন্ডার' : 'Islamic Reminder'}
+                  </Badge>
+                </div>
+                <p className="text-sm sm:text-base italic text-foreground/90 leading-relaxed">
                   "{language === 'bn' ? quote.quote_bn : quote.quote}"
                 </p>
                 {quote.author && (
-                  <p className="mt-1 text-xs text-muted-foreground">— {quote.author}</p>
+                  <p className="mt-2 text-xs sm:text-sm text-muted-foreground font-medium">
+                    — {quote.author}
+                  </p>
                 )}
               </div>
             </div>
-          )}
+          </CardContent>
+        </Card>
+      )}
 
-          {/* Year Progress Section */}
+      {/* Year Progress - Separate Card */}
+      <Card className="overflow-hidden border-0 bg-gradient-to-br from-primary/10 via-background to-secondary/10">
+        <CardContent className="p-4 sm:p-6">
           <div className="flex flex-col gap-4 sm:gap-6 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex-1 space-y-3 sm:space-y-4">
               <div className="flex items-center gap-2 text-xs sm:text-sm font-medium text-muted-foreground">

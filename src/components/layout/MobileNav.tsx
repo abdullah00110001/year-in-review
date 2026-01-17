@@ -24,13 +24,13 @@ import {
   Image,
   Mail,
   Menu,
-  X,
   Shield,
   Eye,
   ClipboardList,
   Brain,
   Compass,
-  Heart
+  Home,
+  Plus
 } from 'lucide-react';
 import { useAppMode } from '@/contexts/AppModeContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -106,7 +106,6 @@ export default function MobileNav() {
     { name: t('nav.dailyInput'), href: '/daily-input', icon: ClipboardList },
     { name: t('nav.intelligence'), href: '/intelligence', icon: Brain },
     { name: 'Advanced Insights', href: '/insights', icon: Eye },
-    { name: language === 'bn' ? 'ইসলামিক ড্যাশবোর্ড' : 'Islamic Dashboard', href: '/islamic-dashboard', icon: Heart },
     { name: t('nav.journey'), href: '/journey', icon: Map },
     { name: t('nav.goals'), href: '/goals', icon: Target },
     { name: t('nav.quarterlyGoals'), href: '/quarterly-goals', icon: Target },
@@ -123,6 +122,14 @@ export default function MobileNav() {
     { name: t('nav.analytics'), href: '/analytics', icon: BarChart3 },
     ...(isAdmin ? [{ name: t('nav.admin'), href: '/admin', icon: Shield }] : []),
     { name: t('nav.settings'), href: '/settings', icon: Settings },
+  ];
+
+  // Bottom navigation items - main quick access
+  const bottomNavItems = [
+    { name: language === 'bn' ? 'হোম' : 'Home', href: '/dashboard', icon: Home },
+    { name: language === 'bn' ? 'ইনপুট' : 'Input', href: '/daily-input', icon: Plus },
+    { name: language === 'bn' ? 'অভ্যাস' : 'Habits', href: '/habits', icon: CheckSquare },
+    { name: language === 'bn' ? 'সেটিংস' : 'Settings', href: '/settings', icon: Settings },
   ];
 
   return (
@@ -204,6 +211,34 @@ export default function MobileNav() {
           </div>
           <span className="font-semibold text-sm">{t('app.name')}</span>
         </div>
+      </div>
+
+      {/* Fixed Bottom Navigation for Mobile */}
+      <div className="fixed bottom-0 left-0 right-0 z-40 lg:hidden bg-background/95 backdrop-blur-sm border-t safe-area-inset-bottom">
+        <nav className="flex items-center justify-around h-16 px-2">
+          {bottomNavItems.map((item) => {
+            const isActive = location.pathname === item.href || 
+                           (item.href !== '/dashboard' && location.pathname.startsWith(item.href));
+            return (
+              <Link
+                key={item.href}
+                to={item.href}
+                className={cn(
+                  'flex flex-col items-center justify-center gap-1 px-3 py-2 rounded-lg transition-all min-w-[60px]',
+                  isActive
+                    ? 'text-primary'
+                    : 'text-muted-foreground'
+                )}
+              >
+                <item.icon className={cn(
+                  'h-5 w-5 transition-transform',
+                  isActive && 'scale-110'
+                )} />
+                <span className="text-[10px] font-medium">{item.name}</span>
+              </Link>
+            );
+          })}
+        </nav>
       </div>
     </>
   );
