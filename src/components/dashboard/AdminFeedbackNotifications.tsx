@@ -12,9 +12,11 @@ import {
   Bell,
   X,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Sparkles
 } from 'lucide-react';
 import { format } from 'date-fns';
+import { toast } from 'sonner';
 
 interface AdminFeedback {
   id: string;
@@ -22,6 +24,7 @@ interface AdminFeedback {
   feedback_type: string;
   created_at: string;
   date: string;
+  is_private?: boolean;
 }
 
 const feedbackIcons: Record<string, React.ReactNode> = {
@@ -51,10 +54,44 @@ export default function AdminFeedbackNotifications() {
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState(true);
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
+  const [newFeedbackIds, setNewFeedbackIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (user) {
       fetchFeedback();
+      
+      // Subscribe to realtime updates for new feedback
+      const channel = supabase
+        .channel('admin-feedback-realtime')
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'admin_feedback',
+            filter: `user_id=eq.${user.id}`,
+          },
+          (payload) => {
+            const newFeedback = payload.new as AdminFeedback;
+            // Only show if not private
+            if (!newFeedback.is_private) {
+              setFeedback((prev) => [newFeedback, ...prev].slice(0, 5));
+              setNewFeedbackIds((prev) => new Set([...prev, newFeedback.id]));
+              setExpanded(true);
+              
+              // Show toast notification
+              toast('New message from your mentor!', {
+                description: newFeedback.message.slice(0, 60) + (newFeedback.message.length > 60 ? '...' : ''),
+                icon: <Sparkles className="h-4 w-4 text-primary" />,
+              });
+            }
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
     }
   }, [user]);
 
@@ -120,7 +157,14 @@ export default function AdminFeedbackNotifications() {
             {visibleFeedback.map((item) => (
               <div 
                 key={item.id}
-                className={`relative p-3 rounded-lg border ${feedbackColors[item.feedback_type] || 'bg-muted/50'}`}
+                className={`relative p-3 rounded-lg border transition-all duration-300 ${feedbackColors[item.feedback_type] || 'bg-muted/50'} ${newFeedbackIds.has(item.id) ? 'ring-2 ring-primary/50 animate-pulse' : ''}`}
+                onAnimationEnd={() => {
+                  setNewFeedbackIds((prev) => {
+                    const next = new Set(prev);
+                    next.delete(item.id);
+                    return next;
+                  });
+                }}
               >
                 <Button
                   variant="ghost"
