@@ -113,7 +113,7 @@ export default function Index() {
           </div>
           
           {/* Main Heading */}
-          <h1 className="mb-8 text-5xl font-bold tracking-tight sm:text-6xl lg:text-7xl animate-fade-in">
+          <h1 className="mb-8 text-display animate-fade-in">
             <span className="block text-foreground">Build habits that</span>
             <span className="block mt-2 bg-gradient-to-r from-primary via-primary to-accent bg-clip-text text-transparent">
               stick all year
@@ -121,7 +121,7 @@ export default function Index() {
           </h1>
           
           {/* Subheading */}
-          <p className="mx-auto mb-10 max-w-2xl text-lg sm:text-xl text-muted-foreground leading-relaxed animate-fade-in">
+          <p className="mx-auto mb-10 max-w-2xl text-body-lg text-muted-foreground animate-fade-in">
             Set meaningful yearly goals, break them into daily habits, and track your progress 
             with beautiful visualizations. Join thousands building better lives, one day at a time.
           </p>
@@ -170,10 +170,10 @@ export default function Index() {
               <Zap className="h-4 w-4" />
               Powerful Features
             </div>
-            <h2 className="mb-4 text-3xl sm:text-4xl font-bold text-foreground">
+            <h2 className="mb-4 text-headline text-foreground">
               Everything you need to succeed
             </h2>
-            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+            <p className="text-body-lg text-muted-foreground max-w-2xl mx-auto">
               Simple, yet powerful tools designed to help you build lasting habits and achieve your goals
             </p>
           </div>
@@ -190,8 +190,8 @@ export default function Index() {
                   <div className={`mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br ${feature.gradient} border border-primary/20`}>
                     <feature.icon className="h-7 w-7 text-primary" />
                   </div>
-                  <h3 className="mb-3 text-lg font-semibold text-foreground">{feature.title}</h3>
-                  <p className="text-muted-foreground leading-relaxed">{feature.description}</p>
+                  <h3 className="mb-3 text-subtitle text-foreground">{feature.title}</h3>
+                  <p className="text-body text-muted-foreground">{feature.description}</p>
                 </div>
               </div>
             ))}
@@ -207,10 +207,10 @@ export default function Index() {
               <Star className="h-4 w-4" />
               Testimonials
             </div>
-            <h2 className="mb-4 text-3xl sm:text-4xl font-bold text-foreground">
+            <h2 className="mb-4 text-headline text-foreground">
               Loved by thousands
             </h2>
-            <p className="text-lg text-muted-foreground">
+            <p className="text-body-lg text-muted-foreground">
               See what our users have to say about their transformation
             </p>
           </div>
@@ -229,14 +229,14 @@ export default function Index() {
                       <Star key={i} className="h-5 w-5 text-yellow-500 fill-yellow-500" />
                     ))}
                   </div>
-                  <p className="text-foreground mb-6 leading-relaxed italic">"{testimonial.quote}"</p>
+                  <p className="text-body text-foreground mb-6 italic">"{testimonial.quote}"</p>
                   <div className="flex items-center gap-3">
                     <div className="h-10 w-10 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center text-primary-foreground font-semibold">
                       {testimonial.author[0]}
                     </div>
                     <div>
-                      <div className="font-semibold text-foreground">{testimonial.author}</div>
-                      <div className="text-sm text-muted-foreground">{testimonial.role}</div>
+                      <div className="text-subtitle text-foreground">{testimonial.author}</div>
+                      <div className="text-caption">{testimonial.role}</div>
                     </div>
                   </div>
                 </div>
@@ -256,10 +256,10 @@ export default function Index() {
                 <Shield className="h-4 w-4" />
                 Why Yearly Track?
               </div>
-              <h2 className="mb-6 text-3xl sm:text-4xl font-bold text-foreground">
+              <h2 className="mb-6 text-headline text-foreground">
                 Built for people who are serious about growth
               </h2>
-              <p className="text-lg text-muted-foreground mb-8 leading-relaxed">
+              <p className="text-body-lg text-muted-foreground mb-8">
                 We understand that building habits is hard. That's why we've created a system that makes it 
                 simple, visual, and rewarding to stay consistent with your goals.
               </p>
@@ -270,11 +270,11 @@ export default function Index() {
                   { icon: Zap, text: 'Smart insights that help you improve' },
                   { icon: Shield, text: 'Privacy-first approach to your data' },
                 ].map((item, index) => (
-                  <div key={index} className="flex items-center gap-3 text-foreground">
+                  <div key={index} className="flex items-center gap-3">
                     <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
                       <item.icon className="h-4 w-4 text-primary" />
                     </div>
-                    <span>{item.text}</span>
+                    <span className="text-body text-foreground">{item.text}</span>
                   </div>
                 ))}
               </div>
@@ -313,10 +313,10 @@ export default function Index() {
               <Sparkles className="h-4 w-4" />
               Start Today
             </div>
-            <h2 className="mb-4 text-3xl sm:text-4xl font-bold text-foreground">
+            <h2 className="mb-4 text-headline text-foreground">
               Ready to transform your year?
             </h2>
-            <p className="mb-8 text-lg text-muted-foreground max-w-2xl mx-auto">
+            <p className="mb-8 text-body-lg text-muted-foreground max-w-2xl mx-auto">
               Join thousands of people who have already changed their lives through better habits. 
               Start your journey today — it's completely free.
             </p>
@@ -340,7 +340,7 @@ export default function Index() {
               </div>
               <span className="font-semibold text-foreground">Yearly Track</span>
             </div>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-caption">
               © {new Date().getFullYear()} Yearly Track. Build better habits, transform your life.
             </p>
           </div>
