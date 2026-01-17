@@ -80,8 +80,8 @@ export default function Settings() {
     <AppLayout>
       <div className="p-4 sm:p-6 lg:p-8 max-w-2xl mx-auto">
         <div className="mb-6 sm:mb-8">
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">{t('settings.title')}</h1>
-          <p className="mt-1 text-sm sm:text-base text-muted-foreground">
+          <h1 className="text-headline font-bold tracking-tight">{t('settings.title')}</h1>
+          <p className="mt-1 text-body text-muted-foreground">
             {t('settings.subtitle')}
           </p>
         </div>
@@ -95,11 +95,11 @@ export default function Settings() {
             {/* Profile Card */}
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
+                <CardTitle className="text-subtitle flex items-center gap-2">
                   <User className="h-5 w-5" />
                   {t('settings.profile')}
                 </CardTitle>
-                <CardDescription>
+                <CardDescription className="text-caption">
                   {t('settings.updateInfo')}
                 </CardDescription>
               </CardHeader>
@@ -146,11 +146,11 @@ export default function Settings() {
             {/* Appearance Card */}
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
+                <CardTitle className="text-subtitle flex items-center gap-2">
                   <Palette className="h-5 w-5" />
                   {t('settings.appearance')}
                 </CardTitle>
-                <CardDescription>
+                <CardDescription className="text-caption">
                   {t('settings.theme')}
                 </CardDescription>
               </CardHeader>
@@ -199,8 +199,8 @@ export default function Settings() {
             {/* Account Card */}
             <Card>
               <CardHeader>
-                <CardTitle>{t('settings.account')}</CardTitle>
-                <CardDescription>
+                <CardTitle className="text-subtitle">{t('settings.account')}</CardTitle>
+                <CardDescription className="text-caption">
                   {t('settings.subtitle')}
                 </CardDescription>
               </CardHeader>

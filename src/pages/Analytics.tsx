@@ -98,10 +98,10 @@ export default function Analytics() {
 
   return (
     <AppLayout>
-      <div className="p-6 lg:p-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold tracking-tight">{t('analytics.title')}</h1>
-          <p className="mt-1 text-muted-foreground">
+      <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto">
+        <div className="mb-6 sm:mb-8">
+          <h1 className="text-headline font-bold tracking-tight">{t('analytics.title')}</h1>
+          <p className="mt-1 text-body text-muted-foreground">
             {t('analytics.subtitle')}
           </p>
         </div>
@@ -113,69 +113,69 @@ export default function Analytics() {
         ) : (
           <>
             {/* Stats Grid */}
-            <div className="mb-8 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <div className="mb-6 sm:mb-8 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
               <Card>
-                <CardHeader className="flex flex-row items-center justify-between pb-2">
-                  <CardTitle className="text-sm font-medium text-muted-foreground">
+                <CardHeader className="flex flex-row items-center justify-between p-3 sm:p-4 pb-1 sm:pb-2">
+                  <CardTitle className="text-caption font-medium text-muted-foreground">
                     Monthly Completions
                   </CardTitle>
-                  <Target className="h-4 w-4 text-primary" />
+                  <Target className="h-4 w-4 text-primary shrink-0" />
                 </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{stats.totalCompletions}</div>
-                  <p className="text-xs text-muted-foreground">last 30 days</p>
+                <CardContent className="p-3 sm:p-4 pt-0">
+                  <div className="text-title font-bold">{stats.totalCompletions}</div>
+                  <p className="text-caption text-muted-foreground">last 30 days</p>
                 </CardContent>
               </Card>
 
               <Card>
-                <CardHeader className="flex flex-row items-center justify-between pb-2">
-                  <CardTitle className="text-sm font-medium text-muted-foreground">
+                <CardHeader className="flex flex-row items-center justify-between p-3 sm:p-4 pb-1 sm:pb-2">
+                  <CardTitle className="text-caption font-medium text-muted-foreground">
                     Daily Average
                   </CardTitle>
-                  <TrendingUp className="h-4 w-4 text-secondary" />
+                  <TrendingUp className="h-4 w-4 text-secondary shrink-0" />
                 </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{stats.averageDaily}</div>
-                  <p className="text-xs text-muted-foreground">habits per day</p>
+                <CardContent className="p-3 sm:p-4 pt-0">
+                  <div className="text-title font-bold">{stats.averageDaily}</div>
+                  <p className="text-caption text-muted-foreground">habits per day</p>
                 </CardContent>
               </Card>
 
               <Card>
-                <CardHeader className="flex flex-row items-center justify-between pb-2">
-                  <CardTitle className="text-sm font-medium text-muted-foreground">
+                <CardHeader className="flex flex-row items-center justify-between p-3 sm:p-4 pb-1 sm:pb-2">
+                  <CardTitle className="text-caption font-medium text-muted-foreground">
                     Best Day
                   </CardTitle>
-                  <Calendar className="h-4 w-4 text-accent" />
+                  <Calendar className="h-4 w-4 text-accent shrink-0" />
                 </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{stats.bestDay}</div>
-                  <p className="text-xs text-muted-foreground">most productive</p>
+                <CardContent className="p-3 sm:p-4 pt-0">
+                  <div className="text-title font-bold">{stats.bestDay}</div>
+                  <p className="text-caption text-muted-foreground">most productive</p>
                 </CardContent>
               </Card>
 
               <Card>
-                <CardHeader className="flex flex-row items-center justify-between pb-2">
-                  <CardTitle className="text-sm font-medium text-muted-foreground">
+                <CardHeader className="flex flex-row items-center justify-between p-3 sm:p-4 pb-1 sm:pb-2">
+                  <CardTitle className="text-caption font-medium text-muted-foreground">
                     {t('dashboard.currentStreak')}
                   </CardTitle>
-                  <Flame className="h-4 w-4 text-secondary" />
+                  <Flame className="h-4 w-4 text-secondary shrink-0" />
                 </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">
-                    {streakLoading ? '...' : currentStreak} {t('dashboard.days')}
+                <CardContent className="p-3 sm:p-4 pt-0">
+                  <div className="text-title font-bold">
+                    {streakLoading ? '...' : currentStreak} <span className="text-body">{t('dashboard.days')}</span>
                   </div>
-                  <p className="text-xs text-muted-foreground">{t('dashboard.keepGoing')}</p>
+                  <p className="text-caption text-muted-foreground">{t('dashboard.keepGoing')}</p>
                 </CardContent>
               </Card>
             </div>
 
             {/* Weekly Chart */}
             <Card>
-              <CardHeader>
-                <CardTitle>{t('analytics.weeklyProgress')}</CardTitle>
-                <CardDescription>Daily habit completions for the current week</CardDescription>
+              <CardHeader className="p-4 sm:p-6">
+                <CardTitle className="text-subtitle">{t('analytics.weeklyProgress')}</CardTitle>
+                <CardDescription className="text-caption">Daily habit completions for the current week</CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="p-4 sm:p-6 pt-0">
                 <div className="h-[300px]">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={weeklyData}>
