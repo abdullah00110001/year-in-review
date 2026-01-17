@@ -42,12 +42,28 @@ export default function TimeAwareness() {
   };
 
   return (
-    <div className="mb-8 space-y-4">
-      {/* Year Progress Hero */}
+    <div className="mb-8">
       <Card className="overflow-hidden border-0 bg-gradient-to-br from-primary/10 via-background to-secondary/10">
-        <CardContent className="p-6">
+        <CardContent className="p-6 space-y-5">
+          {/* Daily Quote - Now at top */}
+          {quote && (
+            <div className="flex items-start gap-3 pb-4 border-b border-border/50">
+              <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent">
+                <Sparkles className="h-4 w-4" />
+              </div>
+              <div className="flex-1">
+                <p className="text-sm italic text-foreground/80">
+                  "{language === 'bn' ? quote.quote_bn : quote.quote}"
+                </p>
+                {quote.author && (
+                  <p className="mt-1 text-xs text-muted-foreground">— {quote.author}</p>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Year Progress Section */}
           <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-            {/* Progress Section */}
             <div className="flex-1 space-y-4">
               <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
                 <Clock className="h-4 w-4" />
@@ -92,27 +108,6 @@ export default function TimeAwareness() {
           </div>
         </CardContent>
       </Card>
-
-      {/* Daily Quote */}
-      {quote && (
-        <Card className="border-dashed bg-muted/30">
-          <CardContent className="p-4">
-            <div className="flex items-start gap-3">
-              <div className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent">
-                <Sparkles className="h-4 w-4" />
-              </div>
-              <div>
-                <p className="text-sm italic text-foreground/80">
-                  "{language === 'bn' ? quote.quote_bn : quote.quote}"
-                </p>
-                {quote.author && (
-                  <p className="mt-1 text-xs text-muted-foreground">— {quote.author}</p>
-                )}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
     </div>
   );
 }
