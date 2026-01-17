@@ -1,8 +1,10 @@
+import { useState } from 'react';
 import { useAppMode, AppMode } from '@/contexts/AppModeContext';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Moon, Sun, Sparkles } from 'lucide-react';
+import { Moon, Sun, Sparkles, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
 
 interface ModeSwitcherProps {
   showDescription?: boolean;
@@ -11,6 +13,8 @@ interface ModeSwitcherProps {
 
 export default function ModeSwitcher({ showDescription = true, className }: ModeSwitcherProps) {
   const { mode, setMode, labels } = useAppMode();
+  const [selectedMode, setSelectedMode] = useState<AppMode>(mode);
+  const [isSaving, setIsSaving] = useState(false);
 
   const modes: { value: AppMode; label: string; description: string; icon: typeof Moon }[] = [
     {
@@ -27,6 +31,25 @@ export default function ModeSwitcher({ showDescription = true, className }: Mode
     },
   ];
 
+  const handleApply = async () => {
+    if (selectedMode === mode) {
+      toast.info('Mode is already applied');
+      return;
+    }
+    
+    setIsSaving(true);
+    try {
+      await setMode(selectedMode);
+      toast.success(`Switched to ${selectedMode === 'islamic' ? 'Islamic' : 'Regular'} Mode`);
+    } catch (error) {
+      toast.error('Failed to save mode');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const hasChanges = selectedMode !== mode;
+
   return (
     <Card className={cn("transition-all duration-300", className)}>
       <CardHeader className="pb-3">
@@ -40,15 +63,15 @@ export default function ModeSwitcher({ showDescription = true, className }: Mode
           </CardDescription>
         )}
       </CardHeader>
-      <CardContent>
+      <CardContent className="space-y-4">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {modes.map((m) => {
             const Icon = m.icon;
-            const isSelected = mode === m.value;
+            const isSelected = selectedMode === m.value;
             return (
               <button
                 key={m.value}
-                onClick={() => setMode(m.value)}
+                onClick={() => setSelectedMode(m.value)}
                 className={cn(
                   "p-4 rounded-lg border-2 text-left transition-all duration-200",
                   "hover:shadow-md focus:outline-none focus:ring-2 focus:ring-ring",
@@ -102,6 +125,27 @@ export default function ModeSwitcher({ showDescription = true, className }: Mode
               </button>
             );
           })}
+        </div>
+        
+        <div className="flex justify-end pt-2">
+          <Button
+            onClick={handleApply}
+            disabled={!hasChanges || isSaving}
+            className={cn(
+              "min-w-[120px]",
+              hasChanges && selectedMode === 'islamic' && "bg-emerald-600 hover:bg-emerald-700",
+              hasChanges && selectedMode === 'regular' && "bg-blue-600 hover:bg-blue-700"
+            )}
+          >
+            {isSaving ? (
+              "Saving..."
+            ) : (
+              <>
+                <Check className="mr-2 h-4 w-4" />
+                Apply Mode
+              </>
+            )}
+          </Button>
         </div>
       </CardContent>
     </Card>
