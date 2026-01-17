@@ -14,10 +14,8 @@ import Dashboard from "./pages/Dashboard";
 import Goals from "./pages/Goals";
 import Habits from "./pages/Habits";
 import Calendar from "./pages/Calendar";
-import Heatmap from "./pages/Heatmap";
 import Journal from "./pages/Journal";
 import Journey from "./pages/Journey";
-import TimeTracking from "./pages/TimeTracking";
 import Leaderboard from "./pages/Leaderboard";
 import LifeDistribution from "./pages/LifeDistribution";
 import KnowledgeShelf from "./pages/KnowledgeShelf";
@@ -104,14 +102,7 @@ const App = () => (
                     </ProtectedRoute>
                   }
                 />
-                <Route
-                  path="/heatmap"
-                  element={
-                    <ProtectedRoute>
-                      <Heatmap />
-                    </ProtectedRoute>
-                  }
-                />
+                {/* Heatmap merged into Calendar */}
                 <Route
                   path="/journal"
                   element={
@@ -128,14 +119,7 @@ const App = () => (
                     </ProtectedRoute>
                   }
                 />
-                <Route
-                  path="/time-tracking"
-                  element={
-                    <ProtectedRoute>
-                      <TimeTracking />
-                    </ProtectedRoute>
-                  }
-                />
+                {/* Time Tracking merged into Life Distribution */}
                 <Route
                   path="/leaderboard"
                   element={

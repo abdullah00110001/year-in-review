@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { format } from 'date-fns';
+import { format, isToday, parseISO, differenceInHours, setHours, setMinutes } from 'date-fns';
 import { useAuth } from '@/hooks/useAuth';
+import { useLanguage } from '@/contexts/LanguageContext';
 import { supabase } from '@/integrations/supabase/client';
 import AppLayout from '@/components/layout/AppLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -12,11 +13,13 @@ import { Switch } from '@/components/ui/switch';
 import { Slider } from '@/components/ui/slider';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import HabitFrictionSystem from '@/components/insights/HabitFrictionSystem';
+import { cn } from '@/lib/utils';
 import { 
   BookOpen, Clock, Dumbbell, Moon, Brain, Target, Smartphone,
-  CheckCircle2, AlertTriangle, Save, Lock
+  CheckCircle2, AlertTriangle, Save, Lock, Eye, AlertCircle, Check, X
 } from 'lucide-react';
 
 interface DailyEntry {
@@ -62,6 +65,7 @@ interface DailyEntry {
   regret_of_day: string;
   free_reflection: string;
   is_locked: boolean;
+  created_at?: string;
 }
 
 const defaultEntry: Omit<DailyEntry, 'date'> = {
@@ -108,23 +112,53 @@ const defaultEntry: Omit<DailyEntry, 'date'> = {
 };
 
 const SALAH_PRAYERS = [
-  { key: 'fajr', name: 'Fajr', namebn: 'ফজর' },
-  { key: 'dhuhr', name: 'Dhuhr', namebn: 'যোহর' },
-  { key: 'asr', name: 'Asr', namebn: 'আসর' },
-  { key: 'maghrib', name: 'Maghrib', namebn: 'মাগরিব' },
-  { key: 'isha', name: 'Isha', namebn: 'ইশা' },
+  { key: 'fajr', name: 'Fajr', namebn: 'ফজর', icon: '🌅' },
+  { key: 'dhuhr', name: 'Dhuhr', namebn: 'যোহর', icon: '☀️' },
+  { key: 'asr', name: 'Asr', namebn: 'আসর', icon: '🌤️' },
+  { key: 'maghrib', name: 'Maghrib', namebn: 'মাগরিব', icon: '🌅' },
+  { key: 'isha', name: 'Isha', namebn: 'ইশা', icon: '🌙' },
 ];
 
 export default function DailyInput() {
   const { user } = useAuth();
-  const [selectedDate, setSelectedDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const { language } = useLanguage();
+  const today = format(new Date(), 'yyyy-MM-dd');
+  const [selectedDate, setSelectedDate] = useState(today);
   const [entry, setEntry] = useState<DailyEntry>({ ...defaultEntry, date: selectedDate });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [viewMode, setViewMode] = useState(false); // View-only mode for past days
+  const [isLateSubmission, setIsLateSubmission] = useState(false);
+
+  // Check if it's late submission window (12 AM - 6 AM for previous day)
+  const checkLateSubmission = (date: string) => {
+    const now = new Date();
+    const currentHour = now.getHours();
+    const yesterday = format(new Date(now.getTime() - 24 * 60 * 60 * 1000), 'yyyy-MM-dd');
+    
+    // Between 12 AM and 6 AM, allow late submission for yesterday
+    if (currentHour >= 0 && currentHour < 6 && date === yesterday) {
+      return true;
+    }
+    return false;
+  };
+
+  // Determine if editing is allowed
+  const canEdit = () => {
+    if (entry.is_locked) return false;
+    if (selectedDate === today) return true;
+    if (checkLateSubmission(selectedDate)) return true;
+    return false;
+  };
 
   useEffect(() => {
     if (user) fetchEntry();
   }, [user, selectedDate]);
+
+  useEffect(() => {
+    setIsLateSubmission(checkLateSubmission(selectedDate));
+    setViewMode(!canEdit());
+  }, [selectedDate, entry.is_locked]);
 
   const fetchEntry = async () => {
     if (!user) return;
@@ -151,23 +185,31 @@ export default function DailyInput() {
   };
 
   const handleSave = async () => {
-    if (!user || entry.is_locked) return;
+    if (!user || !canEdit()) return;
     setSaving(true);
     try {
+      const taskStatus = isLateSubmission ? 'late_submission' : 'submitted';
+      
       const { error } = await supabase
         .from('daily_entries')
         .upsert({
           ...entry,
           user_id: user.id,
           date: selectedDate,
+          task_status: taskStatus,
         }, { onConflict: 'user_id,date' });
 
       if (error) throw error;
-      toast.success('Entry saved successfully!');
+      
+      const message = isLateSubmission 
+        ? (language === 'bn' ? 'লেট সাবমিশন সংরক্ষিত!' : 'Late submission saved!')
+        : (language === 'bn' ? 'সফলভাবে সংরক্ষিত!' : 'Entry saved successfully!');
+      
+      toast.success(message);
       await updateScores();
     } catch (error) {
       console.error('Error saving entry:', error);
-      toast.error('Failed to save entry');
+      toast.error(language === 'bn' ? 'সংরক্ষণ ব্যর্থ হয়েছে' : 'Failed to save entry');
     } finally {
       setSaving(false);
     }
@@ -204,6 +246,13 @@ export default function DailyInput() {
     return `${h}h ${m}m`;
   };
 
+  // Salah status helper
+  const getSalahStatus = (completed: boolean, onTime: boolean) => {
+    if (!completed) return { status: 'missed', color: 'text-muted-foreground', icon: X };
+    if (onTime) return { status: 'onTime', color: 'text-primary', icon: Check };
+    return { status: 'qaza', color: 'text-secondary', icon: AlertCircle };
+  };
+
   if (loading) {
     return (
       <AppLayout>
@@ -220,8 +269,12 @@ export default function DailyInput() {
         {/* Header */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-4">
           <div>
-            <h1 className="text-xl sm:text-2xl font-bold">Daily Life Input</h1>
-            <p className="text-sm text-muted-foreground">Track your day mindfully</p>
+            <h1 className="text-xl sm:text-2xl font-bold">
+              {language === 'bn' ? 'দৈনিক ইনপুট' : 'Daily Life Input'}
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              {language === 'bn' ? 'মনোযোগ দিয়ে আপনার দিন ট্র্যাক করুন' : 'Track your day mindfully'}
+            </p>
           </div>
           <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
             <Input
@@ -229,141 +282,199 @@ export default function DailyInput() {
               value={selectedDate}
               onChange={(e) => setSelectedDate(e.target.value)}
               className="flex-1 sm:flex-none sm:w-40"
-              max={format(new Date(), 'yyyy-MM-dd')}
+              max={today}
             />
+            {viewMode && !entry.is_locked && selectedDate !== today && (
+              <Badge variant="outline" className="shrink-0 gap-1">
+                <Eye className="h-3 w-3" />
+                <span className="text-xs">{language === 'bn' ? 'শুধু দেখা' : 'View Only'}</span>
+              </Badge>
+            )}
             {entry.is_locked && (
-              <div className="flex items-center gap-1 text-amber-600 shrink-0">
-                <Lock className="h-4 w-4" />
-                <span className="text-sm hidden sm:inline">Locked</span>
-              </div>
+              <Badge variant="secondary" className="shrink-0 gap-1">
+                <Lock className="h-3 w-3" />
+                <span className="text-xs">{language === 'bn' ? 'লক করা' : 'Locked'}</span>
+              </Badge>
+            )}
+            {isLateSubmission && !entry.is_locked && (
+              <Badge variant="destructive" className="shrink-0 gap-1">
+                <AlertCircle className="h-3 w-3" />
+                <span className="text-xs">{language === 'bn' ? 'লেট' : 'Late'}</span>
+              </Badge>
             )}
           </div>
         </div>
 
-        <Tabs defaultValue="study" className="w-full">
+        {/* View-only notice for past days */}
+        {viewMode && !entry.is_locked && selectedDate !== today && (
+          <Card className="border-muted bg-muted/50">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3">
+                <Eye className="h-5 w-5 text-muted-foreground shrink-0" />
+                <div>
+                  <p className="font-medium text-sm">
+                    {language === 'bn' ? 'শুধুমাত্র দেখার মোড' : 'View-Only Mode'}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {language === 'bn' 
+                      ? 'আগের দিনের এন্ট্রি এডিট করা যাবে না। লেট সাবমিশন রাত ১২টা থেকে সকাল ৬টার মধ্যে সম্ভব।'
+                      : "Past entries can't be edited. Late submission available 12 AM - 6 AM."}
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        <Tabs defaultValue="salah" className="w-full">
           <TabsList className="w-full h-auto flex-wrap grid grid-cols-4 sm:grid-cols-7 gap-1">
-            <TabsTrigger value="study" className="text-[10px] sm:text-xs px-2 py-1.5">📚 Study</TabsTrigger>
             <TabsTrigger value="salah" className="text-[10px] sm:text-xs px-2 py-1.5">🕌 Salah</TabsTrigger>
             <TabsTrigger value="quran" className="text-[10px] sm:text-xs px-2 py-1.5">📖 Qur'an</TabsTrigger>
+            <TabsTrigger value="study" className="text-[10px] sm:text-xs px-2 py-1.5">📚 Study</TabsTrigger>
             <TabsTrigger value="digital" className="text-[10px] sm:text-xs px-2 py-1.5">📱 Digital</TabsTrigger>
             <TabsTrigger value="health" className="text-[10px] sm:text-xs px-2 py-1.5">🏃 Health</TabsTrigger>
             <TabsTrigger value="energy" className="text-[10px] sm:text-xs px-2 py-1.5">😴 Energy</TabsTrigger>
             <TabsTrigger value="reflect" className="text-[10px] sm:text-xs px-2 py-1.5">🧠 Reflect</TabsTrigger>
           </TabsList>
 
-          {/* Study Time Tab */}
-          <TabsContent value="study">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Clock className="h-5 w-5 text-primary" />
-                  Study Time Tracker
-                </CardTitle>
-                <CardDescription>Log your focused learning hours</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="grid gap-6 md:grid-cols-3">
-                  <div className="space-y-2">
-                    <Label>Focused Study (minutes)</Label>
-                    <Input
-                      type="number"
-                      min={0}
-                      value={entry.focused_study_minutes}
-                      onChange={(e) => setEntry({ ...entry, focused_study_minutes: parseInt(e.target.value) || 0 })}
-                      disabled={entry.is_locked}
-                    />
-                    <p className="text-xs text-muted-foreground">{formatMinutesToTime(entry.focused_study_minutes)}</p>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Revision (minutes)</Label>
-                    <Input
-                      type="number"
-                      min={0}
-                      value={entry.revision_minutes}
-                      onChange={(e) => setEntry({ ...entry, revision_minutes: parseInt(e.target.value) || 0 })}
-                      disabled={entry.is_locked}
-                    />
-                    <p className="text-xs text-muted-foreground">{formatMinutesToTime(entry.revision_minutes)}</p>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Skill Learning (minutes)</Label>
-                    <Input
-                      type="number"
-                      min={0}
-                      value={entry.skill_learning_minutes}
-                      onChange={(e) => setEntry({ ...entry, skill_learning_minutes: parseInt(e.target.value) || 0 })}
-                      disabled={entry.is_locked}
-                    />
-                    <p className="text-xs text-muted-foreground">{formatMinutesToTime(entry.skill_learning_minutes)}</p>
-                  </div>
-                </div>
-                <div className="bg-muted/50 rounded-lg p-4">
-                  <p className="text-sm font-medium">Total Study Time Today</p>
-                  <p className="text-2xl font-bold text-primary">
-                    {formatMinutesToTime(entry.focused_study_minutes + entry.revision_minutes + entry.skill_learning_minutes)}
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
           {/* Salah Tab */}
           <TabsContent value="salah">
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  🕌 Salah Tracker
+                  🕌 {language === 'bn' ? 'নামাজ ট্র্যাকার' : 'Salah Tracker'}
                 </CardTitle>
-                <CardDescription>Track your daily prayers with quality</CardDescription>
+                <CardDescription>
+                  {language === 'bn' ? 'প্রতিদিনের নামাজ ট্র্যাক করুন' : 'Track your daily prayers with quality'}
+                </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="grid gap-4">
-                  {SALAH_PRAYERS.map((prayer) => (
-                    <div key={prayer.key} className="flex items-center justify-between p-4 bg-muted/30 rounded-lg">
-                      <div className="flex items-center gap-3">
-                        <span className="font-medium">{prayer.name}</span>
-                        <span className="text-muted-foreground text-sm">({prayer.namebn})</span>
-                      </div>
-                      <div className="flex items-center gap-4">
-                        <div className="flex items-center gap-2">
-                          <Switch
-                            checked={entry[`${prayer.key}_completed` as keyof DailyEntry] as boolean}
-                            onCheckedChange={(checked) => 
-                              setEntry({ ...entry, [`${prayer.key}_completed`]: checked })
-                            }
-                            disabled={entry.is_locked}
-                          />
-                          <span className="text-sm">Prayed</span>
-                        </div>
-                        {entry[`${prayer.key}_completed` as keyof DailyEntry] && (
-                          <div className="flex items-center gap-2">
-                            <Switch
-                              checked={entry[`${prayer.key}_on_time` as keyof DailyEntry] as boolean}
-                              onCheckedChange={(checked) => 
-                                setEntry({ ...entry, [`${prayer.key}_on_time`]: checked })
-                              }
-                              disabled={entry.is_locked}
-                            />
-                            <span className="text-sm">On Time</span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ))}
+              <CardContent className="space-y-4">
+                {/* Salah Status Legend */}
+                <div className="flex flex-wrap gap-3 text-xs mb-4 p-3 bg-muted/30 rounded-lg">
+                  <div className="flex items-center gap-1.5">
+                    <Check className="h-3.5 w-3.5 text-primary" />
+                    <span>{language === 'bn' ? 'সময়মতো' : 'On Time'}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <AlertCircle className="h-3.5 w-3.5 text-secondary" />
+                    <span>{language === 'bn' ? 'কাযা' : 'Qaza'}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <X className="h-3.5 w-3.5 text-muted-foreground" />
+                    <span>{language === 'bn' ? 'মিস' : 'Missed'}</span>
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label>Khushu Level (Concentration): {entry.khushu_level}</Label>
+
+                <div className="grid gap-3">
+                  {SALAH_PRAYERS.map((prayer) => {
+                    const completed = entry[`${prayer.key}_completed` as keyof DailyEntry] as boolean;
+                    const onTime = entry[`${prayer.key}_on_time` as keyof DailyEntry] as boolean;
+                    const status = getSalahStatus(completed, onTime);
+                    const StatusIcon = status.icon;
+
+                    return (
+                      <div 
+                        key={prayer.key} 
+                        className={cn(
+                          "flex items-center justify-between p-3 sm:p-4 rounded-lg border transition-colors",
+                          completed && onTime && "bg-primary/5 border-primary/30",
+                          completed && !onTime && "bg-secondary/5 border-secondary/30",
+                          !completed && "bg-muted/30 border-border"
+                        )}
+                      >
+                        <div className="flex items-center gap-2 sm:gap-3">
+                          <span className="text-lg sm:text-xl">{prayer.icon}</span>
+                          <div>
+                            <span className="font-medium text-sm sm:text-base">{prayer.name}</span>
+                            <span className="text-muted-foreground text-xs sm:text-sm ml-1">({prayer.namebn})</span>
+                          </div>
+                        </div>
+                        
+                        <div className="flex items-center gap-2 sm:gap-4">
+                          {/* Status indicator */}
+                          <div className={cn("flex items-center gap-1", status.color)}>
+                            <StatusIcon className="h-4 w-4" />
+                            <span className="text-xs hidden sm:inline">
+                              {completed 
+                                ? (onTime 
+                                    ? (language === 'bn' ? 'সময়মতো' : 'On Time')
+                                    : (language === 'bn' ? 'কাযা' : 'Qaza'))
+                                : (language === 'bn' ? 'মিস' : 'Missed')}
+                            </span>
+                          </div>
+
+                          {/* Toggle buttons */}
+                          <div className="flex gap-1">
+                            <Button
+                              variant={completed && onTime ? "default" : "outline"}
+                              size="sm"
+                              className="h-8 px-2 sm:px-3 text-xs"
+                              onClick={() => {
+                                if (viewMode) return;
+                                setEntry({ 
+                                  ...entry, 
+                                  [`${prayer.key}_completed`]: true,
+                                  [`${prayer.key}_on_time`]: true 
+                                });
+                              }}
+                              disabled={viewMode}
+                            >
+                              <Check className="h-3.5 w-3.5 sm:mr-1" />
+                              <span className="hidden sm:inline">{language === 'bn' ? 'আদায়' : 'Done'}</span>
+                            </Button>
+                            <Button
+                              variant={completed && !onTime ? "secondary" : "outline"}
+                              size="sm"
+                              className="h-8 px-2 sm:px-3 text-xs"
+                              onClick={() => {
+                                if (viewMode) return;
+                                setEntry({ 
+                                  ...entry, 
+                                  [`${prayer.key}_completed`]: true,
+                                  [`${prayer.key}_on_time`]: false 
+                                });
+                              }}
+                              disabled={viewMode}
+                            >
+                              <AlertCircle className="h-3.5 w-3.5 sm:mr-1" />
+                              <span className="hidden sm:inline">{language === 'bn' ? 'কাযা' : 'Qaza'}</span>
+                            </Button>
+                            <Button
+                              variant={!completed ? "ghost" : "outline"}
+                              size="sm"
+                              className="h-8 px-2 text-xs text-muted-foreground"
+                              onClick={() => {
+                                if (viewMode) return;
+                                setEntry({ 
+                                  ...entry, 
+                                  [`${prayer.key}_completed`]: false,
+                                  [`${prayer.key}_on_time`]: false 
+                                });
+                              }}
+                              disabled={viewMode}
+                            >
+                              <X className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                
+                <div className="space-y-2 pt-4">
+                  <Label>{language === 'bn' ? 'খুশু লেভেল (মনোযোগ)' : 'Khushu Level (Concentration)'}: {entry.khushu_level}</Label>
                   <Slider
                     value={[entry.khushu_level]}
-                    onValueChange={([value]) => setEntry({ ...entry, khushu_level: value })}
+                    onValueChange={([value]) => !viewMode && setEntry({ ...entry, khushu_level: value })}
                     min={1}
                     max={5}
                     step={1}
-                    disabled={entry.is_locked}
+                    disabled={viewMode}
                   />
                   <div className="flex justify-between text-xs text-muted-foreground">
-                    <span>Distracted</span>
-                    <span>Very Focused</span>
+                    <span>{language === 'bn' ? 'বিভ্রান্ত' : 'Distracted'}</span>
+                    <span>{language === 'bn' ? 'খুব ফোকাসড' : 'Very Focused'}</span>
                   </div>
                 </div>
               </CardContent>
@@ -376,76 +487,76 @@ export default function DailyInput() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <BookOpen className="h-5 w-5 text-primary" />
-                  Qur'an Engagement
+                  {language === 'bn' ? 'কুরআন এনগেজমেন্ট' : "Qur'an Engagement"}
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="flex items-center gap-2">
                   <Switch
                     checked={entry.quran_read}
-                    onCheckedChange={(checked) => setEntry({ ...entry, quran_read: checked })}
-                    disabled={entry.is_locked}
+                    onCheckedChange={(checked) => !viewMode && setEntry({ ...entry, quran_read: checked })}
+                    disabled={viewMode}
                   />
-                  <Label>Did you engage with Qur'an today?</Label>
+                  <Label>{language === 'bn' ? 'আজ কুরআন পড়েছেন?' : "Did you engage with Qur'an today?"}</Label>
                 </div>
                 {entry.quran_read && (
                   <div className="grid gap-4 md:grid-cols-2">
                     <div className="space-y-2">
-                      <Label>Surah Name</Label>
+                      <Label>{language === 'bn' ? 'সূরার নাম' : 'Surah Name'}</Label>
                       <Input
                         value={entry.quran_surah}
-                        onChange={(e) => setEntry({ ...entry, quran_surah: e.target.value })}
+                        onChange={(e) => !viewMode && setEntry({ ...entry, quran_surah: e.target.value })}
                         placeholder="e.g., Al-Baqarah"
-                        disabled={entry.is_locked}
+                        disabled={viewMode}
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label>Type</Label>
+                      <Label>{language === 'bn' ? 'ধরন' : 'Type'}</Label>
                       <Select
                         value={entry.quran_type}
-                        onValueChange={(value) => setEntry({ ...entry, quran_type: value })}
-                        disabled={entry.is_locked}
+                        onValueChange={(value) => !viewMode && setEntry({ ...entry, quran_type: value })}
+                        disabled={viewMode}
                       >
                         <SelectTrigger>
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="reading">Reading</SelectItem>
-                          <SelectItem value="memorization">Memorization</SelectItem>
-                          <SelectItem value="tafsir">Tafsir Study</SelectItem>
+                          <SelectItem value="reading">{language === 'bn' ? 'তিলাওয়াত' : 'Reading'}</SelectItem>
+                          <SelectItem value="memorization">{language === 'bn' ? 'হিফজ' : 'Memorization'}</SelectItem>
+                          <SelectItem value="tafsir">{language === 'bn' ? 'তাফসীর' : 'Tafsir Study'}</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
                     <div className="grid grid-cols-2 gap-2">
                       <div className="space-y-2">
-                        <Label>Ayah From</Label>
+                        <Label>{language === 'bn' ? 'আয়াত থেকে' : 'Ayah From'}</Label>
                         <Input
                           type="number"
                           min={1}
                           value={entry.quran_ayah_from || ''}
-                          onChange={(e) => setEntry({ ...entry, quran_ayah_from: parseInt(e.target.value) || 0 })}
-                          disabled={entry.is_locked}
+                          onChange={(e) => !viewMode && setEntry({ ...entry, quran_ayah_from: parseInt(e.target.value) || 0 })}
+                          disabled={viewMode}
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label>Ayah To</Label>
+                        <Label>{language === 'bn' ? 'আয়াত পর্যন্ত' : 'Ayah To'}</Label>
                         <Input
                           type="number"
                           min={1}
                           value={entry.quran_ayah_to || ''}
-                          onChange={(e) => setEntry({ ...entry, quran_ayah_to: parseInt(e.target.value) || 0 })}
-                          disabled={entry.is_locked}
+                          onChange={(e) => !viewMode && setEntry({ ...entry, quran_ayah_to: parseInt(e.target.value) || 0 })}
+                          disabled={viewMode}
                         />
                       </div>
                     </div>
                     <div className="space-y-2">
-                      <Label>Time Spent (minutes)</Label>
+                      <Label>{language === 'bn' ? 'সময় (মিনিট)' : 'Time (minutes)'}</Label>
                       <Input
                         type="number"
                         min={0}
                         value={entry.quran_minutes}
-                        onChange={(e) => setEntry({ ...entry, quran_minutes: parseInt(e.target.value) || 0 })}
-                        disabled={entry.is_locked}
+                        onChange={(e) => !viewMode && setEntry({ ...entry, quran_minutes: parseInt(e.target.value) || 0 })}
+                        disabled={viewMode}
                       />
                     </div>
                   </div>
@@ -454,64 +565,115 @@ export default function DailyInput() {
             </Card>
           </TabsContent>
 
-          {/* Digital Usage Tab */}
-          <TabsContent value="digital">
+          {/* Study Time Tab */}
+          <TabsContent value="study">
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <Smartphone className="h-5 w-5 text-destructive" />
-                  Digital Usage
+                  <Clock className="h-5 w-5 text-primary" />
+                  {language === 'bn' ? 'পড়াশোনার সময়' : 'Study Time Tracker'}
                 </CardTitle>
-                <CardDescription>Be honest with your screen time</CardDescription>
+                <CardDescription>{language === 'bn' ? 'আপনার ফোকাসড লার্নিং ঘন্টা লগ করুন' : 'Log your focused learning hours'}</CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="grid gap-6 md:grid-cols-3">
                   <div className="space-y-2">
-                    <Label>Total Device Time (minutes)</Label>
+                    <Label>{language === 'bn' ? 'ফোকাসড স্টাডি (মিনিট)' : 'Focused Study (minutes)'}</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={entry.focused_study_minutes}
+                      onChange={(e) => !viewMode && setEntry({ ...entry, focused_study_minutes: parseInt(e.target.value) || 0 })}
+                      disabled={viewMode}
+                    />
+                    <p className="text-xs text-muted-foreground">{formatMinutesToTime(entry.focused_study_minutes)}</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>{language === 'bn' ? 'রিভিশন (মিনিট)' : 'Revision (minutes)'}</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={entry.revision_minutes}
+                      onChange={(e) => !viewMode && setEntry({ ...entry, revision_minutes: parseInt(e.target.value) || 0 })}
+                      disabled={viewMode}
+                    />
+                    <p className="text-xs text-muted-foreground">{formatMinutesToTime(entry.revision_minutes)}</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>{language === 'bn' ? 'স্কিল লার্নিং (মিনিট)' : 'Skill Learning (minutes)'}</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={entry.skill_learning_minutes}
+                      onChange={(e) => !viewMode && setEntry({ ...entry, skill_learning_minutes: parseInt(e.target.value) || 0 })}
+                      disabled={viewMode}
+                    />
+                    <p className="text-xs text-muted-foreground">{formatMinutesToTime(entry.skill_learning_minutes)}</p>
+                  </div>
+                </div>
+                <div className="bg-muted/50 rounded-lg p-4">
+                  <p className="text-sm font-medium">{language === 'bn' ? 'আজকের মোট পড়াশোনার সময়' : 'Total Study Time Today'}</p>
+                  <p className="text-2xl font-bold text-primary">
+                    {formatMinutesToTime(entry.focused_study_minutes + entry.revision_minutes + entry.skill_learning_minutes)}
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Digital Tab */}
+          <TabsContent value="digital">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Smartphone className="h-5 w-5 text-primary" />
+                  {language === 'bn' ? 'ডিজিটাল ওয়েলবিং' : 'Digital Wellbeing'}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="grid gap-6 md:grid-cols-3">
+                  <div className="space-y-2">
+                    <Label>{language === 'bn' ? 'মোট স্ক্রিন টাইম (মিনিট)' : 'Total Screen Time (minutes)'}</Label>
                     <Input
                       type="number"
                       min={0}
                       value={entry.device_time_minutes}
-                      onChange={(e) => setEntry({ ...entry, device_time_minutes: parseInt(e.target.value) || 0 })}
-                      disabled={entry.is_locked}
+                      onChange={(e) => !viewMode && setEntry({ ...entry, device_time_minutes: parseInt(e.target.value) || 0 })}
+                      disabled={viewMode}
                     />
                     <p className="text-xs text-muted-foreground">{formatMinutesToTime(entry.device_time_minutes)}</p>
                   </div>
                   <div className="space-y-2">
-                    <Label>Social Media (minutes)</Label>
+                    <Label>{language === 'bn' ? 'সোশ্যাল মিডিয়া (মিনিট)' : 'Social Media (minutes)'}</Label>
                     <Input
                       type="number"
                       min={0}
                       value={entry.social_media_minutes}
-                      onChange={(e) => setEntry({ ...entry, social_media_minutes: parseInt(e.target.value) || 0 })}
-                      disabled={entry.is_locked}
+                      onChange={(e) => !viewMode && setEntry({ ...entry, social_media_minutes: parseInt(e.target.value) || 0 })}
+                      disabled={viewMode}
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label>Shorts/Reels/YouTube (minutes)</Label>
+                    <Label>{language === 'bn' ? 'শর্টস/রিলস (মিনিট)' : 'Shorts/Reels (minutes)'}</Label>
                     <Input
                       type="number"
                       min={0}
                       value={entry.shorts_reels_minutes}
-                      onChange={(e) => setEntry({ ...entry, shorts_reels_minutes: parseInt(e.target.value) || 0 })}
-                      disabled={entry.is_locked}
+                      onChange={(e) => !viewMode && setEntry({ ...entry, shorts_reels_minutes: parseInt(e.target.value) || 0 })}
+                      disabled={viewMode}
                     />
                   </div>
                 </div>
+                
                 {entry.device_time_minutes > 180 && (
-                  <HabitFrictionSystem 
-                    type="warning"
-                    trigger="high_device"
-                    value={entry.device_time_minutes}
-                    onDismiss={() => {}}
-                  />
-                )}
-                {entry.device_time_minutes <= 120 && entry.device_time_minutes > 0 && (
-                  <HabitFrictionSystem 
-                    type="positive"
-                    trigger="good_habit_complete"
-                    onDismiss={() => {}}
-                  />
+                  <div className="flex items-center gap-2 p-3 bg-destructive/10 rounded-lg text-destructive">
+                    <AlertTriangle className="h-5 w-5" />
+                    <p className="text-sm">
+                      {language === 'bn' 
+                        ? '⚠️ স্ক্রিন টাইম ৩ ঘণ্টার বেশি! কমানোর চেষ্টা করুন।'
+                        : '⚠️ Screen time exceeds 3 hours! Consider reducing.'}
+                    </p>
+                  </div>
                 )}
               </CardContent>
             </Card>
@@ -523,54 +685,55 @@ export default function DailyInput() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Dumbbell className="h-5 w-5 text-primary" />
-                  Physical Health
+                  {language === 'bn' ? 'ব্যায়াম ও স্বাস্থ্য' : 'Exercise & Health'}
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="flex items-center gap-2">
                   <Switch
                     checked={entry.exercise_done}
-                    onCheckedChange={(checked) => setEntry({ ...entry, exercise_done: checked })}
-                    disabled={entry.is_locked}
+                    onCheckedChange={(checked) => !viewMode && setEntry({ ...entry, exercise_done: checked })}
+                    disabled={viewMode}
                   />
-                  <Label>Did you exercise today?</Label>
+                  <Label>{language === 'bn' ? 'আজ ব্যায়াম করেছেন?' : 'Did you exercise today?'}</Label>
                 </div>
+                
                 {entry.exercise_done && (
                   <div className="grid gap-4 md:grid-cols-3">
                     <div className="space-y-2">
-                      <Label>Exercise Type</Label>
+                      <Label>{language === 'bn' ? 'ব্যায়ামের ধরন' : 'Exercise Type'}</Label>
                       <Input
                         value={entry.exercise_type}
-                        onChange={(e) => setEntry({ ...entry, exercise_type: e.target.value })}
-                        placeholder="e.g., Running, Gym, Yoga"
-                        disabled={entry.is_locked}
+                        onChange={(e) => !viewMode && setEntry({ ...entry, exercise_type: e.target.value })}
+                        placeholder="e.g., Running, Gym"
+                        disabled={viewMode}
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label>Intensity</Label>
+                      <Label>{language === 'bn' ? 'তীব্রতা' : 'Intensity'}</Label>
                       <Select
                         value={entry.exercise_intensity}
-                        onValueChange={(value) => setEntry({ ...entry, exercise_intensity: value })}
-                        disabled={entry.is_locked}
+                        onValueChange={(value) => !viewMode && setEntry({ ...entry, exercise_intensity: value })}
+                        disabled={viewMode}
                       >
                         <SelectTrigger>
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="low">Low</SelectItem>
-                          <SelectItem value="medium">Medium</SelectItem>
-                          <SelectItem value="high">High</SelectItem>
+                          <SelectItem value="light">{language === 'bn' ? 'হালকা' : 'Light'}</SelectItem>
+                          <SelectItem value="medium">{language === 'bn' ? 'মাঝারি' : 'Medium'}</SelectItem>
+                          <SelectItem value="intense">{language === 'bn' ? 'তীব্র' : 'Intense'}</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <Label>Duration (minutes)</Label>
+                      <Label>{language === 'bn' ? 'সময়কাল (মিনিট)' : 'Duration (minutes)'}</Label>
                       <Input
                         type="number"
                         min={0}
                         value={entry.exercise_duration_minutes}
-                        onChange={(e) => setEntry({ ...entry, exercise_duration_minutes: parseInt(e.target.value) || 0 })}
-                        disabled={entry.is_locked}
+                        onChange={(e) => !viewMode && setEntry({ ...entry, exercise_duration_minutes: parseInt(e.target.value) || 0 })}
+                        disabled={viewMode}
                       />
                     </div>
                   </div>
@@ -585,184 +748,136 @@ export default function DailyInput() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Moon className="h-5 w-5 text-primary" />
-                  Sleep & Energy
+                  {language === 'bn' ? 'ঘুম ও শক্তি' : 'Sleep & Energy'}
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="grid gap-6 md:grid-cols-2">
                   <div className="space-y-2">
-                    <Label>Sleep Duration (hours)</Label>
+                    <Label>{language === 'bn' ? 'ঘুমের সময় (মিনিট)' : 'Sleep Duration (minutes)'}</Label>
                     <Input
                       type="number"
                       min={0}
-                      max={24}
-                      step={0.5}
-                      value={(entry.sleep_duration_minutes / 60).toFixed(1)}
-                      onChange={(e) => setEntry({ ...entry, sleep_duration_minutes: Math.round(parseFloat(e.target.value) * 60) || 0 })}
-                      disabled={entry.is_locked}
+                      value={entry.sleep_duration_minutes}
+                      onChange={(e) => !viewMode && setEntry({ ...entry, sleep_duration_minutes: parseInt(e.target.value) || 0 })}
+                      disabled={viewMode}
                     />
+                    <p className="text-xs text-muted-foreground">{formatMinutesToTime(entry.sleep_duration_minutes)}</p>
                   </div>
                   <div className="space-y-2">
-                    <Label>Sleep Quality: {entry.sleep_quality}/5</Label>
+                    <Label>{language === 'bn' ? 'ঘুমের মান' : 'Sleep Quality'}: {entry.sleep_quality}/5</Label>
                     <Slider
                       value={[entry.sleep_quality]}
-                      onValueChange={([value]) => setEntry({ ...entry, sleep_quality: value })}
+                      onValueChange={([value]) => !viewMode && setEntry({ ...entry, sleep_quality: value })}
                       min={1}
                       max={5}
                       step={1}
-                      disabled={entry.is_locked}
+                      disabled={viewMode}
                     />
                   </div>
                 </div>
-                <div className="space-y-2">
-                  <Label>Energy Level Today: {entry.energy_level}/5</Label>
-                  <Slider
-                    value={[entry.energy_level]}
-                    onValueChange={([value]) => setEntry({ ...entry, energy_level: value })}
-                    min={1}
-                    max={5}
-                    step={1}
-                    disabled={entry.is_locked}
-                  />
-                  <div className="flex justify-between text-xs text-muted-foreground">
-                    <span>Very Tired</span>
-                    <span>Full Energy</span>
+                
+                <div className="grid gap-6 md:grid-cols-3">
+                  <div className="space-y-2">
+                    <Label>{language === 'bn' ? 'এনার্জি লেভেল' : 'Energy Level'}: {entry.energy_level}/5</Label>
+                    <Slider
+                      value={[entry.energy_level]}
+                      onValueChange={([value]) => !viewMode && setEntry({ ...entry, energy_level: value })}
+                      min={1}
+                      max={5}
+                      step={1}
+                      disabled={viewMode}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>{language === 'bn' ? 'ফোকাস লেভেল' : 'Focus Level'}: {entry.focus_level}/5</Label>
+                    <Slider
+                      value={[entry.focus_level]}
+                      onValueChange={([value]) => !viewMode && setEntry({ ...entry, focus_level: value })}
+                      min={1}
+                      max={5}
+                      step={1}
+                      disabled={viewMode}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>{language === 'bn' ? 'শৃঙ্খলা লেভেল' : 'Discipline Level'}: {entry.discipline_level}/5</Label>
+                    <Slider
+                      value={[entry.discipline_level]}
+                      onValueChange={([value]) => !viewMode && setEntry({ ...entry, discipline_level: value })}
+                      min={1}
+                      max={5}
+                      step={1}
+                      disabled={viewMode}
+                    />
                   </div>
                 </div>
               </CardContent>
             </Card>
           </TabsContent>
 
-          {/* Reflection Tab */}
+          {/* Reflect Tab */}
           <TabsContent value="reflect">
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <Brain className="h-5 w-5 text-accent" />
-                  Self-Awareness & Reflection
+                  <Brain className="h-5 w-5 text-primary" />
+                  {language === 'bn' ? 'প্রতিফলন' : 'Reflection'}
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-6">
-                <div className="grid gap-6 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label>Mental State</Label>
-                    <Select
-                      value={entry.mental_state}
-                      onValueChange={(value) => setEntry({ ...entry, mental_state: value })}
-                      disabled={entry.is_locked}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="calm">😌 Calm</SelectItem>
-                        <SelectItem value="motivated">🔥 Motivated</SelectItem>
-                        <SelectItem value="distracted">😵 Distracted</SelectItem>
-                        <SelectItem value="stressed">😰 Stressed</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Task Status</Label>
-                    <Select
-                      value={entry.task_status}
-                      onValueChange={(value) => setEntry({ ...entry, task_status: value })}
-                      disabled={entry.is_locked}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="complete_on_time">✅ Complete (On Time)</SelectItem>
-                        <SelectItem value="complete_late">⏰ Complete (Late)</SelectItem>
-                        <SelectItem value="incomplete">❌ Incomplete</SelectItem>
-                        <SelectItem value="not_submitted">📝 Not Submitted</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
+                <div className="space-y-2">
+                  <Label>{language === 'bn' ? 'সার্বিক দিনের রেটিং' : 'Overall Day Rating'}: {entry.overall_day_rating}/10</Label>
+                  <Slider
+                    value={[entry.overall_day_rating]}
+                    onValueChange={([value]) => !viewMode && setEntry({ ...entry, overall_day_rating: value })}
+                    min={1}
+                    max={10}
+                    step={1}
+                    disabled={viewMode}
+                  />
                 </div>
 
                 <div className="grid gap-4 md:grid-cols-2">
                   <div className="space-y-2">
-                    <Label>Focus Level: {entry.focus_level}/5</Label>
-                    <Slider
-                      value={[entry.focus_level]}
-                      onValueChange={([value]) => setEntry({ ...entry, focus_level: value })}
-                      min={1}
-                      max={5}
-                      step={1}
-                      disabled={entry.is_locked}
+                    <Label>{language === 'bn' ? 'সবচেয়ে গুরুত্বপূর্ণ কাজ' : 'Most Important Task'}</Label>
+                    <Input
+                      value={entry.most_important_task}
+                      onChange={(e) => !viewMode && setEntry({ ...entry, most_important_task: e.target.value })}
+                      placeholder={language === 'bn' ? 'আজকের প্রধান কাজ...' : 'Main task of the day...'}
+                      disabled={viewMode}
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label>Discipline Level: {entry.discipline_level}/5</Label>
-                    <Slider
-                      value={[entry.discipline_level]}
-                      onValueChange={([value]) => setEntry({ ...entry, discipline_level: value })}
-                      min={1}
-                      max={5}
-                      step={1}
-                      disabled={entry.is_locked}
+                    <Label>{language === 'bn' ? 'সবচেয়ে বড় সময় অপচয়' : 'Biggest Time Leak'}</Label>
+                    <Input
+                      value={entry.biggest_time_leak}
+                      onChange={(e) => !viewMode && setEntry({ ...entry, biggest_time_leak: e.target.value })}
+                      placeholder={language === 'bn' ? 'কোথায় সময় নষ্ট হলো...' : 'Where time was wasted...'}
+                      disabled={viewMode}
                     />
                   </div>
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Overall Day Rating: {entry.overall_day_rating}/10</Label>
-                  <Slider
-                    value={[entry.overall_day_rating]}
-                    onValueChange={([value]) => setEntry({ ...entry, overall_day_rating: value })}
-                    min={1}
-                    max={10}
-                    step={1}
-                    disabled={entry.is_locked}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label className="flex items-center gap-2">
-                    <Target className="h-4 w-4" />
-                    Most Important Task (MIT)
-                  </Label>
-                  <Input
-                    value={entry.most_important_task}
-                    onChange={(e) => setEntry({ ...entry, most_important_task: e.target.value })}
-                    placeholder="What was your ONE most important task today?"
-                    disabled={entry.is_locked}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label className="flex items-center gap-2">
-                    <AlertTriangle className="h-4 w-4 text-destructive" />
-                    Biggest Time Leak
-                  </Label>
-                  <Input
-                    value={entry.biggest_time_leak}
-                    onChange={(e) => setEntry({ ...entry, biggest_time_leak: e.target.value })}
-                    placeholder="What wasted your time the most?"
-                    disabled={entry.is_locked}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Regret of the Day</Label>
-                  <Input
+                  <Label>{language === 'bn' ? 'দিনের অনুশোচনা' : 'Regret of the Day'}</Label>
+                  <Textarea
                     value={entry.regret_of_day}
-                    onChange={(e) => setEntry({ ...entry, regret_of_day: e.target.value })}
-                    placeholder="What should you NOT have done?"
-                    disabled={entry.is_locked}
+                    onChange={(e) => !viewMode && setEntry({ ...entry, regret_of_day: e.target.value })}
+                    placeholder={language === 'bn' ? 'কী অন্যভাবে করতে পারতাম...' : 'What could I have done differently...'}
+                    rows={2}
+                    disabled={viewMode}
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Free Reflection Notes</Label>
+                  <Label>{language === 'bn' ? 'ফ্রি রিফ্লেকশন' : 'Free Reflection'}</Label>
                   <Textarea
                     value={entry.free_reflection}
-                    onChange={(e) => setEntry({ ...entry, free_reflection: e.target.value })}
-                    placeholder="Any other thoughts about your day..."
-                    rows={4}
-                    disabled={entry.is_locked}
+                    onChange={(e) => !viewMode && setEntry({ ...entry, free_reflection: e.target.value })}
+                    placeholder={language === 'bn' ? 'আজকের দিন সম্পর্কে যা মনে আসছে...' : 'Anything on your mind about today...'}
+                    rows={3}
+                    disabled={viewMode}
                   />
                 </div>
               </CardContent>
@@ -771,26 +886,23 @@ export default function DailyInput() {
         </Tabs>
 
         {/* Save Button */}
-        <div className="fixed bottom-4 right-4 left-4 sm:left-auto sm:w-auto z-50">
-          <Button 
-            onClick={handleSave} 
-            disabled={saving || entry.is_locked}
-            className="w-full sm:w-auto shadow-lg"
-            size="lg"
-          >
-            {saving ? (
-              <>
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                Saving...
-              </>
-            ) : (
-              <>
-                <Save className="h-4 w-4 mr-2" />
-                Save Entry
-              </>
-            )}
-          </Button>
-        </div>
+        {!viewMode && (
+          <div className="fixed bottom-20 lg:bottom-6 left-0 right-0 px-4 lg:px-0 lg:relative">
+            <Button 
+              onClick={handleSave} 
+              disabled={saving} 
+              className="w-full lg:w-auto gap-2"
+              size="lg"
+            >
+              <Save className="h-4 w-4" />
+              {saving 
+                ? (language === 'bn' ? 'সংরক্ষণ হচ্ছে...' : 'Saving...') 
+                : isLateSubmission
+                  ? (language === 'bn' ? 'লেট সাবমিশন সংরক্ষণ করুন' : 'Save Late Submission')
+                  : (language === 'bn' ? 'সংরক্ষণ করুন' : 'Save Entry')}
+            </Button>
+          </div>
+        )}
       </div>
     </AppLayout>
   );
