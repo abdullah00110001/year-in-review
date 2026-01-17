@@ -14,8 +14,8 @@ export default {
     },
     extend: {
       fontFamily: {
-        sans: ['Inter', 'sans-serif'],
-        serif: ['Lora', 'serif'],
+        sans: ['Nunito', 'Hind Siliguri', 'sans-serif'],
+        bengali: ['Hind Siliguri', 'Nunito', 'sans-serif'],
         mono: ['Space Mono', 'monospace'],
       },
       colors: {
