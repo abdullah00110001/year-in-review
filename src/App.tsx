@@ -25,6 +25,12 @@ import FutureLetter from "./pages/FutureLetter";
 import Analytics from "./pages/Analytics";
 import Settings from "./pages/Settings";
 import AdminDashboard from "./pages/AdminDashboard";
+import AdminOverview from "./pages/admin/AdminOverview";
+import UserInspector from "./pages/admin/UserInspector";
+import AtRiskUsers from "./pages/admin/AtRiskUsers";
+import FeedbackCenter from "./pages/admin/FeedbackCenter";
+import AdminAnalytics from "./pages/admin/AdminAnalytics";
+import AdminProtectedRoute from "./components/admin/AdminProtectedRoute";
 import YearEndWrapped from "./pages/YearEndWrapped";
 import DataExport from "./pages/DataExport";
 import DailyInput from "./pages/DailyInput";
@@ -187,9 +193,41 @@ const App = () => (
                 <Route
                   path="/admin"
                   element={
-                    <ProtectedRoute>
-                      <AdminDashboard />
-                    </ProtectedRoute>
+                    <AdminProtectedRoute>
+                      <AdminOverview />
+                    </AdminProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/admin/users"
+                  element={
+                    <AdminProtectedRoute>
+                      <UserInspector />
+                    </AdminProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/admin/at-risk"
+                  element={
+                    <AdminProtectedRoute>
+                      <AtRiskUsers />
+                    </AdminProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/admin/feedback"
+                  element={
+                    <AdminProtectedRoute>
+                      <FeedbackCenter />
+                    </AdminProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/admin/analytics"
+                  element={
+                    <AdminProtectedRoute>
+                      <AdminAnalytics />
+                    </AdminProtectedRoute>
                   }
                 />
                 <Route
