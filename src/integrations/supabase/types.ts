@@ -732,6 +732,39 @@ export type Database = {
           },
         ]
       }
+      notifications: {
+        Row: {
+          created_at: string
+          id: string
+          is_read: boolean | null
+          message: string
+          metadata: Json | null
+          title: string
+          type: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_read?: boolean | null
+          message: string
+          metadata?: Json | null
+          title: string
+          type?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_read?: boolean | null
+          message?: string
+          metadata?: Json | null
+          title?: string
+          type?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           app_mode: string | null
@@ -742,7 +775,9 @@ export type Database = {
           id: string
           language: string | null
           location: string | null
+          notifications_enabled: boolean | null
           phone: string | null
+          push_subscription: Json | null
           updated_at: string
           user_id: string
         }
@@ -755,7 +790,9 @@ export type Database = {
           id?: string
           language?: string | null
           location?: string | null
+          notifications_enabled?: boolean | null
           phone?: string | null
+          push_subscription?: Json | null
           updated_at?: string
           user_id: string
         }
@@ -768,7 +805,9 @@ export type Database = {
           id?: string
           language?: string | null
           location?: string | null
+          notifications_enabled?: boolean | null
           phone?: string | null
+          push_subscription?: Json | null
           updated_at?: string
           user_id?: string
         }
