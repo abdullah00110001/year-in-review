@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
-import { Loader2, User, Mail, Save, Palette, Globe, Sparkles } from 'lucide-react';
+import { Loader2, User, Mail, Save, Palette, Globe, Key, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import ModeSwitcher from '@/components/mode/ModeSwitcher';
@@ -24,6 +24,15 @@ export default function Settings() {
     full_name: '',
     bio: '',
   });
+  
+  // Password change state
+  const [passwordData, setPasswordData] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: '',
+  });
+  const [changingPassword, setChangingPassword] = useState(false);
+  const [sendingReset, setSendingReset] = useState(false);
 
   useEffect(() => {
     if (user) fetchProfile();
@@ -78,7 +87,7 @@ export default function Settings() {
 
   return (
     <AppLayout>
-      <div className="p-4 sm:p-6 lg:p-8 max-w-2xl mx-auto">
+      <div className="p-4 sm:p-6 lg:p-8 max-w-2xl mx-auto pb-24 lg:pb-8">
         <div className="mb-6 sm:mb-8">
           <h1 className="text-headline font-bold tracking-tight">{t('settings.title')}</h1>
           <p className="mt-1 text-body text-muted-foreground">
@@ -192,6 +201,128 @@ export default function Settings() {
                       {option.native}
                     </Button>
                   ))}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Password & Security Card */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-subtitle flex items-center gap-2">
+                  <Key className="h-5 w-5" />
+                  {language === 'bn' ? 'পাসওয়ার্ড ও নিরাপত্তা' : 'Password & Security'}
+                </CardTitle>
+                <CardDescription className="text-caption">
+                  {language === 'bn' ? 'আপনার পাসওয়ার্ড পরিবর্তন বা রিসেট করুন' : 'Change or reset your password'}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Change Password Form */}
+                <div className="space-y-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="newPassword">
+                      {language === 'bn' ? 'নতুন পাসওয়ার্ড' : 'New Password'}
+                    </Label>
+                    <Input
+                      id="newPassword"
+                      type="password"
+                      value={passwordData.newPassword}
+                      onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })}
+                      placeholder={language === 'bn' ? 'নতুন পাসওয়ার্ড দিন' : 'Enter new password'}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="confirmPassword">
+                      {language === 'bn' ? 'পাসওয়ার্ড নিশ্চিত করুন' : 'Confirm Password'}
+                    </Label>
+                    <Input
+                      id="confirmPassword"
+                      type="password"
+                      value={passwordData.confirmPassword}
+                      onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })}
+                      placeholder={language === 'bn' ? 'পাসওয়ার্ড নিশ্চিত করুন' : 'Confirm new password'}
+                    />
+                  </div>
+                  <Button 
+                    onClick={async () => {
+                      if (passwordData.newPassword !== passwordData.confirmPassword) {
+                        toast.error(language === 'bn' ? 'পাসওয়ার্ড মিলছে না' : 'Passwords do not match');
+                        return;
+                      }
+                      if (passwordData.newPassword.length < 6) {
+                        toast.error(language === 'bn' ? 'পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে' : 'Password must be at least 6 characters');
+                        return;
+                      }
+                      setChangingPassword(true);
+                      const { error } = await supabase.auth.updateUser({
+                        password: passwordData.newPassword
+                      });
+                      if (error) {
+                        console.error('Password change error:', error);
+                        toast.error(language === 'bn' ? 'পাসওয়ার্ড পরিবর্তন ব্যর্থ' : 'Failed to change password');
+                      } else {
+                        toast.success(language === 'bn' ? 'পাসওয়ার্ড সফলভাবে পরিবর্তিত হয়েছে' : 'Password changed successfully');
+                        setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
+                      }
+                      setChangingPassword(false);
+                    }}
+                    disabled={changingPassword || !passwordData.newPassword || !passwordData.confirmPassword}
+                    className="w-full sm:w-auto"
+                  >
+                    {changingPassword ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Key className="mr-2 h-4 w-4" />
+                    )}
+                    {language === 'bn' ? 'পাসওয়ার্ড পরিবর্তন করুন' : 'Change Password'}
+                  </Button>
+                </div>
+
+                {/* Divider */}
+                <div className="relative">
+                  <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t" />
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-background px-2 text-muted-foreground">
+                      {language === 'bn' ? 'অথবা' : 'Or'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Password Reset via Email */}
+                <div className="space-y-2">
+                  <p className="text-sm text-muted-foreground">
+                    {language === 'bn' 
+                      ? 'আপনার ইমেইলে পাসওয়ার্ড রিসেট লিঙ্ক পাঠান' 
+                      : 'Send a password reset link to your email'}
+                  </p>
+                  <Button 
+                    variant="outline"
+                    onClick={async () => {
+                      if (!user?.email) return;
+                      setSendingReset(true);
+                      const { error } = await supabase.auth.resetPasswordForEmail(user.email, {
+                        redirectTo: `${window.location.origin}/settings`,
+                      });
+                      if (error) {
+                        console.error('Reset email error:', error);
+                        toast.error(language === 'bn' ? 'রিসেট ইমেইল পাঠাতে ব্যর্থ' : 'Failed to send reset email');
+                      } else {
+                        toast.success(language === 'bn' ? 'রিসেট লিঙ্ক আপনার ইমেইলে পাঠানো হয়েছে' : 'Reset link sent to your email');
+                      }
+                      setSendingReset(false);
+                    }}
+                    disabled={sendingReset}
+                    className="w-full sm:w-auto"
+                  >
+                    {sendingReset ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <RefreshCw className="mr-2 h-4 w-4" />
+                    )}
+                    {language === 'bn' ? 'রিসেট লিঙ্ক পাঠান' : 'Send Reset Link'}
+                  </Button>
                 </div>
               </CardContent>
             </Card>

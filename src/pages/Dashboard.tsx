@@ -14,7 +14,7 @@ import { format } from 'date-fns';
 import TimeAwareness from '@/components/dashboard/TimeAwareness';
 import SmallWinsWidget from '@/components/dashboard/SmallWinsWidget';
 import LifeDistributionWidget from '@/components/dashboard/LifeDistributionWidget';
-import ContextualMotivation from '@/components/ContextualMotivation';
+import UnifiedQuotes from '@/components/dashboard/UnifiedQuotes';
 import ModeOnboarding from '@/components/mode/ModeOnboarding';
 import AdminFeedbackNotifications from '@/components/dashboard/AdminFeedbackNotifications';
 
@@ -112,7 +112,7 @@ export default function Dashboard() {
         onComplete={() => setShowOnboarding(false)} 
       />
 
-      <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto">
+      <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto pb-24 lg:pb-8">
         {/* Header */}
         <div className="mb-4 sm:mb-6">
           <h1 className="text-headline font-bold tracking-tight break-words">
@@ -148,8 +148,8 @@ export default function Dashboard() {
         {/* Admin Feedback Notifications */}
         <AdminFeedbackNotifications />
 
-        {/* Contextual Motivation */}
-        <ContextualMotivation />
+        {/* Unified Daily Inspiration (merged quotes) */}
+        <UnifiedQuotes />
 
         {/* Time Awareness Hero */}
         <TimeAwareness />
