@@ -191,16 +191,44 @@ export default function DailyInput() {
     try {
       const taskStatus = isLateSubmission ? 'late_submission' : 'submitted';
       
-      const { error } = await supabase
+      // First check if entry exists
+      const { data: existingEntry } = await supabase
         .from('daily_entries')
-        .upsert({
-          ...entry,
-          user_id: user.id,
-          date: selectedDate,
-          task_status: taskStatus,
-        }, { onConflict: 'user_id,date' });
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('date', selectedDate)
+        .maybeSingle();
 
-      if (error) throw error;
+      let error;
+      
+      if (existingEntry?.id) {
+        // Update existing entry
+        const { error: updateError } = await supabase
+          .from('daily_entries')
+          .update({
+            ...entry,
+            task_status: taskStatus,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', existingEntry.id);
+        error = updateError;
+      } else {
+        // Insert new entry
+        const { error: insertError } = await supabase
+          .from('daily_entries')
+          .insert({
+            ...entry,
+            user_id: user.id,
+            date: selectedDate,
+            task_status: taskStatus,
+          });
+        error = insertError;
+      }
+
+      if (error) {
+        console.error('Supabase save error:', error);
+        throw error;
+      }
       
       const message = isLateSubmission 
         ? (language === 'bn' ? 'লেট সাবমিশন সংরক্ষিত!' : 'Late submission saved!')
@@ -367,29 +395,46 @@ export default function DailyInput() {
         )}
 
         <Tabs defaultValue="salah" className="w-full">
-          <TabsList className="w-full h-auto flex-wrap grid grid-cols-4 sm:grid-cols-7 gap-0.5 sm:gap-1 p-1">
-            {[
-              { value: 'salah', label: '🕌', full: 'Salah' },
-              { value: 'quran', label: '📖', full: "Qur'an" },
-              { value: 'study', label: '📚', full: 'Study' },
-              { value: 'digital', label: '📱', full: 'Digital' },
-              { value: 'health', label: '🏃', full: 'Health' },
-              { value: 'energy', label: '😴', full: 'Energy' },
-              { value: 'reflect', label: '🧠', full: 'Reflect' },
-            ].map((tab) => (
-              <TabsTrigger 
-                key={tab.value}
-                value={tab.value} 
-                className="text-[10px] sm:text-xs px-1.5 sm:px-2 py-1.5 flex items-center gap-1"
-              >
-                <span>{tab.label}</span>
-                <span className="hidden sm:inline">{tab.full}</span>
-                {getTabCompletionStatus[tab.value as keyof typeof getTabCompletionStatus] && (
-                  <Check className="h-3 w-3 text-green-500 hidden sm:block" />
-                )}
-              </TabsTrigger>
-            ))}
-          </TabsList>
+          {/* Redesigned Daily Life Input Bar */}
+          <Card className="mb-4">
+            <CardContent className="p-3 sm:p-4">
+              <TabsList className="w-full h-auto bg-transparent grid grid-cols-4 sm:grid-cols-7 gap-2 sm:gap-3">
+                {[
+                  { value: 'salah', label: '🕌', full: 'Salah', fullBn: 'নামাজ' },
+                  { value: 'quran', label: '📖', full: "Qur'an", fullBn: 'কুরআন' },
+                  { value: 'study', label: '📚', full: 'Study', fullBn: 'পড়াশোনা' },
+                  { value: 'digital', label: '📱', full: 'Digital', fullBn: 'ডিজিটাল' },
+                  { value: 'health', label: '🏃', full: 'Health', fullBn: 'স্বাস্থ্য' },
+                  { value: 'energy', label: '😴', full: 'Energy', fullBn: 'শক্তি' },
+                  { value: 'reflect', label: '🧠', full: 'Reflect', fullBn: 'চিন্তন' },
+                ].map((tab) => {
+                  const isComplete = getTabCompletionStatus[tab.value as keyof typeof getTabCompletionStatus];
+                  return (
+                    <TabsTrigger 
+                      key={tab.value}
+                      value={tab.value} 
+                      className={cn(
+                        "flex flex-col items-center justify-center gap-1 h-auto py-3 px-2 rounded-xl border-2 transition-all",
+                        "data-[state=active]:border-primary data-[state=active]:bg-primary/10 data-[state=active]:shadow-sm",
+                        "data-[state=inactive]:border-border data-[state=inactive]:bg-muted/30",
+                        isComplete && "ring-2 ring-green-500/30 ring-offset-1 ring-offset-background"
+                      )}
+                    >
+                      <span className="text-2xl sm:text-3xl">{tab.label}</span>
+                      <span className="text-[9px] sm:text-xs font-medium text-muted-foreground">
+                        {language === 'bn' ? tab.fullBn : tab.full}
+                      </span>
+                      {isComplete && (
+                        <div className="absolute -top-1 -right-1 h-4 w-4 bg-green-500 rounded-full flex items-center justify-center">
+                          <Check className="h-2.5 w-2.5 text-white" />
+                        </div>
+                      )}
+                    </TabsTrigger>
+                  );
+                })}
+              </TabsList>
+            </CardContent>
+          </Card>
 
           {/* Salah Tab - Checkbox System */}
           <TabsContent value="salah" className="animate-fade-in">
