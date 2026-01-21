@@ -32,6 +32,7 @@ import {
 } from 'lucide-react';
 import { useAppMode } from '@/contexts/AppModeContext';
 import { supabase } from '@/integrations/supabase/client';
+import NotificationCenter from '@/components/notifications/NotificationCenter';
 
 export default function MobileNav() {
   const location = useLocation();
@@ -201,12 +202,15 @@ export default function MobileNav() {
         </Sheet>
         
         {/* App Name in Header */}
-        <div className="flex items-center gap-2 ml-2">
+        <div className="flex items-center gap-2 ml-2 flex-1">
           <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary">
             <Target className="h-4 w-4 text-primary-foreground" />
           </div>
           <span className="font-semibold text-sm">{t('app.name')}</span>
         </div>
+
+        {/* Notification Center */}
+        <NotificationCenter />
       </div>
 
       {/* Fixed Bottom Navigation for Mobile */}

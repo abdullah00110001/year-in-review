@@ -13,6 +13,7 @@ import { Loader2, User, Mail, Save, Palette, Globe, Key, RefreshCw } from 'lucid
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import ModeSwitcher from '@/components/mode/ModeSwitcher';
+import NotificationSettings from '@/components/notifications/NotificationSettings';
 
 export default function Settings() {
   const { user, signOut } = useAuth();
@@ -151,6 +152,9 @@ export default function Settings() {
 
             {/* Experience Mode Card */}
             <ModeSwitcher />
+
+            {/* Notification Settings */}
+            <NotificationSettings />
 
             {/* Appearance Card */}
             <Card>
