@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
@@ -23,10 +24,16 @@ import {
   Lightbulb,
   Bell,
   Trash2,
-  Calendar
+  Calendar,
+  BookOpen,
+  BarChart3,
+  Sparkles
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
+import FeedbackTemplatesLibrary from '@/components/admin/FeedbackTemplatesLibrary';
+import FeedbackResponseTracker from '@/components/admin/FeedbackResponseTracker';
+import UserSegments from '@/components/admin/UserSegments';
 
 interface UserProfile {
   user_id: string;
@@ -42,6 +49,7 @@ interface FeedbackItem {
   date: string;
   is_private: boolean;
   created_at: string;
+  read_at?: string | null;
 }
 
 const feedbackTypes = [
@@ -49,6 +57,7 @@ const feedbackTypes = [
   { value: 'concern', label: 'Concern', icon: AlertCircle, color: 'text-orange-500' },
   { value: 'suggestion', label: 'Suggestion', icon: Lightbulb, color: 'text-yellow-500' },
   { value: 'reminder', label: 'Reminder', icon: Bell, color: 'text-blue-500' },
+  { value: 'celebration', label: 'Celebration', icon: Sparkles, color: 'text-green-500' },
 ];
 
 export default function FeedbackCenter() {
@@ -68,6 +77,7 @@ export default function FeedbackCenter() {
     type: 'encouragement',
     isPrivate: false
   });
+  const [showTemplates, setShowTemplates] = useState(false);
 
   useEffect(() => {
     fetchUsers();
@@ -235,86 +245,131 @@ export default function FeedbackCenter() {
           </Button>
         </div>
 
-        {/* Stats */}
-        <div className="grid grid-cols-4 gap-4 mb-6">
-          {feedbackTypes.map(type => {
-            const count = feedbackHistory.filter(f => f.feedback_type === type.value).length;
-            const Icon = type.icon;
-            return (
-              <Card key={type.value}>
-                <CardContent className="p-4 text-center">
-                  <Icon className={cn('h-6 w-6 mx-auto mb-2', type.color)} />
-                  <p className="text-title font-bold">{count}</p>
-                  <p className="text-caption text-muted-foreground">{type.label}</p>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
+        {/* Tabs for different sections */}
+        <Tabs defaultValue="history" className="space-y-6">
+          <TabsList className="grid w-full grid-cols-4">
+            <TabsTrigger value="history" className="gap-2">
+              <MessageSquare className="h-4 w-4" />
+              <span className="hidden sm:inline">History</span>
+            </TabsTrigger>
+            <TabsTrigger value="templates" className="gap-2">
+              <BookOpen className="h-4 w-4" />
+              <span className="hidden sm:inline">Templates</span>
+            </TabsTrigger>
+            <TabsTrigger value="segments" className="gap-2">
+              <User className="h-4 w-4" />
+              <span className="hidden sm:inline">Segments</span>
+            </TabsTrigger>
+            <TabsTrigger value="analytics" className="gap-2">
+              <BarChart3 className="h-4 w-4" />
+              <span className="hidden sm:inline">Analytics</span>
+            </TabsTrigger>
+          </TabsList>
 
-        {/* Feedback History */}
-        <Card>
-          <CardHeader className="p-4 sm:p-6">
-            <CardTitle className="text-subtitle">Recent Feedback</CardTitle>
-            <CardDescription className="text-caption">
-              All feedback sent to users
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="p-4 sm:p-6 pt-0">
-            {feedbackHistory.length === 0 ? (
-              <div className="text-center py-12">
-                <MessageSquare className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                <h3 className="text-subtitle font-semibold mb-2">No Feedback Yet</h3>
-                <p className="text-body text-muted-foreground">
-                  Start by sending encouragement to your users
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {feedbackHistory.map((feedback) => {
-                  const Icon = getFeedbackIcon(feedback.feedback_type);
-                  return (
-                    <div key={feedback.id} className="p-4 rounded-xl border bg-card">
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="flex items-start gap-3">
-                          <div className={cn(
-                            'h-10 w-10 rounded-full flex items-center justify-center bg-muted',
-                          )}>
-                            <Icon className={cn('h-5 w-5', getFeedbackColor(feedback.feedback_type))} />
-                          </div>
-                          <div>
-                            <div className="flex items-center gap-2 mb-1">
-                              <span className="font-medium text-body">{feedback.user_name}</span>
-                              <Badge variant="outline" className="capitalize">
-                                {feedback.feedback_type}
-                              </Badge>
-                              {feedback.is_private && (
-                                <Badge variant="secondary">Private</Badge>
-                              )}
+          {/* History Tab */}
+          <TabsContent value="history" className="space-y-6">
+            {/* Stats */}
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
+              {feedbackTypes.map(type => {
+                const count = feedbackHistory.filter(f => f.feedback_type === type.value).length;
+                const Icon = type.icon;
+                return (
+                  <Card key={type.value}>
+                    <CardContent className="p-4 text-center">
+                      <Icon className={cn('h-6 w-6 mx-auto mb-2', type.color)} />
+                      <p className="text-title font-bold">{count}</p>
+                      <p className="text-caption text-muted-foreground">{type.label}</p>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+
+            {/* Feedback History */}
+            <Card>
+              <CardHeader className="p-4 sm:p-6">
+                <CardTitle className="text-subtitle">Recent Feedback</CardTitle>
+                <CardDescription className="text-caption">
+                  All feedback sent to users
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="p-4 sm:p-6 pt-0">
+                {feedbackHistory.length === 0 ? (
+                  <div className="text-center py-12">
+                    <MessageSquare className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                    <h3 className="text-subtitle font-semibold mb-2">No Feedback Yet</h3>
+                    <p className="text-body text-muted-foreground">
+                      Start by sending encouragement to your users
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {feedbackHistory.map((feedback) => {
+                      const Icon = getFeedbackIcon(feedback.feedback_type);
+                      return (
+                        <div key={feedback.id} className="p-4 rounded-xl border bg-card">
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="flex items-start gap-3">
+                              <div className={cn(
+                                'h-10 w-10 rounded-full flex items-center justify-center bg-muted',
+                              )}>
+                                <Icon className={cn('h-5 w-5', getFeedbackColor(feedback.feedback_type))} />
+                              </div>
+                              <div>
+                                <div className="flex items-center gap-2 mb-1">
+                                  <span className="font-medium text-body">{feedback.user_name}</span>
+                                  <Badge variant="outline" className="capitalize">
+                                    {feedback.feedback_type}
+                                  </Badge>
+                                  {feedback.is_private && (
+                                    <Badge variant="secondary">Private</Badge>
+                                  )}
+                                  {feedback.read_at && (
+                                    <Badge variant="secondary" className="bg-green-500/10 text-green-600">
+                                      Read
+                                    </Badge>
+                                  )}
+                                </div>
+                                <p className="text-body text-foreground">{feedback.message}</p>
+                                <p className="text-caption text-muted-foreground mt-2 flex items-center gap-1">
+                                  <Calendar className="h-3 w-3" />
+                                  {format(new Date(feedback.created_at), 'MMM d, yyyy h:mm a')}
+                                </p>
+                              </div>
                             </div>
-                            <p className="text-body text-foreground">{feedback.message}</p>
-                            <p className="text-caption text-muted-foreground mt-2 flex items-center gap-1">
-                              <Calendar className="h-3 w-3" />
-                              {format(new Date(feedback.created_at), 'MMM d, yyyy h:mm a')}
-                            </p>
+                            <Button 
+                              variant="ghost" 
+                              size="icon"
+                              className="text-muted-foreground hover:text-destructive"
+                              onClick={() => deleteFeedback(feedback.id)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
                           </div>
                         </div>
-                        <Button 
-                          variant="ghost" 
-                          size="icon"
-                          className="text-muted-foreground hover:text-destructive"
-                          onClick={() => deleteFeedback(feedback.id)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+                      );
+                    })}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Templates Tab */}
+          <TabsContent value="templates">
+            <FeedbackTemplatesLibrary />
+          </TabsContent>
+
+          {/* Segments Tab */}
+          <TabsContent value="segments">
+            <UserSegments />
+          </TabsContent>
+
+          {/* Analytics Tab */}
+          <TabsContent value="analytics">
+            <FeedbackResponseTracker />
+          </TabsContent>
+        </Tabs>
 
         {/* Compose Dialog */}
         <Dialog open={showComposer} onOpenChange={setShowComposer}>

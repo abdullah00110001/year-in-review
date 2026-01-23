@@ -376,7 +376,7 @@ export default function AdminOverview() {
                         <AlertTriangle className="h-5 w-5 text-destructive" />
                       </div>
                       <div>
-                        <p className="font-medium text-body">{user.full_name || 'Unknown User'}</p>
+                        <p className="font-medium text-body">{user.full_name || `User ${user.user_id.slice(0, 6)}`}</p>
                         <p className="text-caption text-muted-foreground">
                           Last active: {user.last_entry_date ? format(new Date(user.last_entry_date), 'MMM d, yyyy') : 'Never'}
                         </p>

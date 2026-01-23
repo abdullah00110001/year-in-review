@@ -87,6 +87,7 @@ export type Database = {
           id: string
           is_private: boolean | null
           message: string
+          read_at: string | null
           user_id: string
         }
         Insert: {
@@ -98,6 +99,7 @@ export type Database = {
           id?: string
           is_private?: boolean | null
           message: string
+          read_at?: string | null
           user_id: string
         }
         Update: {
@@ -109,6 +111,7 @@ export type Database = {
           id?: string
           is_private?: boolean | null
           message?: string
+          read_at?: string | null
           user_id?: string
         }
         Relationships: [
@@ -395,6 +398,39 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      feedback_templates: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          feedback_type: string
+          id: string
+          message: string
+          mode: string | null
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          feedback_type: string
+          id?: string
+          message: string
+          mode?: string | null
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          feedback_type?: string
+          id?: string
+          message?: string
+          mode?: string | null
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       future_letters: {
         Row: {
@@ -1143,6 +1179,36 @@ export type Database = {
           total_points?: number | null
           updated_at?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      user_segments: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          criteria: Json
+          description: string | null
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          criteria?: Json
+          description?: string | null
+          id?: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          criteria?: Json
+          description?: string | null
+          id?: string
+          name?: string
+          updated_at?: string
         }
         Relationships: []
       }
