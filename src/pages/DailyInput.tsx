@@ -120,6 +120,22 @@ const SALAH_PRAYERS = [
   { key: 'isha', name: 'Isha', namebn: 'ইশা', icon: '🌙' },
 ];
 
+// DB constraint expects: low | medium | high
+// UI shows: light | medium | intense
+const intensityToDb = (value?: string) => {
+  if (!value) return 'medium';
+  if (value === 'light') return 'low';
+  if (value === 'intense') return 'high';
+  return value;
+};
+
+const intensityFromDb = (value?: string) => {
+  if (!value) return 'medium';
+  if (value === 'low') return 'light';
+  if (value === 'high') return 'intense';
+  return value;
+};
+
 export default function DailyInput() {
   const { user } = useAuth();
   const { language } = useLanguage();
@@ -174,7 +190,11 @@ export default function DailyInput() {
 
       if (error) throw error;
       if (data) {
-        setEntry(data as DailyEntry);
+        const normalized = {
+          ...(data as any),
+          exercise_intensity: intensityFromDb((data as any)?.exercise_intensity),
+        };
+        setEntry(normalized as DailyEntry);
       } else {
         setEntry({ ...defaultEntry, date: selectedDate });
       }
@@ -219,7 +239,7 @@ export default function DailyInput() {
         shorts_reels_minutes: entry.shorts_reels_minutes || 0,
         exercise_done: entry.exercise_done || false,
         exercise_type: entry.exercise_type || '',
-        exercise_intensity: entry.exercise_intensity || 'medium',
+        exercise_intensity: intensityToDb(entry.exercise_intensity),
         exercise_duration_minutes: entry.exercise_duration_minutes || 0,
         sleep_duration_minutes: entry.sleep_duration_minutes || 420,
         sleep_quality: entry.sleep_quality || 3,
