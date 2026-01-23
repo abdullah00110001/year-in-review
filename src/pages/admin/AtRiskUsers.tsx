@@ -261,7 +261,7 @@ export default function AtRiskUsers() {
                         </div>
                         <div>
                           <div className="flex items-center gap-2">
-                            <p className="font-medium text-body">{user.full_name || 'Unknown User'}</p>
+                            <p className="font-medium text-body">{user.full_name || `User ${user.user_id.slice(0, 6)}`}</p>
                             {user.declining && (
                               <Badge variant="outline" className="text-red-500 border-red-500">
                                 <TrendingDown className="h-3 w-3 mr-1" />

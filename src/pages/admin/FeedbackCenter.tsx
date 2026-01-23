@@ -121,9 +121,10 @@ export default function FeedbackCenter() {
 
       const profileMap = new Map(profiles?.map(p => [p.user_id, p.full_name]));
 
-      setFeedbackHistory(feedback.map(f => ({
+      setFeedbackHistory(feedback.map((f, idx) => ({
         ...f,
-        user_name: profileMap.get(f.user_id) || 'Unknown'
+        // Use profile name, fallback to partial user_id
+        user_name: profileMap.get(f.user_id) || `User ${f.user_id.slice(0, 8)}`
       })));
     }
 
@@ -174,9 +175,9 @@ export default function FeedbackCenter() {
       setSelectedUser(null);
       setShowComposer(false);
       fetchAllFeedback();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error sending feedback:', error);
-      toast.error('Failed to send feedback');
+      toast.error(`Failed to send feedback: ${error?.message || 'Unknown error'}`);
     }
 
     setSending(false);
@@ -350,7 +351,7 @@ export default function FeedbackCenter() {
                         className="w-full flex items-center gap-2 p-2 hover:bg-muted text-left"
                       >
                         <User className="h-4 w-4" />
-                        {user.full_name || 'Unknown'}
+                        {user.full_name || `User ${user.user_id.slice(0, 8)}`}
                       </button>
                     ))}
                   </div>

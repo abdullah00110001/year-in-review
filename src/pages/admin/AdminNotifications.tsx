@@ -274,7 +274,7 @@ export default function AdminNotifications() {
                               : 'hover:bg-muted'
                           }`}
                         >
-                          <div className="font-medium">{u.full_name || 'Unknown User'}</div>
+                          <div className="font-medium">{u.full_name || `User ${u.user_id.slice(0, 6)}`}</div>
                           <div className="text-xs opacity-70 truncate">{u.user_id}</div>
                         </button>
                       ))}
