@@ -189,7 +189,8 @@ export default function DailyInput() {
     if (!user || !canEdit()) return;
     setSaving(true);
     try {
-      const taskStatus = isLateSubmission ? 'late_submission' : 'submitted';
+      // Valid task_status values: 'complete_on_time', 'complete_late', 'incomplete', 'not_submitted'
+      const taskStatus = isLateSubmission ? 'complete_late' : 'complete_on_time';
       
       // Clean entry data - remove id and created_at for insert, keep only valid fields
       const cleanEntry = {

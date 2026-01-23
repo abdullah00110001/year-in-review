@@ -30,6 +30,7 @@ import UserInspector from "./pages/admin/UserInspector";
 import AtRiskUsers from "./pages/admin/AtRiskUsers";
 import FeedbackCenter from "./pages/admin/FeedbackCenter";
 import AdminAnalytics from "./pages/admin/AdminAnalytics";
+import AdminNotifications from "./pages/admin/AdminNotifications";
 import AdminCommandCenter from "./pages/admin/AdminCommandCenter";
 import AdminProtectedRoute from "./components/admin/AdminProtectedRoute";
 import YearEndWrapped from "./pages/YearEndWrapped";
@@ -228,6 +229,14 @@ const App = () => (
                   element={
                     <AdminProtectedRoute>
                       <AdminAnalytics />
+                    </AdminProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/admin/notifications"
+                  element={
+                    <AdminProtectedRoute>
+                      <AdminNotifications />
                     </AdminProtectedRoute>
                   }
                 />
