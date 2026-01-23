@@ -236,12 +236,17 @@ export default function DailyInput() {
       };
       
       // First check if entry exists
-      const { data: existingEntry } = await supabase
+      const { data: existingEntry, error: existingEntryError } = await supabase
         .from('daily_entries')
         .select('id')
         .eq('user_id', user.id)
         .eq('date', selectedDate)
         .maybeSingle();
+
+      if (existingEntryError) {
+        console.error('Supabase existing-entry lookup error:', existingEntryError);
+        throw existingEntryError;
+      }
 
       let error;
       
@@ -279,9 +284,17 @@ export default function DailyInput() {
       toast.success(message);
       await updateScores();
       await fetchEntry(); // Refresh data
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving entry:', error);
-      toast.error(language === 'bn' ? 'সংরক্ষণ ব্যর্থ হয়েছে' : 'Failed to save entry');
+      const details =
+        error?.message ||
+        error?.error_description ||
+        error?.hint ||
+        (typeof error === 'string' ? error : JSON.stringify(error));
+
+      toast.error(language === 'bn' ? 'সংরক্ষণ ব্যর্থ হয়েছে' : 'Failed to save entry', {
+        description: details,
+      });
     } finally {
       setSaving(false);
     }
