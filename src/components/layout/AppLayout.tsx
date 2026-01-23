@@ -1,6 +1,7 @@
 import { ReactNode } from 'react';
 import Sidebar from './Sidebar';
 import MobileNav from './MobileNav';
+import QuickActionFAB from './QuickActionFAB';
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -23,6 +24,9 @@ export default function AppLayout({ children }: AppLayoutProps) {
           {children}
         </div>
       </main>
+
+      {/* Quick Action FAB */}
+      <QuickActionFAB />
     </div>
   );
 }

@@ -9,14 +9,16 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { supabase } from '@/integrations/supabase/client';
-import { Target, CheckCircle2, TrendingUp, Flame, Plus, Sparkles, Compass } from 'lucide-react';
+import { Target, CheckCircle2, Flame, Plus, Sparkles, Compass } from 'lucide-react';
 import { format } from 'date-fns';
 import TimeAwareness from '@/components/dashboard/TimeAwareness';
 import SmallWinsWidget from '@/components/dashboard/SmallWinsWidget';
 import LifeDistributionWidget from '@/components/dashboard/LifeDistributionWidget';
 import UnifiedQuotes from '@/components/dashboard/UnifiedQuotes';
 import ModeOnboarding from '@/components/mode/ModeOnboarding';
+import OnboardingTour from '@/components/onboarding/OnboardingTour';
 import AdminFeedbackNotifications from '@/components/dashboard/AdminFeedbackNotifications';
+import { SkeletonStats, SkeletonCard, SkeletonHero } from '@/components/ui/skeleton-card';
 
 interface DashboardStats {
   totalGoals: number;
@@ -27,8 +29,8 @@ interface DashboardStats {
 
 export default function Dashboard() {
   const { user } = useAuth();
-  const { t, language } = useLanguage();
-  const { mode, labels, isLoading: modeLoading } = useAppMode();
+  const { t } = useLanguage();
+  const { mode, isLoading: modeLoading } = useAppMode();
   const { currentStreak, consistencyScore, loading: streakLoading } = useStreak();
   const [stats, setStats] = useState<DashboardStats>({
     totalGoals: 0,
@@ -38,18 +40,21 @@ export default function Dashboard() {
   });
   const [recentHabits, setRecentHabits] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showOnboarding, setShowOnboarding] = useState(false);
-
+  const [showModeOnboarding, setShowModeOnboarding] = useState(false);
+  const [showTour, setShowTour] = useState(false);
   // Check if onboarding is needed
   useEffect(() => {
     if (!modeLoading && user) {
-      const onboardingComplete = localStorage.getItem('mode_onboarding_complete');
-      if (!onboardingComplete) {
-        setShowOnboarding(true);
+      const modeComplete = localStorage.getItem('mode_onboarding_complete');
+      const tourComplete = localStorage.getItem('onboarding_tour_complete');
+      
+      if (!modeComplete) {
+        setShowModeOnboarding(true);
+      } else if (!tourComplete) {
+        setShowTour(true);
       }
     }
   }, [modeLoading, user]);
-
   useEffect(() => {
     if (user) {
       fetchDashboardData();
@@ -104,14 +109,50 @@ export default function Dashboard() {
     ? Math.round((stats.todayCompleted / stats.todayTotal) * 100) 
     : 0;
 
+  const handleModeComplete = () => {
+    setShowModeOnboarding(false);
+    // Show tour after mode selection
+    const tourComplete = localStorage.getItem('onboarding_tour_complete');
+    if (!tourComplete) {
+      setTimeout(() => setShowTour(true), 500);
+    }
+  };
+
+  // Show loading skeleton while data loads
+  if (loading && !stats.totalHabits && !recentHabits.length) {
+    return (
+      <AppLayout>
+        <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto pb-24 lg:pb-8">
+          <div className="mb-4 sm:mb-6 space-y-2">
+            <div className="h-8 w-64 bg-muted rounded-lg animate-pulse" />
+            <div className="h-4 w-48 bg-muted rounded animate-pulse" />
+          </div>
+          <SkeletonHero />
+          <div className="my-6">
+            <SkeletonStats />
+          </div>
+          <div className="grid gap-4 sm:gap-6 lg:grid-cols-2">
+            <SkeletonCard lines={5} />
+            <SkeletonCard lines={5} />
+          </div>
+        </div>
+      </AppLayout>
+    );
+  }
+
   return (
     <AppLayout>
       {/* Mode Onboarding Dialog */}
       <ModeOnboarding 
-        isOpen={showOnboarding} 
-        onComplete={() => setShowOnboarding(false)} 
+        isOpen={showModeOnboarding} 
+        onComplete={handleModeComplete} 
       />
 
+      {/* Feature Tour */}
+      <OnboardingTour
+        isOpen={showTour}
+        onComplete={() => setShowTour(false)}
+      />
       <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto pb-24 lg:pb-8">
         {/* Header */}
         <div className="mb-4 sm:mb-6">
