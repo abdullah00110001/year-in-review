@@ -95,9 +95,9 @@ export default function BatchEncouragementModal({
       toast.success(`Sent encouragement to ${users.length} users!`);
       onSuccess();
       onClose();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error sending batch feedback:', error);
-      toast.error('Failed to send messages');
+      toast.error(`Failed to send messages: ${error?.message || 'Unknown error'}`);
     } finally {
       setSending(false);
     }
@@ -123,7 +123,7 @@ export default function BatchEncouragementModal({
             <div className="flex flex-wrap gap-1.5 p-3 rounded-lg bg-muted/50 max-h-24 overflow-y-auto">
               {users.slice(0, 10).map((u) => (
                 <Badge key={u.user_id} variant="secondary" className="text-xs">
-                  {u.full_name || 'Unknown'} ({u.days_inactive}d)
+                  {u.full_name || `User ${u.user_id.slice(0, 6)}`} ({u.days_inactive}d)
                 </Badge>
               ))}
               {users.length > 10 && (
