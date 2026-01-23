@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -47,11 +48,26 @@ export default function Auth() {
   const { signIn, signUp, signInWithGoogle, user, loading } = useAuth();
   const navigate = useNavigate();
 
-  useEffect(() => {
-    if (!loading && user) {
+  // Check if user is admin and redirect accordingly
+  const checkAdminAndRedirect = async (userId: string) => {
+    try {
+      const { data: roleData } = await supabase.rpc('get_user_role', { _user_id: userId });
+      if (roleData === 'admin') {
+        navigate('/admin');
+      } else {
+        navigate('/dashboard');
+      }
+    } catch (error) {
+      console.error('Error checking admin role:', error);
       navigate('/dashboard');
     }
-  }, [user, loading, navigate]);
+  };
+
+  useEffect(() => {
+    if (!loading && user) {
+      checkAdminAndRedirect(user.id);
+    }
+  }, [user, loading]);
 
   const validateForm = () => {
     try {
@@ -87,7 +103,7 @@ export default function Auth() {
       }
     } else {
       toast.success('Welcome back!');
-      navigate('/dashboard');
+      // Redirect handled by useEffect when user state updates
     }
   };
 

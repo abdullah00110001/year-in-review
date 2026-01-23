@@ -191,6 +191,50 @@ export default function DailyInput() {
     try {
       const taskStatus = isLateSubmission ? 'late_submission' : 'submitted';
       
+      // Clean entry data - remove id and created_at for insert, keep only valid fields
+      const cleanEntry = {
+        focused_study_minutes: entry.focused_study_minutes || 0,
+        revision_minutes: entry.revision_minutes || 0,
+        skill_learning_minutes: entry.skill_learning_minutes || 0,
+        fajr_completed: entry.fajr_completed || false,
+        fajr_on_time: entry.fajr_on_time || false,
+        dhuhr_completed: entry.dhuhr_completed || false,
+        dhuhr_on_time: entry.dhuhr_on_time || false,
+        asr_completed: entry.asr_completed || false,
+        asr_on_time: entry.asr_on_time || false,
+        maghrib_completed: entry.maghrib_completed || false,
+        maghrib_on_time: entry.maghrib_on_time || false,
+        isha_completed: entry.isha_completed || false,
+        isha_on_time: entry.isha_on_time || false,
+        khushu_level: entry.khushu_level || 3,
+        quran_read: entry.quran_read || false,
+        quran_surah: entry.quran_surah || '',
+        quran_ayah_from: entry.quran_ayah_from || null,
+        quran_ayah_to: entry.quran_ayah_to || null,
+        quran_type: entry.quran_type || 'reading',
+        quran_minutes: entry.quran_minutes || 0,
+        device_time_minutes: entry.device_time_minutes || 0,
+        social_media_minutes: entry.social_media_minutes || 0,
+        shorts_reels_minutes: entry.shorts_reels_minutes || 0,
+        exercise_done: entry.exercise_done || false,
+        exercise_type: entry.exercise_type || '',
+        exercise_intensity: entry.exercise_intensity || 'medium',
+        exercise_duration_minutes: entry.exercise_duration_minutes || 0,
+        sleep_duration_minutes: entry.sleep_duration_minutes || 420,
+        sleep_quality: entry.sleep_quality || 3,
+        energy_level: entry.energy_level || 3,
+        focus_level: entry.focus_level || 3,
+        discipline_level: entry.discipline_level || 3,
+        overall_day_rating: entry.overall_day_rating || 5,
+        mental_state: entry.mental_state || 'calm',
+        most_important_task: entry.most_important_task || '',
+        biggest_time_leak: entry.biggest_time_leak || '',
+        regret_of_day: entry.regret_of_day || '',
+        free_reflection: entry.free_reflection || '',
+        is_locked: entry.is_locked || false,
+        task_status: taskStatus,
+      };
+      
       // First check if entry exists
       const { data: existingEntry } = await supabase
         .from('daily_entries')
@@ -206,8 +250,7 @@ export default function DailyInput() {
         const { error: updateError } = await supabase
           .from('daily_entries')
           .update({
-            ...entry,
-            task_status: taskStatus,
+            ...cleanEntry,
             updated_at: new Date().toISOString(),
           })
           .eq('id', existingEntry.id);
@@ -217,10 +260,9 @@ export default function DailyInput() {
         const { error: insertError } = await supabase
           .from('daily_entries')
           .insert({
-            ...entry,
+            ...cleanEntry,
             user_id: user.id,
             date: selectedDate,
-            task_status: taskStatus,
           });
         error = insertError;
       }
@@ -236,6 +278,7 @@ export default function DailyInput() {
       
       toast.success(message);
       await updateScores();
+      await fetchEntry(); // Refresh data
     } catch (error) {
       console.error('Error saving entry:', error);
       toast.error(language === 'bn' ? 'সংরক্ষণ ব্যর্থ হয়েছে' : 'Failed to save entry');
@@ -395,10 +438,10 @@ export default function DailyInput() {
         )}
 
         <Tabs defaultValue="salah" className="w-full">
-          {/* Redesigned Daily Life Input Bar */}
-          <Card className="mb-4">
-            <CardContent className="p-3 sm:p-4">
-              <TabsList className="w-full h-auto bg-transparent grid grid-cols-4 sm:grid-cols-7 gap-2 sm:gap-3">
+          {/* Redesigned Daily Life Input Bar - Cleaner Grid Layout */}
+          <Card className="mb-4 overflow-hidden">
+            <CardContent className="p-4 sm:p-5">
+              <TabsList className="w-full h-auto bg-muted/40 p-2 rounded-xl grid grid-cols-4 sm:grid-cols-7 gap-2">
                 {[
                   { value: 'salah', label: '🕌', full: 'Salah', fullBn: 'নামাজ' },
                   { value: 'quran', label: '📖', full: "Qur'an", fullBn: 'কুরআন' },
@@ -414,19 +457,20 @@ export default function DailyInput() {
                       key={tab.value}
                       value={tab.value} 
                       className={cn(
-                        "flex flex-col items-center justify-center gap-1 h-auto py-3 px-2 rounded-xl border-2 transition-all",
-                        "data-[state=active]:border-primary data-[state=active]:bg-primary/10 data-[state=active]:shadow-sm",
-                        "data-[state=inactive]:border-border data-[state=inactive]:bg-muted/30",
-                        isComplete && "ring-2 ring-green-500/30 ring-offset-1 ring-offset-background"
+                        "relative flex flex-col items-center justify-center gap-1.5 h-auto py-3 px-1 sm:px-2 rounded-lg transition-all duration-200",
+                        "bg-card/80 hover:bg-card shadow-sm",
+                        "data-[state=active]:bg-primary/15 data-[state=active]:border-primary data-[state=active]:shadow-md",
+                        "border border-transparent data-[state=active]:border-primary/50",
+                        isComplete && "ring-1 ring-green-500/50"
                       )}
                     >
-                      <span className="text-2xl sm:text-3xl">{tab.label}</span>
-                      <span className="text-[9px] sm:text-xs font-medium text-muted-foreground">
+                      <span className="text-xl sm:text-2xl">{tab.label}</span>
+                      <span className="text-[8px] sm:text-[10px] font-medium text-muted-foreground leading-tight text-center">
                         {language === 'bn' ? tab.fullBn : tab.full}
                       </span>
                       {isComplete && (
-                        <div className="absolute -top-1 -right-1 h-4 w-4 bg-green-500 rounded-full flex items-center justify-center">
-                          <Check className="h-2.5 w-2.5 text-white" />
+                        <div className="absolute -top-1 -right-1 h-3.5 w-3.5 bg-green-500 rounded-full flex items-center justify-center shadow-sm">
+                          <Check className="h-2 w-2 text-white" />
                         </div>
                       )}
                     </TabsTrigger>

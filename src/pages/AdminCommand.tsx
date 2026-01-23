@@ -125,6 +125,7 @@ export default function AdminCommand() {
 
     setSending(true);
     try {
+      // Insert feedback with required date field
       const { error } = await supabase
         .from('admin_feedback')
         .insert({
@@ -133,9 +134,29 @@ export default function AdminCommand() {
           feedback_type: feedbackType,
           message: feedbackMessage,
           is_private: feedbackType !== 'motivation',
+          date: format(new Date(), 'yyyy-MM-dd'),
         });
 
       if (error) throw error;
+      
+      // Send notification to user (only if not private/motivation type)
+      if (feedbackType === 'motivation') {
+        const feedbackTypeLabels: Record<string, string> = {
+          daily: '📋 Daily Feedback',
+          weekly: '📊 Weekly Advice',
+          motivation: '💪 Motivation',
+          advice: '💡 Advice'
+        };
+        
+        await supabase.from('notifications').insert({
+          user_id: selectedUser,
+          title: feedbackTypeLabels[feedbackType] || 'Admin Feedback',
+          message: feedbackMessage,
+          type: 'admin_feedback',
+          metadata: { feedback_type: feedbackType }
+        });
+      }
+      
       toast.success('Feedback sent successfully!');
       setFeedbackMessage('');
     } catch (error) {

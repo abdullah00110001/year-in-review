@@ -138,23 +138,45 @@ export default function FeedbackCenter() {
 
     setSending(true);
 
-    const { error } = await supabase.from('admin_feedback').insert({
-      user_id: selectedUser.user_id,
-      admin_id: adminUser.id,
-      message: newFeedback.message,
-      feedback_type: newFeedback.type,
-      is_private: newFeedback.isPrivate,
-      date: format(new Date(), 'yyyy-MM-dd')
-    });
+    try {
+      // Insert feedback
+      const { error: feedbackError } = await supabase.from('admin_feedback').insert({
+        user_id: selectedUser.user_id,
+        admin_id: adminUser.id,
+        message: newFeedback.message,
+        feedback_type: newFeedback.type,
+        is_private: newFeedback.isPrivate,
+        date: format(new Date(), 'yyyy-MM-dd')
+      });
 
-    if (error) {
-      toast.error('Failed to send feedback');
-    } else {
+      if (feedbackError) throw feedbackError;
+
+      // Send notification to user (only if not private)
+      if (!newFeedback.isPrivate) {
+        const feedbackTypeLabels: Record<string, string> = {
+          encouragement: '💚 Encouragement',
+          concern: '💭 Concern',
+          suggestion: '💡 Suggestion',
+          reminder: '🔔 Reminder'
+        };
+        
+        await supabase.from('notifications').insert({
+          user_id: selectedUser.user_id,
+          title: feedbackTypeLabels[newFeedback.type] || 'Admin Feedback',
+          message: newFeedback.message,
+          type: 'admin_feedback',
+          metadata: { feedback_type: newFeedback.type }
+        });
+      }
+
       toast.success('Feedback sent successfully!');
       setNewFeedback({ message: '', type: 'encouragement', isPrivate: false });
       setSelectedUser(null);
       setShowComposer(false);
       fetchAllFeedback();
+    } catch (error) {
+      console.error('Error sending feedback:', error);
+      toast.error('Failed to send feedback');
     }
 
     setSending(false);

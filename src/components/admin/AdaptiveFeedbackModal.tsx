@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { format } from 'date-fns';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -83,15 +84,34 @@ export default function AdaptiveFeedbackModal({
 
     setSending(true);
     try {
+      // Insert feedback with required date field
       const { error } = await supabase.from('admin_feedback').insert({
         user_id: userId,
         admin_id: user.id,
         message: message.trim(),
         feedback_type: feedbackType,
         is_private: isPrivate,
+        date: format(new Date(), 'yyyy-MM-dd'),
       });
 
       if (error) throw error;
+
+      // Send notification to user (only if not private)
+      if (!isPrivate) {
+        const feedbackTypeLabels: Record<string, string> = {
+          encouragement: '💚 Encouragement',
+          concern: '💭 Concern', 
+          celebration: '🎉 Celebration'
+        };
+        
+        await supabase.from('notifications').insert({
+          user_id: userId,
+          title: feedbackTypeLabels[feedbackType] || 'Admin Feedback',
+          message: message.trim(),
+          type: 'admin_feedback',
+          metadata: { feedback_type: feedbackType }
+        });
+      }
 
       toast.success(`Feedback sent to ${userName}!`);
       setMessage('');
