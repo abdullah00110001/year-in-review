@@ -17,6 +17,10 @@ const authSchema = z.object({
   password: z.string().min(6, 'Password must be at least 6 characters'),
 });
 
+const emailSchema = z.object({
+  email: z.string().email('Please enter a valid email address'),
+});
+
 // Google Icon Component
 const GoogleIcon = () => (
   <svg className="h-5 w-5" viewBox="0 0 24 24">
@@ -44,6 +48,10 @@ export default function Auth() {
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const [isResetLoading, setIsResetLoading] = useState(false);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [resetEmail, setResetEmail] = useState('');
+  const [resetEmailError, setResetEmailError] = useState<string | null>(null);
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
   const { signIn, signUp, signInWithGoogle, user, loading } = useAuth();
   const navigate = useNavigate();
@@ -134,6 +142,34 @@ export default function Auth() {
       toast.error(error.message);
     }
     // Don't reset loading - user will be redirected
+  };
+
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setResetEmailError(null);
+
+    try {
+      emailSchema.parse({ email: resetEmail });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        setResetEmailError(error.errors[0]?.message || 'Invalid email');
+      }
+      return;
+    }
+
+    setIsResetLoading(true);
+    const { error } = await supabase.auth.resetPasswordForEmail(resetEmail, {
+      redirectTo: `${window.location.origin}/auth?reset=true`,
+    });
+    setIsResetLoading(false);
+
+    if (error) {
+      toast.error(error.message);
+    } else {
+      toast.success('Password reset link sent! Check your email.');
+      setShowForgotPassword(false);
+      setResetEmail('');
+    }
   };
 
   if (loading) {
@@ -231,6 +267,14 @@ export default function Auth() {
                       <p className="text-sm text-destructive">{errors.password}</p>
                     )}
                   </div>
+                  <Button
+                    type="button"
+                    variant="link"
+                    className="px-0 h-auto text-sm text-muted-foreground hover:text-primary"
+                    onClick={() => setShowForgotPassword(true)}
+                  >
+                    Forgot your password?
+                  </Button>
                 </CardContent>
                 <CardFooter>
                   <Button type="submit" className="w-full" disabled={isLoading}>
@@ -239,6 +283,57 @@ export default function Auth() {
                   </Button>
                 </CardFooter>
               </form>
+
+              {/* Forgot Password Dialog */}
+              {showForgotPassword && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm p-4">
+                  <Card className="w-full max-w-md">
+                    <form onSubmit={handleForgotPassword}>
+                      <CardHeader>
+                        <CardTitle>Reset Password</CardTitle>
+                        <CardDescription>
+                          Enter your email and we'll send you a reset link
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="reset-email">Email</Label>
+                          <Input
+                            id="reset-email"
+                            type="email"
+                            placeholder="you@example.com"
+                            value={resetEmail}
+                            onChange={(e) => setResetEmail(e.target.value)}
+                            disabled={isResetLoading}
+                          />
+                          {resetEmailError && (
+                            <p className="text-sm text-destructive">{resetEmailError}</p>
+                          )}
+                        </div>
+                      </CardContent>
+                      <CardFooter className="flex gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="flex-1"
+                          onClick={() => {
+                            setShowForgotPassword(false);
+                            setResetEmail('');
+                            setResetEmailError(null);
+                          }}
+                          disabled={isResetLoading}
+                        >
+                          Cancel
+                        </Button>
+                        <Button type="submit" className="flex-1" disabled={isResetLoading}>
+                          {isResetLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                          Send Reset Link
+                        </Button>
+                      </CardFooter>
+                    </form>
+                  </Card>
+                </div>
+              )}
             </TabsContent>
 
             <TabsContent value="signup">
