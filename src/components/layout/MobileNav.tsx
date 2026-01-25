@@ -28,7 +28,10 @@ import {
   Brain,
   Compass,
   Home,
-  Plus
+  Plus,
+  Flame,
+  BookHeart,
+  TrendingUp
 } from 'lucide-react';
 import { useAppMode } from '@/contexts/AppModeContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -105,6 +108,9 @@ export default function MobileNav() {
     { name: t('nav.dailyInput'), href: '/daily-input', icon: ClipboardList },
     { name: t('nav.intelligence'), href: '/intelligence', icon: Brain },
     { name: 'Smart Insights', href: '/insights', icon: Lightbulb },
+    { name: language === 'bn' ? 'চ্যালেঞ্জ' : 'Challenges', href: '/challenges', icon: Flame },
+    { name: language === 'bn' ? 'মুহাসাবা' : 'Reflections', href: '/reflections', icon: BookHeart },
+    { name: language === 'bn' ? 'তুলনামূলক বিশ্লেষণ' : 'Compare Analytics', href: '/comparative-analytics', icon: TrendingUp },
     { name: t('nav.journey'), href: '/journey', icon: Map },
     { name: t('nav.goals'), href: '/goals', icon: Target },
     { name: t('nav.quarterlyGoals'), href: '/quarterly-goals', icon: Target },
