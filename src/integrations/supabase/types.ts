@@ -151,6 +151,63 @@ export type Database = {
         }
         Relationships: []
       }
+      challenges: {
+        Row: {
+          badge_icon: string | null
+          badge_name: string | null
+          challenge_type: string
+          created_at: string
+          description: string
+          description_bn: string | null
+          end_date: string | null
+          id: string
+          is_active: boolean | null
+          mode: string | null
+          reward_points: number
+          start_date: string | null
+          target_metric: string
+          target_value: number
+          title: string
+          title_bn: string | null
+        }
+        Insert: {
+          badge_icon?: string | null
+          badge_name?: string | null
+          challenge_type?: string
+          created_at?: string
+          description: string
+          description_bn?: string | null
+          end_date?: string | null
+          id?: string
+          is_active?: boolean | null
+          mode?: string | null
+          reward_points?: number
+          start_date?: string | null
+          target_metric: string
+          target_value: number
+          title: string
+          title_bn?: string | null
+        }
+        Update: {
+          badge_icon?: string | null
+          badge_name?: string | null
+          challenge_type?: string
+          created_at?: string
+          description?: string
+          description_bn?: string | null
+          end_date?: string | null
+          id?: string
+          is_active?: boolean | null
+          mode?: string | null
+          reward_points?: number
+          start_date?: string | null
+          target_metric?: string
+          target_value?: number
+          title?: string
+          title_bn?: string | null
+        }
+        Relationships: []
+      }
       daily_entries: {
         Row: {
           akhirah_score: number | null
@@ -768,6 +825,48 @@ export type Database = {
           },
         ]
       }
+      notification_preferences: {
+        Row: {
+          achievement_alerts: boolean | null
+          challenge_updates: boolean | null
+          created_at: string
+          daily_input_reminder: boolean | null
+          habit_reminders: boolean | null
+          id: string
+          mentor_messages: boolean | null
+          prayer_reminders: boolean | null
+          reminder_time: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          achievement_alerts?: boolean | null
+          challenge_updates?: boolean | null
+          created_at?: string
+          daily_input_reminder?: boolean | null
+          habit_reminders?: boolean | null
+          id?: string
+          mentor_messages?: boolean | null
+          prayer_reminders?: boolean | null
+          reminder_time?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          achievement_alerts?: boolean | null
+          challenge_updates?: boolean | null
+          created_at?: string
+          daily_input_reminder?: boolean | null
+          habit_reminders?: boolean | null
+          id?: string
+          mentor_messages?: boolean | null
+          prayer_reminders?: boolean | null
+          reminder_time?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       notifications: {
         Row: {
           created_at: string
@@ -844,6 +943,39 @@ export type Database = {
           notifications_enabled?: boolean | null
           phone?: string | null
           push_subscription?: Json | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      push_subscriptions: {
+        Row: {
+          auth: string
+          created_at: string
+          endpoint: string
+          id: string
+          is_active: boolean | null
+          p256dh: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          auth: string
+          created_at?: string
+          endpoint: string
+          id?: string
+          is_active?: boolean | null
+          p256dh: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          auth?: string
+          created_at?: string
+          endpoint?: string
+          id?: string
+          is_active?: boolean | null
+          p256dh?: string
           updated_at?: string
           user_id?: string
         }
@@ -927,6 +1059,39 @@ export type Database = {
         }
         Relationships: []
       }
+      reflection_prompts: {
+        Row: {
+          category: string
+          created_at: string
+          id: string
+          is_active: boolean | null
+          mode: string | null
+          mood_trigger: string[] | null
+          prompt_text: string
+          prompt_text_bn: string | null
+        }
+        Insert: {
+          category?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean | null
+          mode?: string | null
+          mood_trigger?: string[] | null
+          prompt_text: string
+          prompt_text_bn?: string | null
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean | null
+          mode?: string | null
+          mood_trigger?: string[] | null
+          prompt_text?: string
+          prompt_text_bn?: string | null
+        }
+        Relationships: []
+      }
       reflections: {
         Row: {
           challenges: string | null
@@ -1001,6 +1166,33 @@ export type Database = {
           mood_before?: number | null
           notes?: string | null
           service_type?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      shared_achievements: {
+        Row: {
+          achievement_data: Json
+          achievement_type: string
+          id: string
+          platform: string | null
+          shared_at: string
+          user_id: string
+        }
+        Insert: {
+          achievement_data: Json
+          achievement_type: string
+          id?: string
+          platform?: string | null
+          shared_at?: string
+          user_id: string
+        }
+        Update: {
+          achievement_data?: Json
+          achievement_type?: string
+          id?: string
+          platform?: string | null
+          shared_at?: string
           user_id?: string
         }
         Relationships: []
@@ -1106,6 +1298,126 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      user_badges: {
+        Row: {
+          badge_description: string | null
+          badge_icon: string | null
+          badge_name: string
+          earned_at: string
+          id: string
+          source_challenge_id: string | null
+          user_id: string
+        }
+        Insert: {
+          badge_description?: string | null
+          badge_icon?: string | null
+          badge_name: string
+          earned_at?: string
+          id?: string
+          source_challenge_id?: string | null
+          user_id: string
+        }
+        Update: {
+          badge_description?: string | null
+          badge_icon?: string | null
+          badge_name?: string
+          earned_at?: string
+          id?: string
+          source_challenge_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_badges_source_challenge_id_fkey"
+            columns: ["source_challenge_id"]
+            isOneToOne: false
+            referencedRelation: "challenges"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_challenges: {
+        Row: {
+          challenge_id: string
+          completed_at: string | null
+          id: string
+          is_completed: boolean | null
+          joined_at: string
+          progress: number
+          user_id: string
+        }
+        Insert: {
+          challenge_id: string
+          completed_at?: string | null
+          id?: string
+          is_completed?: boolean | null
+          joined_at?: string
+          progress?: number
+          user_id: string
+        }
+        Update: {
+          challenge_id?: string
+          completed_at?: string | null
+          id?: string
+          is_completed?: boolean | null
+          joined_at?: string
+          progress?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_challenges_challenge_id_fkey"
+            columns: ["challenge_id"]
+            isOneToOne: false
+            referencedRelation: "challenges"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_reflections: {
+        Row: {
+          created_at: string
+          custom_prompt: string | null
+          id: string
+          mood_after: number | null
+          mood_before: number | null
+          prompt_id: string | null
+          reflection_date: string
+          response: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          custom_prompt?: string | null
+          id?: string
+          mood_after?: number | null
+          mood_before?: number | null
+          prompt_id?: string | null
+          reflection_date?: string
+          response: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          custom_prompt?: string | null
+          id?: string
+          mood_after?: number | null
+          mood_before?: number | null
+          prompt_id?: string | null
+          reflection_date?: string
+          response?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_reflections_prompt_id_fkey"
+            columns: ["prompt_id"]
+            isOneToOne: false
+            referencedRelation: "reflection_prompts"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_roles: {
         Row: {
