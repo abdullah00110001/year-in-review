@@ -46,6 +46,9 @@ import IntelligenceEngine from "./pages/IntelligenceEngine";
 import Insights from "./pages/Insights";
 import IslamicDashboard from "./pages/IslamicDashboard";
 import UnifiedDashboard from "./pages/UnifiedDashboard";
+import Challenges from "./pages/Challenges";
+import Reflections from "./pages/Reflections";
+import ComparativeAnalytics from "./pages/ComparativeAnalytics";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -344,6 +347,30 @@ const App = () => (
                     <AdminProtectedRoute>
                       <AdminCommandCenter />
                     </AdminProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/challenges"
+                  element={
+                    <ProtectedRoute>
+                      <Challenges />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/reflections"
+                  element={
+                    <ProtectedRoute>
+                      <Reflections />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/comparative-analytics"
+                  element={
+                    <ProtectedRoute>
+                      <ComparativeAnalytics />
+                    </ProtectedRoute>
                   }
                 />
                 <Route path="*" element={<NotFound />} />

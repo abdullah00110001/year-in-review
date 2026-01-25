@@ -30,7 +30,10 @@ import {
   FileText,
   Brain,
   Lightbulb,
-  Compass
+  Compass,
+  Flame,
+  BookHeart,
+  TrendingUp
 } from 'lucide-react';
 import { useAppMode } from '@/contexts/AppModeContext';
 
@@ -67,6 +70,9 @@ export default function Sidebar() {
     { name: t('nav.monthlyReview'), href: '/monthly-review', icon: Calendar },
     { name: t('nav.intelligence'), href: '/intelligence', icon: Brain },
     { name: 'Smart Insights', href: '/insights', icon: Lightbulb },
+    { name: language === 'bn' ? 'চ্যালেঞ্জ' : 'Challenges', href: '/challenges', icon: Flame },
+    { name: language === 'bn' ? 'মুহাসাবা' : 'Reflections', href: '/reflections', icon: BookHeart },
+    { name: language === 'bn' ? 'তুলনামূলক বিশ্লেষণ' : 'Compare Analytics', href: '/comparative-analytics', icon: TrendingUp },
     { name: t('nav.gamification'), href: '/gamification', icon: Trophy },
     { name: t('nav.journey'), href: '/journey', icon: Map },
     { name: t('nav.goals'), href: '/goals', icon: Target },
