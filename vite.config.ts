@@ -15,17 +15,22 @@ export default defineConfig(({ mode }) => ({
     mode === "development" && componentTagger(),
     VitePWA({
       registerType: "autoUpdate",
-      includeAssets: ["favicon.ico", "favicon.svg", "robots.txt"],
+      includeAssets: ["favicon.png", "robots.txt", "icons/*.png"],
       manifest: {
         name: "Yearly Track – Life Operating System",
         short_name: "Yearly Track",
         description: "Transform your life with mindful daily tracking, Islamic spirituality, and data-driven self-improvement.",
-        theme_color: "#7c3aed",
+        theme_color: "#0ea5e9",
         background_color: "#0a0a0b",
         display: "standalone",
-        orientation: "portrait",
+        orientation: "portrait-primary",
         scope: "/",
         start_url: "/",
+        id: "/",
+        categories: ["productivity", "lifestyle", "health"],
+        lang: "en",
+        dir: "ltr",
+        prefer_related_applications: false,
         icons: [
           {
             src: "/icons/icon-72x72.png",
@@ -73,6 +78,14 @@ export default defineConfig(({ mode }) => ({
             sizes: "512x512",
             type: "image/png",
             purpose: "maskable",
+          },
+        ],
+        screenshots: [
+          {
+            src: "/icons/icon-512x512.png",
+            sizes: "512x512",
+            type: "image/png",
+            form_factor: "narrow",
           },
         ],
       },
