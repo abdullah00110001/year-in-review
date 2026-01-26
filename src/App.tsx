@@ -49,7 +49,9 @@ import UnifiedDashboard from "./pages/UnifiedDashboard";
 import Challenges from "./pages/Challenges";
 import Reflections from "./pages/Reflections";
 import ComparativeAnalytics from "./pages/ComparativeAnalytics";
+import Install from "./pages/Install";
 import NotFound from "./pages/NotFound";
+import OfflineIndicator from "./components/OfflineIndicator";
 
 const queryClient = new QueryClient();
 
@@ -62,9 +64,11 @@ const App = () => (
             <TooltipProvider>
               <Toaster />
               <Sonner />
+              <OfflineIndicator />
               <BrowserRouter>
               <Routes>
                 <Route path="/" element={<Index />} />
+                <Route path="/install" element={<Install />} />
                 <Route path="/auth" element={<Auth />} />
                 <Route path="/reset-password" element={<ResetPassword />} />
                 <Route
