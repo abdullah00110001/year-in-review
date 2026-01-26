@@ -5,7 +5,7 @@ import { useInstallPrompt } from '@/hooks/useInstallPrompt';
 import { isPWAInstalled, isIOSSafari } from '@/lib/pwaUtils';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Target, Download, Smartphone, WifiOff, Zap, Shield, Share, Plus, ArrowRight, Check } from 'lucide-react';
+import { Download, Smartphone, WifiOff, Zap, Shield, Share, Plus, ArrowRight, Check } from 'lucide-react';
 import { Loader2 } from 'lucide-react';
 
 export default function Install() {
@@ -63,9 +63,11 @@ export default function Install() {
       <div className="mx-auto max-w-lg">
         {/* Header */}
         <div className="mb-8 text-center pt-8">
-          <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-3xl bg-gradient-to-br from-primary to-primary/80 shadow-2xl shadow-primary/30">
-            <Target className="h-10 w-10 text-primary-foreground" />
-          </div>
+          <img 
+            src="/icons/app-icon.png" 
+            alt="Yearly Track" 
+            className="mx-auto mb-4 h-20 w-20 rounded-3xl shadow-2xl shadow-primary/30"
+          />
           <h1 className="text-headline text-foreground mb-2">Yearly Track</h1>
           <p className="text-body text-muted-foreground">
             Life Operating System

@@ -109,10 +109,11 @@ export default function Index() {
       <nav className="border-b border-border/50 bg-background/80 backdrop-blur-xl fixed top-0 left-0 right-0 z-50">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4">
           <div className="flex items-center gap-3">
-            <div className="relative flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-primary/80 shadow-lg shadow-primary/25">
-              <Target className="h-5 w-5 text-primary-foreground" />
-              <div className="absolute inset-0 rounded-xl bg-primary/20 blur-sm" />
-            </div>
+            <img 
+              src="/icons/app-icon.png" 
+              alt="Yearly Track" 
+              className="h-10 w-10 rounded-xl shadow-lg shadow-primary/25"
+            />
             <span className="text-xl font-bold bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">
               Yearly Track
             </span>
@@ -364,9 +365,11 @@ export default function Index() {
         <div className="mx-auto max-w-6xl">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-primary/80">
-                <Target className="h-4 w-4 text-primary-foreground" />
-              </div>
+              <img 
+                src="/icons/app-icon.png" 
+                alt="Yearly Track" 
+                className="h-9 w-9 rounded-xl"
+              />
               <span className="font-semibold text-foreground">Yearly Track</span>
             </div>
             <p className="text-caption">
