@@ -2,17 +2,36 @@ import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Target, CheckCircle2, BarChart3, Calendar, ArrowRight, Sparkles, Zap, Shield, TrendingUp, Star, ChevronRight } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { isPWAInstalled } from '@/lib/pwaUtils';
+import InstallPrompt from '@/components/InstallPrompt';
 
 export default function Index() {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
+  const [showInstallPrompt, setShowInstallPrompt] = useState(false);
 
   useEffect(() => {
     if (!loading && user) {
       navigate('/dashboard');
+      return;
     }
+
+    // If running as PWA (standalone mode), redirect to auth
+    if (!loading && !user && isPWAInstalled()) {
+      navigate('/auth');
+      return;
+    }
+
+    // Show install prompt after a short delay for new visitors
+    const timer = setTimeout(() => {
+      if (!isPWAInstalled()) {
+        setShowInstallPrompt(true);
+      }
+    }, 3000);
+
+    return () => clearTimeout(timer);
   }, [user, loading, navigate]);
 
   const features = [
@@ -69,6 +88,16 @@ export default function Index() {
 
   return (
     <div className="min-h-screen bg-background overflow-hidden">
+      {/* Install Prompt Banner */}
+      {showInstallPrompt && (
+        <div className="fixed bottom-4 left-4 right-4 z-50 md:left-auto md:right-4 md:max-w-sm">
+          <InstallPrompt 
+            variant="card" 
+            onDismiss={() => setShowInstallPrompt(false)} 
+          />
+        </div>
+      )}
+
       {/* Animated Background Elements */}
       <div className="fixed inset-0 -z-10 overflow-hidden">
         <div className="absolute -top-40 -right-40 w-80 h-80 bg-primary/10 rounded-full blur-3xl animate-pulse" />
@@ -129,13 +158,13 @@ export default function Index() {
           {/* CTA Buttons */}
           <div className="flex flex-wrap items-center justify-center gap-4 mb-16 animate-fade-in">
             <Button asChild size="lg" className="h-14 px-8 text-base shadow-2xl shadow-primary/30 hover:shadow-primary/40 hover:scale-105 transition-all duration-300">
-              <Link to="/auth" className="gap-2">
-                Start for Free
+              <Link to="/install" className="gap-2">
+                Install App
                 <ArrowRight className="h-5 w-5" />
               </Link>
             </Button>
             <Button asChild variant="outline" size="lg" className="h-14 px-8 text-base border-border/50 hover:bg-muted/50 hover:scale-105 transition-all duration-300">
-              <Link to="/auth">Watch Demo</Link>
+              <Link to="/auth">Sign In</Link>
             </Button>
           </div>
 
@@ -321,8 +350,8 @@ export default function Index() {
               Start your journey today — it's completely free.
             </p>
             <Button asChild size="lg" className="h-14 px-10 text-base shadow-2xl shadow-primary/30 hover:shadow-primary/40 hover:scale-105 transition-all duration-300">
-              <Link to="/auth" className="gap-2">
-                Get Started for Free
+              <Link to="/install" className="gap-2">
+                Install App Free
                 <ArrowRight className="h-5 w-5" />
               </Link>
             </Button>
