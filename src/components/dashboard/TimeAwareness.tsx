@@ -2,7 +2,6 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { CalendarDays, Clock, Sparkles } from 'lucide-react';
-import UnifiedQuotes from './UnifiedQuotes';
 
 export default function TimeAwareness() {
   const { language } = useLanguage();
@@ -18,9 +17,7 @@ export default function TimeAwareness() {
   const yearProgress = Math.round((dayOfYear / totalDays) * 100);
 
   return (
-    <div className="mb-4 sm:mb-8 space-y-4">
-      {/* Unified Quotes - Mixed Islamic & General */}
-      <UnifiedQuotes />
+    <div className="mb-4 sm:mb-8">
 
       {/* Year Progress - Separate Card */}
       <Card className="overflow-hidden border-0 bg-gradient-to-br from-primary/10 via-background to-secondary/10">
