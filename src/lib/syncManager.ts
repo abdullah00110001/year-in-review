@@ -194,3 +194,8 @@ class SyncManager {
 
 // Singleton instance
 export const syncManager = new SyncManager();
+
+// Export a function to process the sync queue
+export async function processSyncQueue() {
+  return syncManager.sync();
+}

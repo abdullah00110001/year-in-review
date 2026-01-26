@@ -2,6 +2,7 @@ import { ReactNode } from 'react';
 import Sidebar from './Sidebar';
 import MobileNav from './MobileNav';
 import QuickActionFAB from './QuickActionFAB';
+import OfflineIndicator from '@/components/OfflineIndicator';
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -10,6 +11,9 @@ interface AppLayoutProps {
 export default function AppLayout({ children }: AppLayoutProps) {
   return (
     <div className="flex min-h-screen w-full bg-background">
+      {/* Offline Indicator Banner */}
+      <OfflineIndicator />
+      
       {/* Desktop Sidebar - hidden on mobile */}
       <div className="hidden lg:block lg:fixed lg:inset-y-0 lg:z-50 lg:w-64">
         <Sidebar />
