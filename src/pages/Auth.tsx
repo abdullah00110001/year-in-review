@@ -73,9 +73,17 @@ export default function Auth() {
 
   useEffect(() => {
     if (!loading && user) {
+      // Use replace to ensure user can't go back to auth page
       checkAdminAndRedirect(user.id);
     }
   }, [user, loading]);
+
+  // Immediate redirect for already authenticated users
+  useEffect(() => {
+    if (user && !loading) {
+      navigate('/dashboard', { replace: true });
+    }
+  }, []);
 
   const validateForm = () => {
     try {

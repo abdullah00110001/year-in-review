@@ -51,7 +51,8 @@ export default function PWALoadingScreen({
   return (
     <div
       className={cn(
-        'fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-background transition-opacity duration-300',
+        'fixed inset-0 z-[9999] flex flex-col items-center justify-center transition-opacity duration-300',
+        'bg-gradient-to-br from-sky-50 via-cyan-50 to-blue-100 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900',
         fadeOut && 'opacity-0 pointer-events-none'
       )}
     >
