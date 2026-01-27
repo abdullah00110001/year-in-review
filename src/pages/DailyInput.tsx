@@ -472,20 +472,21 @@ export default function DailyInput() {
         )}
 
         <Tabs defaultValue="salah" className="w-full">
-          {/* Redesigned Daily Life Input Bar - Cleaner Grid Layout */}
+          {/* Redesigned Daily Life Input Bar - Cleaner Grid Layout with Lucide Icons */}
           <Card className="mb-4 overflow-hidden">
             <CardContent className="p-4 sm:p-5">
               <TabsList className="w-full h-auto bg-muted/40 p-2 rounded-xl grid grid-cols-4 sm:grid-cols-7 gap-2">
                 {[
-                  { value: 'salah', label: '🕌', full: 'Salah', fullBn: 'নামাজ' },
-                  { value: 'quran', label: '📖', full: "Qur'an", fullBn: 'কুরআন' },
-                  { value: 'study', label: '📚', full: 'Study', fullBn: 'পড়াশোনা' },
-                  { value: 'digital', label: '📱', full: 'Digital', fullBn: 'ডিজিটাল' },
-                  { value: 'health', label: '🏃', full: 'Health', fullBn: 'স্বাস্থ্য' },
-                  { value: 'energy', label: '😴', full: 'Energy', fullBn: 'শক্তি' },
-                  { value: 'reflect', label: '🧠', full: 'Reflect', fullBn: 'চিন্তন' },
+                  { value: 'salah', icon: Moon, full: 'Salah', fullBn: 'নামাজ', color: 'text-amber-500' },
+                  { value: 'quran', icon: BookOpen, full: "Qur'an", fullBn: 'কুরআন', color: 'text-emerald-500' },
+                  { value: 'study', icon: Target, full: 'Study', fullBn: 'পড়াশোনা', color: 'text-blue-500' },
+                  { value: 'digital', icon: Smartphone, full: 'Digital', fullBn: 'ডিজিটাল', color: 'text-purple-500' },
+                  { value: 'health', icon: Dumbbell, full: 'Health', fullBn: 'স্বাস্থ্য', color: 'text-red-500' },
+                  { value: 'energy', icon: Brain, full: 'Energy', fullBn: 'শক্তি', color: 'text-yellow-500' },
+                  { value: 'reflect', icon: Clock, full: 'Reflect', fullBn: 'চিন্তন', color: 'text-indigo-500' },
                 ].map((tab) => {
                   const isComplete = getTabCompletionStatus[tab.value as keyof typeof getTabCompletionStatus];
+                  const TabIcon = tab.icon;
                   return (
                     <TabsTrigger 
                       key={tab.value}
@@ -498,7 +499,7 @@ export default function DailyInput() {
                         isComplete && "ring-1 ring-green-500/50"
                       )}
                     >
-                      <span className="text-xl sm:text-2xl">{tab.label}</span>
+                      <TabIcon className={cn("h-5 w-5 sm:h-6 sm:w-6", tab.color)} />
                       <span className="text-[8px] sm:text-[10px] font-medium text-muted-foreground leading-tight text-center">
                         {language === 'bn' ? tab.fullBn : tab.full}
                       </span>
