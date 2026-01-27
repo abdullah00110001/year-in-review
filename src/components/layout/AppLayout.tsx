@@ -1,14 +1,27 @@
-import { ReactNode } from 'react';
+import { ReactNode, useCallback } from 'react';
 import Sidebar from './Sidebar';
 import MobileNav from './MobileNav';
 import QuickActionFAB from './QuickActionFAB';
 import OfflineIndicator from '@/components/OfflineIndicator';
+import SyncStatus from '@/components/SyncStatus';
+import PullToRefresh from '@/components/pwa/PullToRefresh';
+import { useQueryClient } from '@tanstack/react-query';
 
 interface AppLayoutProps {
   children: ReactNode;
 }
 
 export default function AppLayout({ children }: AppLayoutProps) {
+  const queryClient = useQueryClient();
+
+  // Handle pull-to-refresh
+  const handleRefresh = useCallback(async () => {
+    // Invalidate all queries to refetch data
+    await queryClient.invalidateQueries();
+    // Small delay to show the refresh animation
+    await new Promise(resolve => setTimeout(resolve, 500));
+  }, [queryClient]);
+
   return (
     <div className="flex min-h-screen w-full bg-background">
       {/* Offline Indicator Banner */}
@@ -24,9 +37,20 @@ export default function AppLayout({ children }: AppLayoutProps) {
       
       {/* Main content with proper spacing */}
       <main className="flex-1 w-full overflow-x-hidden pt-16 lg:pt-0 lg:pl-64">
-        <div className="min-h-screen">
-          {children}
+        {/* Desktop Sync Status */}
+        <div className="hidden lg:flex lg:justify-end lg:p-2 lg:border-b lg:border-border">
+          <SyncStatus />
         </div>
+        
+        {/* Pull to Refresh wrapper for mobile */}
+        <PullToRefresh 
+          onRefresh={handleRefresh}
+          className="min-h-[calc(100vh-4rem)] lg:min-h-screen"
+        >
+          <div className="animate-fade-in">
+            {children}
+          </div>
+        </PullToRefresh>
       </main>
 
       {/* Quick Action FAB */}
