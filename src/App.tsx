@@ -8,6 +8,7 @@ import { ThemeProvider } from "@/contexts/ThemeContext";
 import { LanguageProvider } from "@/contexts/LanguageContext";
 import { AppModeProvider } from "@/contexts/AppModeContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
+import UpdatePrompt from "@/components/pwa/UpdatePrompt";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import ResetPassword from "./pages/ResetPassword";
@@ -25,7 +26,6 @@ import MonthlyHighlights from "./pages/MonthlyHighlights";
 import FutureLetter from "./pages/FutureLetter";
 import Analytics from "./pages/Analytics";
 import Settings from "./pages/Settings";
-import AdminDashboard from "./pages/AdminDashboard";
 import AdminOverview from "./pages/admin/AdminOverview";
 import UserInspector from "./pages/admin/UserInspector";
 import AtRiskUsers from "./pages/admin/AtRiskUsers";
@@ -53,7 +53,28 @@ import Install from "./pages/Install";
 import NotFound from "./pages/NotFound";
 import OfflineIndicator from "./components/OfflineIndicator";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      // Cache data for offline use
+      staleTime: 1000 * 60 * 5, // 5 minutes
+      gcTime: 1000 * 60 * 60 * 24, // 24 hours (formerly cacheTime)
+      retry: (failureCount, error) => {
+        // Don't retry on network errors when offline
+        if (!navigator.onLine) return false;
+        return failureCount < 3;
+      },
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: true,
+    },
+    mutations: {
+      retry: (failureCount) => {
+        if (!navigator.onLine) return false;
+        return failureCount < 2;
+      },
+    },
+  },
+});
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -65,6 +86,7 @@ const App = () => (
               <Toaster />
               <Sonner />
               <OfflineIndicator />
+              <UpdatePrompt />
               <BrowserRouter>
               <Routes>
                 <Route path="/" element={<Index />} />
@@ -119,7 +141,6 @@ const App = () => (
                     </ProtectedRoute>
                   }
                 />
-                {/* Heatmap merged into Calendar */}
                 <Route
                   path="/journal"
                   element={
@@ -136,7 +157,6 @@ const App = () => (
                     </ProtectedRoute>
                   }
                 />
-                {/* Time Tracking merged into Life Distribution */}
                 <Route
                   path="/leaderboard"
                   element={

@@ -91,6 +91,12 @@ export default defineConfig(({ mode }) => ({
       },
       workbox: {
         globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
+        // Pre-cache navigation for instant page loads
+        navigateFallback: "index.html",
+        navigateFallbackDenylist: [/^\/api/, /^\/auth/],
+        // Skip waiting to activate new service worker immediately
+        skipWaiting: true,
+        clientsClaim: true,
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/nxvtoviyldffcqbtgriw\.supabase\.co\/rest\/v1\/.*/i,
@@ -98,12 +104,13 @@ export default defineConfig(({ mode }) => ({
             options: {
               cacheName: "supabase-api-cache",
               expiration: {
-                maxEntries: 100,
-                maxAgeSeconds: 60 * 60 * 24, // 24 hours
+                maxEntries: 200,
+                maxAgeSeconds: 60 * 60 * 24 * 7, // 7 days
               },
               cacheableResponse: {
                 statuses: [0, 200],
               },
+              networkTimeoutSeconds: 3, // Fallback to cache after 3s
             },
           },
           {
@@ -111,12 +118,12 @@ export default defineConfig(({ mode }) => ({
             handler: "NetworkOnly",
           },
           {
-            urlPattern: /\.(?:png|jpg|jpeg|svg|gif|webp)$/i,
+            urlPattern: /\.(?:png|jpg|jpeg|svg|gif|webp|ico)$/i,
             handler: "CacheFirst",
             options: {
               cacheName: "images-cache",
               expiration: {
-                maxEntries: 60,
+                maxEntries: 100,
                 maxAgeSeconds: 60 * 60 * 24 * 30, // 30 days
               },
             },
@@ -127,7 +134,19 @@ export default defineConfig(({ mode }) => ({
             options: {
               cacheName: "fonts-cache",
               expiration: {
-                maxEntries: 10,
+                maxEntries: 20,
+                maxAgeSeconds: 60 * 60 * 24 * 365, // 1 year
+              },
+            },
+          },
+          {
+            // Cache Google Fonts
+            urlPattern: /^https:\/\/fonts\.(?:googleapis|gstatic)\.com\/.*/i,
+            handler: "CacheFirst",
+            options: {
+              cacheName: "google-fonts-cache",
+              expiration: {
+                maxEntries: 30,
                 maxAgeSeconds: 60 * 60 * 24 * 365, // 1 year
               },
             },
