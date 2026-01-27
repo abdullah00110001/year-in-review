@@ -10,8 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Separator } from '@/components/ui/separator';
-import { Switch } from '@/components/ui/switch';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
 import { 
   Bell, 
@@ -23,8 +22,10 @@ import {
   MessageSquare,
   Loader2,
   Search,
-  RefreshCw
+  RefreshCw,
+  Zap
 } from 'lucide-react';
+import AutoNotificationSystem from '@/components/admin/AutoNotificationSystem';
 
 interface UserProfile {
   id: string;
@@ -209,7 +210,21 @@ export default function AdminNotifications() {
           </Button>
         </div>
 
-        <div className="grid gap-6 lg:grid-cols-2">
+        {/* Tabs for Manual vs Auto */}
+        <Tabs defaultValue="manual" className="w-full">
+          <TabsList className="grid w-full max-w-md grid-cols-2">
+            <TabsTrigger value="manual" className="flex items-center gap-2">
+              <Send className="h-4 w-4" />
+              Manual
+            </TabsTrigger>
+            <TabsTrigger value="auto" className="flex items-center gap-2">
+              <Zap className="h-4 w-4" />
+              Automated
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="manual" className="mt-6">
+            <div className="grid gap-6 lg:grid-cols-2">
           {/* Send Notification Form */}
           <Card className="border-border/50">
             <CardHeader>
@@ -456,6 +471,13 @@ export default function AdminNotifications() {
             </div>
           </CardContent>
         </Card>
+          </TabsContent>
+
+          {/* Auto Notifications Tab */}
+          <TabsContent value="auto" className="mt-6">
+            <AutoNotificationSystem />
+          </TabsContent>
+        </Tabs>
       </div>
     </AdminLayout>
   );

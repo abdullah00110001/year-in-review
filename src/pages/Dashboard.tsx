@@ -18,6 +18,7 @@ import UnifiedQuotes from '@/components/dashboard/UnifiedQuotes';
 import ModeOnboarding from '@/components/mode/ModeOnboarding';
 import OnboardingTour from '@/components/onboarding/OnboardingTour';
 import AdminFeedbackNotifications from '@/components/dashboard/AdminFeedbackNotifications';
+import QuickEntryWidget from '@/components/pwa/QuickEntryWidget';
 import { SkeletonStats, SkeletonCard, SkeletonHero } from '@/components/ui/skeleton-card';
 
 interface DashboardStats {
@@ -188,6 +189,9 @@ export default function Dashboard() {
 
         {/* Admin Feedback Notifications */}
         <AdminFeedbackNotifications />
+
+        {/* Quick Entry Widget - Mobile-first quick logging */}
+        <QuickEntryWidget />
 
         {/* Unified Daily Inspiration (merged quotes) */}
         <UnifiedQuotes />
