@@ -13,14 +13,15 @@ export default function Index() {
   const [showInstallPrompt, setShowInstallPrompt] = useState(false);
 
   useEffect(() => {
+    // Always redirect logged-in users to dashboard first
     if (!loading && user) {
-      navigate('/dashboard');
+      navigate('/dashboard', { replace: true });
       return;
     }
 
     // If running as PWA (standalone mode), redirect to auth
     if (!loading && !user && isPWAInstalled()) {
-      navigate('/auth');
+      navigate('/auth', { replace: true });
       return;
     }
 

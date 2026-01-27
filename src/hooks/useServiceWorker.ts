@@ -28,6 +28,8 @@ export function useServiceWorker(): ServiceWorkerState {
 
       workbox.addEventListener('waiting', () => {
         setNeedRefresh(true);
+        // Auto-update when new version is available
+        workbox.messageSkipWaiting();
       });
 
       workbox.addEventListener('controlling', () => {
