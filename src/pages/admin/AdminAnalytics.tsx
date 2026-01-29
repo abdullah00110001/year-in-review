@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'react';
 import AdminLayout from '@/components/admin/AdminLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { supabase } from '@/integrations/supabase/client';
-import { Loader2, TrendingUp, Users, Calendar, Target } from 'lucide-react';
+import { Loader2, TrendingUp, Users, Calendar, Target, BarChart3, Mail } from 'lucide-react';
 import { format, subDays, subMonths } from 'date-fns';
+import { CohortAnalytics } from '@/components/admin/CohortAnalytics';
+import { EmailCampaignManager } from '@/components/admin/EmailCampaignManager';
 import {
   LineChart,
   Line,
@@ -132,166 +135,193 @@ export default function AdminAnalytics() {
 
   return (
     <AdminLayout>
-      <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto">
+      <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto pb-24">
         {/* Header */}
         <div className="mb-6">
           <h1 className="text-headline font-bold tracking-tight">Analytics</h1>
           <p className="text-body text-muted-foreground">
-            System-wide trends and insights
+            System-wide trends, cohort analysis, and email campaigns
           </p>
         </div>
 
-        {/* Charts Grid */}
-        <div className="grid lg:grid-cols-2 gap-6">
-          {/* User Growth */}
-          <Card>
-            <CardHeader className="p-4 sm:p-6">
-              <CardTitle className="text-subtitle flex items-center gap-2">
-                <Users className="h-5 w-5 text-primary" />
-                User Growth
-              </CardTitle>
-              <CardDescription className="text-caption">
-                Total registered users over time
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="p-4 sm:p-6 pt-0">
-              <div className="h-[250px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={userGrowth}>
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                    <XAxis dataKey="date" tick={{ fontSize: 10 }} />
-                    <YAxis tick={{ fontSize: 10 }} />
-                    <Tooltip 
-                      contentStyle={{ 
-                        backgroundColor: 'hsl(var(--card))',
-                        border: '1px solid hsl(var(--border))',
-                        borderRadius: '8px',
-                      }}
-                    />
-                    <Area 
-                      type="monotone" 
-                      dataKey="value" 
-                      stroke="hsl(var(--primary))" 
-                      fill="hsl(var(--primary))"
-                      fillOpacity={0.2}
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
-            </CardContent>
-          </Card>
+        <Tabs defaultValue="trends" className="space-y-6">
+          <TabsList className="grid grid-cols-3 w-full max-w-md">
+            <TabsTrigger value="trends">
+              <TrendingUp className="h-4 w-4 mr-2" />
+              Trends
+            </TabsTrigger>
+            <TabsTrigger value="cohorts">
+              <BarChart3 className="h-4 w-4 mr-2" />
+              Cohorts
+            </TabsTrigger>
+            <TabsTrigger value="campaigns">
+              <Mail className="h-4 w-4 mr-2" />
+              Campaigns
+            </TabsTrigger>
+          </TabsList>
 
-          {/* Daily Active */}
-          <Card>
-            <CardHeader className="p-4 sm:p-6">
-              <CardTitle className="text-subtitle flex items-center gap-2">
-                <Calendar className="h-5 w-5 text-secondary" />
-                Daily Active Users
-              </CardTitle>
-              <CardDescription className="text-caption">
-                Users who logged data each day
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="p-4 sm:p-6 pt-0">
-              <div className="h-[250px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={dailyActive}>
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                    <XAxis dataKey="date" tick={{ fontSize: 10 }} />
-                    <YAxis tick={{ fontSize: 10 }} />
-                    <Tooltip 
-                      contentStyle={{ 
-                        backgroundColor: 'hsl(var(--card))',
-                        border: '1px solid hsl(var(--border))',
-                        borderRadius: '8px',
-                      }}
-                    />
-                    <Bar 
-                      dataKey="value" 
-                      fill="hsl(var(--secondary))" 
-                      radius={[4, 4, 0, 0]}
-                    />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </CardContent>
-          </Card>
+          <TabsContent value="trends">
+            {/* Charts Grid */}
+            <div className="grid lg:grid-cols-2 gap-6">
+              {/* User Growth */}
+              <Card>
+                <CardHeader className="p-4 sm:p-6">
+                  <CardTitle className="text-subtitle flex items-center gap-2">
+                    <Users className="h-5 w-5 text-primary" />
+                    User Growth
+                  </CardTitle>
+                  <CardDescription className="text-caption">
+                    Total registered users over time
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="p-4 sm:p-6 pt-0">
+                  <div className="h-[250px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={userGrowth}>
+                        <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                        <XAxis dataKey="date" tick={{ fontSize: 10 }} />
+                        <YAxis tick={{ fontSize: 10 }} />
+                        <Tooltip 
+                          contentStyle={{ 
+                            backgroundColor: 'hsl(var(--card))',
+                            border: '1px solid hsl(var(--border))',
+                            borderRadius: '8px',
+                          }}
+                        />
+                        <Area 
+                          type="monotone" 
+                          dataKey="value" 
+                          stroke="hsl(var(--primary))" 
+                          fill="hsl(var(--primary))"
+                          fillOpacity={0.2}
+                        />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </div>
+                </CardContent>
+              </Card>
 
-          {/* Discipline Trend */}
-          <Card>
-            <CardHeader className="p-4 sm:p-6">
-              <CardTitle className="text-subtitle flex items-center gap-2">
-                <TrendingUp className="h-5 w-5 text-green-500" />
-                Average Discipline Level
-              </CardTitle>
-              <CardDescription className="text-caption">
-                Community-wide discipline score
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="p-4 sm:p-6 pt-0">
-              <div className="h-[250px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={disciplineTrend}>
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                    <XAxis dataKey="date" tick={{ fontSize: 10 }} />
-                    <YAxis domain={[0, 10]} tick={{ fontSize: 10 }} />
-                    <Tooltip 
-                      contentStyle={{ 
-                        backgroundColor: 'hsl(var(--card))',
-                        border: '1px solid hsl(var(--border))',
-                        borderRadius: '8px',
-                      }}
-                    />
-                    <Line 
-                      type="monotone" 
-                      dataKey="value" 
-                      stroke="hsl(142, 76%, 36%)"
-                      strokeWidth={2}
-                      dot={{ fill: 'hsl(142, 76%, 36%)' }}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            </CardContent>
-          </Card>
+              {/* Daily Active */}
+              <Card>
+                <CardHeader className="p-4 sm:p-6">
+                  <CardTitle className="text-subtitle flex items-center gap-2">
+                    <Calendar className="h-5 w-5 text-secondary" />
+                    Daily Active Users
+                  </CardTitle>
+                  <CardDescription className="text-caption">
+                    Users who logged data each day
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="p-4 sm:p-6 pt-0">
+                  <div className="h-[250px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={dailyActive}>
+                        <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                        <XAxis dataKey="date" tick={{ fontSize: 10 }} />
+                        <YAxis tick={{ fontSize: 10 }} />
+                        <Tooltip 
+                          contentStyle={{ 
+                            backgroundColor: 'hsl(var(--card))',
+                            border: '1px solid hsl(var(--border))',
+                            borderRadius: '8px',
+                          }}
+                        />
+                        <Bar 
+                          dataKey="value" 
+                          fill="hsl(var(--secondary))" 
+                          radius={[4, 4, 0, 0]}
+                        />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </CardContent>
+              </Card>
 
-          {/* Prayer Completion */}
-          <Card>
-            <CardHeader className="p-4 sm:p-6">
-              <CardTitle className="text-subtitle flex items-center gap-2">
-                <Target className="h-5 w-5 text-primary" />
-                Prayer Completion Rate
-              </CardTitle>
-              <CardDescription className="text-caption">
-                Percentage of prayers completed (Islamic users)
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="p-4 sm:p-6 pt-0">
-              <div className="h-[250px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={prayerCompletion}>
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                    <XAxis dataKey="date" tick={{ fontSize: 10 }} />
-                    <YAxis domain={[0, 100]} tick={{ fontSize: 10 }} />
-                    <Tooltip 
-                      formatter={(value) => [`${value}%`, 'Completion']}
-                      contentStyle={{ 
-                        backgroundColor: 'hsl(var(--card))',
-                        border: '1px solid hsl(var(--border))',
-                        borderRadius: '8px',
-                      }}
-                    />
-                    <Bar 
-                      dataKey="value" 
-                      fill="hsl(var(--primary))" 
-                      radius={[4, 4, 0, 0]}
-                    />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+              {/* Discipline Trend */}
+              <Card>
+                <CardHeader className="p-4 sm:p-6">
+                  <CardTitle className="text-subtitle flex items-center gap-2">
+                    <TrendingUp className="h-5 w-5 text-green-500" />
+                    Average Discipline Level
+                  </CardTitle>
+                  <CardDescription className="text-caption">
+                    Community-wide discipline score
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="p-4 sm:p-6 pt-0">
+                  <div className="h-[250px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={disciplineTrend}>
+                        <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                        <XAxis dataKey="date" tick={{ fontSize: 10 }} />
+                        <YAxis domain={[0, 10]} tick={{ fontSize: 10 }} />
+                        <Tooltip 
+                          contentStyle={{ 
+                            backgroundColor: 'hsl(var(--card))',
+                            border: '1px solid hsl(var(--border))',
+                            borderRadius: '8px',
+                          }}
+                        />
+                        <Line 
+                          type="monotone" 
+                          dataKey="value" 
+                          stroke="hsl(142, 76%, 36%)"
+                          strokeWidth={2}
+                          dot={{ fill: 'hsl(142, 76%, 36%)' }}
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Prayer Completion */}
+              <Card>
+                <CardHeader className="p-4 sm:p-6">
+                  <CardTitle className="text-subtitle flex items-center gap-2">
+                    <Target className="h-5 w-5 text-primary" />
+                    Prayer Completion Rate
+                  </CardTitle>
+                  <CardDescription className="text-caption">
+                    Percentage of prayers completed (Islamic users)
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="p-4 sm:p-6 pt-0">
+                  <div className="h-[250px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={prayerCompletion}>
+                        <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                        <XAxis dataKey="date" tick={{ fontSize: 10 }} />
+                        <YAxis domain={[0, 100]} tick={{ fontSize: 10 }} />
+                        <Tooltip 
+                          formatter={(value) => [`${value}%`, 'Completion']}
+                          contentStyle={{ 
+                            backgroundColor: 'hsl(var(--card))',
+                            border: '1px solid hsl(var(--border))',
+                            borderRadius: '8px',
+                          }}
+                        />
+                        <Bar 
+                          dataKey="value" 
+                          fill="hsl(var(--primary))" 
+                          radius={[4, 4, 0, 0]}
+                        />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="cohorts">
+            <CohortAnalytics />
+          </TabsContent>
+
+          <TabsContent value="campaigns">
+            <EmailCampaignManager />
+          </TabsContent>
+        </Tabs>
       </div>
     </AdminLayout>
   );

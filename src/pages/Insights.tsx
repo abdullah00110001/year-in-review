@@ -11,11 +11,14 @@ import BurnoutAlert from '@/components/insights/BurnoutAlert';
 import RecoveryMode from '@/components/insights/RecoveryMode';
 import GoalAdjustmentCard from '@/components/insights/GoalAdjustmentCard';
 import MirrorMode from '@/components/insights/MirrorMode';
+import { SmartGoalSuggestions } from '@/components/insights/SmartGoalSuggestions';
+import { PatternInsights } from '@/components/insights/PatternInsights';
+import { PredictiveAnalytics } from '@/components/insights/PredictiveAnalytics';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { Brain, Heart, Activity, BookOpen, Target, Sparkles, Loader2, TrendingUp, AlertTriangle, Zap, Moon } from 'lucide-react';
+import { Brain, Heart, Activity, BookOpen, Target, Sparkles, Loader2, TrendingUp, AlertTriangle, Zap, Moon, Lightbulb, BarChart } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export default function Insights() {
@@ -157,10 +160,18 @@ export default function Insights() {
 
         <Tabs defaultValue="overview" className="space-y-4">
           {/* Mobile-optimized tabs */}
-          <TabsList className="grid grid-cols-3 sm:grid-cols-6 w-full h-auto gap-1 p-1 bg-muted/50">
+          <TabsList className="grid grid-cols-4 sm:grid-cols-8 w-full h-auto gap-1 p-1 bg-muted/50">
             <TabsTrigger value="overview" className="text-xs px-2 py-2 data-[state=active]:bg-background">
               <Sparkles className="h-3.5 w-3.5 sm:mr-1" />
               <span className="hidden sm:inline">Overview</span>
+            </TabsTrigger>
+            <TabsTrigger value="ai" className="text-xs px-2 py-2 data-[state=active]:bg-background">
+              <Lightbulb className="h-3.5 w-3.5 sm:mr-1" />
+              <span className="hidden sm:inline">AI</span>
+            </TabsTrigger>
+            <TabsTrigger value="predict" className="text-xs px-2 py-2 data-[state=active]:bg-background">
+              <BarChart className="h-3.5 w-3.5 sm:mr-1" />
+              <span className="hidden sm:inline">Predict</span>
             </TabsTrigger>
             <TabsTrigger value="mental" className="text-xs px-2 py-2 data-[state=active]:bg-background">
               <Brain className="h-3.5 w-3.5 sm:mr-1" />
@@ -208,6 +219,19 @@ export default function Insights() {
               improvements={mirrorMode.improvements}
               strengths={mirrorMode.strengths}
             />
+          </TabsContent>
+
+          {/* AI Insights Tab */}
+          <TabsContent value="ai" className="space-y-4 mt-4">
+            <div className="grid gap-3 sm:gap-4 grid-cols-1 lg:grid-cols-2">
+              <PatternInsights />
+              <SmartGoalSuggestions />
+            </div>
+          </TabsContent>
+
+          {/* Predictive Analytics Tab */}
+          <TabsContent value="predict" className="space-y-4 mt-4">
+            <PredictiveAnalytics />
           </TabsContent>
 
           {/* Mental Health Tab */}
