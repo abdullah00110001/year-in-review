@@ -6,9 +6,13 @@ import AppLayout from '@/components/layout/AppLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { EnhancedGamification } from '@/components/gamification/EnhancedGamification';
+import { AccountabilityPartners } from '@/components/community/AccountabilityPartners';
+import { GlobalChallenges } from '@/components/community/GlobalChallenges';
 import { 
   Trophy, Flame, Star, Target, BookOpen, Clock, 
-  Zap, Award, Crown, Sparkles, TrendingUp
+  Zap, Award, Crown, Sparkles, TrendingUp, Users, Globe
 } from 'lucide-react';
 
 interface UserScores {
@@ -287,133 +291,115 @@ export default function Gamification() {
 
   return (
     <AppLayout>
-      <div className="space-y-6">
+      <div className="p-3 sm:p-6 lg:p-8 max-w-7xl mx-auto pb-24 lg:pb-8 space-y-6">
         {/* Header */}
         <div className="text-center space-y-2">
           <h1 className="text-2xl font-bold">Your Journey</h1>
-          <p className="text-muted-foreground">Track your progress and earn achievements</p>
+          <p className="text-muted-foreground">Track your progress, earn achievements, and compete with the community</p>
         </div>
 
-        {/* Level Card */}
-        <Card className="overflow-hidden">
-          <div className={`h-2 ${currentLevel.color}`} />
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-4">
-                <div className={`w-16 h-16 rounded-full ${currentLevel.color} flex items-center justify-center text-white`}>
-                  <span className="text-2xl font-bold">{currentLevel.level}</span>
-                </div>
-                <div>
-                  <h2 className="text-xl font-bold">{currentLevel.name}</h2>
-                  <p className="text-muted-foreground">{scores?.total_points || 0} total points</p>
-                </div>
-              </div>
-              <div className="text-right">
-                <TrendingUp className="h-8 w-8 text-primary" />
-              </div>
-            </div>
-            
-            {nextLevel && (
-              <div className="space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span>Progress to {nextLevel.name}</span>
-                  <span>{getProgressToNextLevel()}%</span>
-                </div>
-                <Progress value={getProgressToNextLevel()} className="h-2" />
-                <p className="text-xs text-muted-foreground text-center">
-                  {nextLevel.minPoints - (scores?.total_points || 0)} points to next level
-                </p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        <Tabs defaultValue="progress" className="space-y-4">
+          <TabsList className="grid grid-cols-3 w-full">
+            <TabsTrigger value="progress">
+              <Trophy className="h-4 w-4 mr-2" />
+              Progress
+            </TabsTrigger>
+            <TabsTrigger value="community">
+              <Users className="h-4 w-4 mr-2" />
+              Community
+            </TabsTrigger>
+            <TabsTrigger value="challenges">
+              <Globe className="h-4 w-4 mr-2" />
+              Challenges
+            </TabsTrigger>
+          </TabsList>
 
-        {/* Streaks */}
-        <div className="grid gap-4 grid-cols-3">
-          <Card>
-            <CardContent className="p-4 text-center">
-              <div className="flex justify-center mb-2">
-                <div className="w-12 h-12 rounded-full bg-orange-100 dark:bg-orange-950 flex items-center justify-center">
-                  <Flame className="h-6 w-6 text-orange-500" />
-                </div>
-              </div>
-              <p className="text-2xl font-bold">{scores?.study_streak || 0}</p>
-              <p className="text-xs text-muted-foreground">Study Streak</p>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardContent className="p-4 text-center">
-              <div className="flex justify-center mb-2">
-                <div className="w-12 h-12 rounded-full bg-green-100 dark:bg-green-950 flex items-center justify-center">
-                  <Sparkles className="h-6 w-6 text-green-500" />
-                </div>
-              </div>
-              <p className="text-2xl font-bold">{scores?.salah_streak || 0}</p>
-              <p className="text-xs text-muted-foreground">Salah Streak</p>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardContent className="p-4 text-center">
-              <div className="flex justify-center mb-2">
-                <div className="w-12 h-12 rounded-full bg-emerald-100 dark:bg-emerald-950 flex items-center justify-center">
-                  <BookOpen className="h-6 w-6 text-emerald-500" />
-                </div>
-              </div>
-              <p className="text-2xl font-bold">{scores?.quran_streak || 0}</p>
-              <p className="text-xs text-muted-foreground">Qur'an Streak</p>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Achievements */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Trophy className="h-5 w-5 text-yellow-500" />
-              Achievements
-            </CardTitle>
-            <CardDescription>{unlockedCount}/{achievements.length} unlocked</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid gap-3 sm:grid-cols-2">
-              {achievements.map((achievement) => (
-                <div
-                  key={achievement.id}
-                  className={`p-4 rounded-lg border ${
-                    achievement.unlocked 
-                      ? 'bg-primary/5 border-primary/20' 
-                      : 'bg-muted/30 opacity-60'
-                  }`}
-                >
-                  <div className="flex items-start gap-3">
-                    <div className={`p-2 rounded-lg ${achievement.unlocked ? 'bg-primary/10' : 'bg-muted'}`}>
-                      {achievement.icon}
+          <TabsContent value="progress" className="space-y-6">
+            {/* Level Card */}
+            <Card className="overflow-hidden">
+              <div className={`h-2 ${currentLevel.color}`} />
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-4">
+                    <div className={`w-16 h-16 rounded-full ${currentLevel.color} flex items-center justify-center text-white`}>
+                      <span className="text-2xl font-bold">{currentLevel.level}</span>
                     </div>
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <h4 className="font-medium">{achievement.name}</h4>
-                        {achievement.unlocked && (
-                          <Badge variant="secondary" className="text-xs">Unlocked</Badge>
-                        )}
-                      </div>
-                      <p className="text-sm text-muted-foreground">{achievement.description}</p>
-                      {!achievement.unlocked && achievement.progress !== undefined && achievement.target && (
-                        <div className="mt-2">
-                          <Progress value={(achievement.progress / achievement.target) * 100} className="h-1" />
-                          <p className="text-xs text-muted-foreground mt-1">
-                            {achievement.progress}/{achievement.target}
-                          </p>
-                        </div>
-                      )}
+                    <div>
+                      <h2 className="text-xl font-bold">{currentLevel.name}</h2>
+                      <p className="text-muted-foreground">{scores?.total_points || 0} total points</p>
                     </div>
                   </div>
+                  <div className="text-right">
+                    <TrendingUp className="h-8 w-8 text-primary" />
+                  </div>
                 </div>
-              ))}
+                
+                {nextLevel && (
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span>Progress to {nextLevel.name}</span>
+                      <span>{getProgressToNextLevel()}%</span>
+                    </div>
+                    <Progress value={getProgressToNextLevel()} className="h-2" />
+                    <p className="text-xs text-muted-foreground text-center">
+                      {nextLevel.minPoints - (scores?.total_points || 0)} points to next level
+                    </p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Streaks */}
+            <div className="grid gap-4 grid-cols-3">
+              <Card>
+                <CardContent className="p-4 text-center">
+                  <div className="flex justify-center mb-2">
+                    <div className="w-12 h-12 rounded-full bg-orange-100 dark:bg-orange-950 flex items-center justify-center">
+                      <Flame className="h-6 w-6 text-orange-500" />
+                    </div>
+                  </div>
+                  <p className="text-2xl font-bold">{scores?.study_streak || 0}</p>
+                  <p className="text-xs text-muted-foreground">Study Streak</p>
+                </CardContent>
+              </Card>
+              
+              <Card>
+                <CardContent className="p-4 text-center">
+                  <div className="flex justify-center mb-2">
+                    <div className="w-12 h-12 rounded-full bg-green-100 dark:bg-green-950 flex items-center justify-center">
+                      <Sparkles className="h-6 w-6 text-green-500" />
+                    </div>
+                  </div>
+                  <p className="text-2xl font-bold">{scores?.salah_streak || 0}</p>
+                  <p className="text-xs text-muted-foreground">Salah Streak</p>
+                </CardContent>
+              </Card>
+              
+              <Card>
+                <CardContent className="p-4 text-center">
+                  <div className="flex justify-center mb-2">
+                    <div className="w-12 h-12 rounded-full bg-emerald-100 dark:bg-emerald-950 flex items-center justify-center">
+                      <BookOpen className="h-6 w-6 text-emerald-500" />
+                    </div>
+                  </div>
+                  <p className="text-2xl font-bold">{scores?.quran_streak || 0}</p>
+                  <p className="text-xs text-muted-foreground">Qur'an Streak</p>
+                </CardContent>
+              </Card>
             </div>
-          </CardContent>
-        </Card>
+
+            {/* Enhanced Achievements */}
+            <EnhancedGamification />
+          </TabsContent>
+
+          <TabsContent value="community" className="space-y-6">
+            <AccountabilityPartners />
+          </TabsContent>
+
+          <TabsContent value="challenges" className="space-y-6">
+            <GlobalChallenges />
+          </TabsContent>
+        </Tabs>
       </div>
     </AppLayout>
   );
