@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import AdminLayout from '@/components/admin/AdminLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -48,28 +47,12 @@ interface NotificationRecord {
   created_at: string;
 }
 
-// Demo notifications for preview
-const DEMO_NOTIFICATIONS: NotificationRecord[] = [
-  { id: '1', user_id: 'demo-1', title: 'Welcome to Oporajeyo!', message: 'Start your journey to self-improvement today.', type: 'success', is_read: true, created_at: new Date().toISOString() },
-  { id: '2', user_id: 'demo-2', title: 'Daily Reminder', message: 'Don\'t forget to log your progress for today!', type: 'reminder', is_read: false, created_at: new Date(Date.now() - 3600000).toISOString() },
-  { id: '3', user_id: 'demo-3', title: 'Achievement Unlocked!', message: 'You\'ve completed 7 days of consistent logging!', type: 'achievement', is_read: true, created_at: new Date(Date.now() - 86400000).toISOString() },
-];
-
-const DEMO_USERS: UserProfile[] = [
-  { id: '1', user_id: 'demo-1', full_name: 'Ahmed Rahman', notifications_enabled: true },
-  { id: '2', user_id: 'demo-2', full_name: 'Sarah Ahmed', notifications_enabled: true },
-  { id: '3', user_id: 'demo-3', full_name: 'Mohammad Ali', notifications_enabled: false },
-  { id: '4', user_id: 'demo-4', full_name: 'Fatima Khan', notifications_enabled: true },
-];
-
 export default function AdminNotifications() {
-  const { user } = useAuth();
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [recentNotifications, setRecentNotifications] = useState<NotificationRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [showDemoData, setShowDemoData] = useState(false);
   
   // Form state
   const [title, setTitle] = useState('');
@@ -97,48 +80,27 @@ export default function AdminNotifications() {
         .order('full_name', { ascending: true });
 
       if (usersError) throw usersError;
-      
-      if (!usersData || usersData.length === 0) {
-        setShowDemoData(true);
-        setUsers(DEMO_USERS);
-        setRecentNotifications(DEMO_NOTIFICATIONS);
-      } else {
-        setUsers(usersData);
-        
-        // Fetch recent notifications (last 50)
-        const { data: notificationsData, error: notificationsError } = await supabase
-          .from('notifications')
-          .select('*')
-          .order('created_at', { ascending: false })
-          .limit(50);
+      setUsers(usersData || []);
 
-        if (notificationsError) throw notificationsError;
-        
-        if (!notificationsData || notificationsData.length === 0) {
-          setRecentNotifications(DEMO_NOTIFICATIONS);
-          setShowDemoData(true);
-        } else {
-          setRecentNotifications(notificationsData);
-        }
-      }
+      // Fetch recent notifications (last 50)
+      const { data: notificationsData, error: notificationsError } = await supabase
+        .from('notifications')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(50);
+
+      if (notificationsError) throw notificationsError;
+      setRecentNotifications(notificationsData || []);
+
     } catch (error) {
       console.error('Error fetching data:', error);
-      setShowDemoData(true);
-      setUsers(DEMO_USERS);
-      setRecentNotifications(DEMO_NOTIFICATIONS);
+      toast.error('Failed to load data');
     } finally {
       setLoading(false);
     }
   };
 
   const sendNotification = async () => {
-    if (showDemoData) {
-      toast.success('Demo mode: Notification would be sent!');
-      setTitle('');
-      setMessage('');
-      return;
-    }
-    
     if (!title.trim() || !message.trim()) {
       toast.error('Please fill in title and message');
       return;
@@ -218,10 +180,7 @@ export default function AdminNotifications() {
     }
   };
 
-  const displayUsers = showDemoData ? DEMO_USERS : users;
-  const displayNotifications = showDemoData ? DEMO_NOTIFICATIONS : recentNotifications;
-
-  const filteredUsers = displayUsers.filter(u => 
+  const filteredUsers = users.filter(u => 
     u.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     u.user_id.toLowerCase().includes(searchQuery.toLowerCase())
   );
@@ -269,13 +228,6 @@ export default function AdminNotifications() {
             Refresh
           </Button>
         </div>
-
-        {/* Demo Data Banner */}
-        {showDemoData && (
-          <div className="rounded-xl bg-primary/10 border border-primary/20 p-3">
-            <p className="text-sm text-primary font-medium">📊 Showing demo data for preview</p>
-          </div>
-        )}
 
         {/* Tabs for Manual vs Auto */}
         <Tabs defaultValue="manual" className="w-full">
@@ -480,9 +432,9 @@ export default function AdminNotifications() {
                       <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
                       <span>
                         {targetType === 'all' 
-                          ? `Will send to ${displayUsers.filter(u => u.notifications_enabled !== false).length} users with notifications enabled`
+                          ? `Will send to ${users.filter(u => u.notifications_enabled !== false).length} users with notifications enabled`
                           : selectedUserId 
-                            ? `Will send to: ${displayUsers.find(u => u.user_id === selectedUserId)?.full_name || 'Selected user'}`
+                            ? `Will send to: ${users.find(u => u.user_id === selectedUserId)?.full_name || 'Selected user'}`
                             : 'Select a user to send notification'}
                       </span>
                     </p>
@@ -504,13 +456,13 @@ export default function AdminNotifications() {
                 <CardContent className="p-4 pt-2">
                   <ScrollArea className="h-[400px] sm:h-[500px]">
                     <div className="space-y-2">
-                      {displayNotifications.length === 0 ? (
+                      {recentNotifications.length === 0 ? (
                         <p className="text-center text-muted-foreground py-8 text-sm">
                           No notifications sent yet
                         </p>
                       ) : (
-                        displayNotifications.map((n) => {
-                          const targetUser = displayUsers.find(u => u.user_id === n.user_id);
+                        recentNotifications.map((n) => {
+                          const targetUser = users.find(u => u.user_id === n.user_id);
                           return (
                             <div key={n.id} className="p-3 rounded-xl bg-muted/30 space-y-2">
                               <div className="flex items-start justify-between gap-2">
@@ -556,24 +508,24 @@ export default function AdminNotifications() {
               <CardContent className="p-4 pt-2">
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4">
                   <div className="text-center p-3 rounded-xl bg-muted/30">
-                    <p className="text-xl sm:text-2xl font-bold">{displayUsers.length}</p>
+                    <p className="text-xl sm:text-2xl font-bold">{users.length}</p>
                     <p className="text-[10px] sm:text-xs text-muted-foreground">Total Users</p>
                   </div>
                   <div className="text-center p-3 rounded-xl bg-green-500/10">
                     <p className="text-xl sm:text-2xl font-bold text-green-500">
-                      {displayUsers.filter(u => u.notifications_enabled === true).length}
+                      {users.filter(u => u.notifications_enabled === true).length}
                     </p>
                     <p className="text-[10px] sm:text-xs text-muted-foreground">Enabled</p>
                   </div>
                   <div className="text-center p-3 rounded-xl bg-yellow-500/10">
                     <p className="text-xl sm:text-2xl font-bold text-yellow-500">
-                      {displayUsers.filter(u => u.notifications_enabled === null).length}
+                      {users.filter(u => u.notifications_enabled === null).length}
                     </p>
                     <p className="text-[10px] sm:text-xs text-muted-foreground">Pending</p>
                   </div>
                   <div className="text-center p-3 rounded-xl bg-red-500/10">
                     <p className="text-xl sm:text-2xl font-bold text-red-500">
-                      {displayUsers.filter(u => u.notifications_enabled === false).length}
+                      {users.filter(u => u.notifications_enabled === false).length}
                     </p>
                     <p className="text-[10px] sm:text-xs text-muted-foreground">Disabled</p>
                   </div>

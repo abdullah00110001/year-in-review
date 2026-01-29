@@ -18,7 +18,7 @@ import {
   Moon,
   Sun
 } from 'lucide-react';
-import { format, subDays } from 'date-fns';
+import { format, subDays, differenceInDays, parseISO } from 'date-fns';
 import { Link } from 'react-router-dom';
 import BatchEncouragementModal from '@/components/admin/BatchEncouragementModal';
 
@@ -32,21 +32,11 @@ interface AtRiskUser {
   declining: boolean;
 }
 
-// Demo data for when no real data exists
-const DEMO_USERS: AtRiskUser[] = [
-  { user_id: 'demo-1', full_name: 'Ahmed Rahman', app_mode: 'islamic', days_inactive: 14, last_entry_date: '2026-01-15', last_score: 65, declining: true },
-  { user_id: 'demo-2', full_name: 'Sarah Ahmed', app_mode: 'regular', days_inactive: 10, last_entry_date: '2026-01-19', last_score: 72, declining: false },
-  { user_id: 'demo-3', full_name: 'Mohammad Ali', app_mode: 'islamic', days_inactive: 7, last_entry_date: '2026-01-22', last_score: 58, declining: true },
-  { user_id: 'demo-4', full_name: 'Fatima Khan', app_mode: 'regular', days_inactive: 5, last_entry_date: '2026-01-24', last_score: 80, declining: false },
-  { user_id: 'demo-5', full_name: 'Omar Hassan', app_mode: 'islamic', days_inactive: 4, last_entry_date: '2026-01-25', last_score: 45, declining: true },
-];
-
 export default function AtRiskUsers() {
   const [users, setUsers] = useState<AtRiskUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedUsers, setSelectedUsers] = useState<Set<string>>(new Set());
   const [showBatchModal, setShowBatchModal] = useState(false);
-  const [showDemoData, setShowDemoData] = useState(false);
 
   useEffect(() => {
     fetchAtRiskUsers();
@@ -54,14 +44,15 @@ export default function AtRiskUsers() {
 
   const fetchAtRiskUsers = async () => {
     try {
-      const threeAgo = format(subDays(new Date(), 3), 'yyyy-MM-dd');
+      const today = new Date();
+      const threeAgo = format(subDays(today, 3), 'yyyy-MM-dd');
 
       // Get all profiles
       const { data: profiles } = await supabase
         .from('profiles')
         .select('user_id, full_name, app_mode');
 
-      // Get recent entries
+      // Get recent entries (last 3 days)
       const { data: recentEntries } = await supabase
         .from('daily_entries')
         .select('user_id, date')
@@ -72,7 +63,7 @@ export default function AtRiskUsers() {
 
       for (const profile of profiles || []) {
         if (!activeUserIds.has(profile.user_id)) {
-          // Get last entry
+          // Get last entry for this user
           const { data: lastEntry } = await supabase
             .from('daily_entries')
             .select('date, weighted_daily_score')
@@ -81,13 +72,29 @@ export default function AtRiskUsers() {
             .limit(1)
             .single();
 
-          const daysInactive = lastEntry?.date 
-            ? Math.floor((new Date().getTime() - new Date(lastEntry.date).getTime()) / (1000 * 60 * 60 * 24))
-            : 999;
+          // Calculate days inactive properly
+          let daysInactive: number;
+          if (lastEntry?.date) {
+            const lastDate = parseISO(lastEntry.date);
+            daysInactive = differenceInDays(today, lastDate);
+          } else {
+            // User has never logged - calculate from account creation
+            const { data: profileData } = await supabase
+              .from('profiles')
+              .select('created_at')
+              .eq('user_id', profile.user_id)
+              .single();
+            
+            if (profileData?.created_at) {
+              daysInactive = differenceInDays(today, new Date(profileData.created_at));
+            } else {
+              daysInactive = 0; // New user
+            }
+          }
 
           if (daysInactive >= 3) {
             // Check for declining trend
-            const twoWeeksAgo = format(subDays(new Date(), 14), 'yyyy-MM-dd');
+            const twoWeeksAgo = format(subDays(today, 14), 'yyyy-MM-dd');
             const { data: recentScores } = await supabase
               .from('daily_entries')
               .select('weighted_daily_score')
@@ -117,24 +124,15 @@ export default function AtRiskUsers() {
         }
       }
 
-      // Sort by days inactive
+      // Sort by days inactive (highest first)
       atRiskList.sort((a, b) => b.days_inactive - a.days_inactive);
       setUsers(atRiskList);
-      
-      // Show demo data if no real data
-      if (atRiskList.length === 0) {
-        setShowDemoData(true);
-      }
-      
       setLoading(false);
     } catch (error) {
       console.error('Error fetching at-risk users:', error);
-      setShowDemoData(true);
       setLoading(false);
     }
   };
-
-  const displayUsers = showDemoData ? DEMO_USERS : users;
 
   const getSeverity = (days: number) => {
     if (days >= 14) return { label: 'Critical', color: 'bg-destructive text-destructive-foreground' };
@@ -155,15 +153,24 @@ export default function AtRiskUsers() {
   };
 
   const toggleSelectAll = () => {
-    if (selectedUsers.size === displayUsers.length) {
+    if (selectedUsers.size === users.length) {
       setSelectedUsers(new Set());
     } else {
-      setSelectedUsers(new Set(displayUsers.map(u => u.user_id)));
+      setSelectedUsers(new Set(users.map(u => u.user_id)));
     }
   };
 
   const getSelectedUsersList = () => {
-    return displayUsers.filter(u => selectedUsers.has(u.user_id));
+    return users.filter(u => selectedUsers.has(u.user_id));
+  };
+
+  const formatLastActive = (date: string | null) => {
+    if (!date) return 'Never';
+    try {
+      return format(parseISO(date), 'MMM d, yyyy');
+    } catch {
+      return 'Unknown';
+    }
   };
 
   if (loading) {
@@ -203,25 +210,18 @@ export default function AtRiskUsers() {
           )}
         </div>
 
-        {/* Demo Data Banner */}
-        {showDemoData && (
-          <div className="rounded-xl bg-primary/10 border border-primary/20 p-3">
-            <p className="text-sm text-primary font-medium">📊 Showing demo data for preview</p>
-          </div>
-        )}
-
         {/* Stats - Responsive Grid */}
         <div className="grid grid-cols-3 gap-2 sm:gap-4">
           <Card className="overflow-hidden">
             <CardContent className="p-3 sm:p-4 text-center">
-              <p className="text-xl sm:text-3xl font-bold text-destructive">{displayUsers.length}</p>
+              <p className="text-xl sm:text-3xl font-bold text-destructive">{users.length}</p>
               <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">Total At-Risk</p>
             </CardContent>
           </Card>
           <Card className="overflow-hidden">
             <CardContent className="p-3 sm:p-4 text-center">
               <p className="text-xl sm:text-3xl font-bold text-orange-500">
-                {displayUsers.filter(u => u.days_inactive >= 7).length}
+                {users.filter(u => u.days_inactive >= 7).length}
               </p>
               <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">7+ Days</p>
             </CardContent>
@@ -229,7 +229,7 @@ export default function AtRiskUsers() {
           <Card className="overflow-hidden">
             <CardContent className="p-3 sm:p-4 text-center">
               <p className="text-xl sm:text-3xl font-bold text-red-600">
-                {displayUsers.filter(u => u.declining).length}
+                {users.filter(u => u.declining).length}
               </p>
               <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">Declining</p>
             </CardContent>
@@ -246,16 +246,16 @@ export default function AtRiskUsers() {
                   Sorted by days inactive (highest first)
                 </CardDescription>
               </div>
-              {displayUsers.length > 0 && (
+              {users.length > 0 && (
                 <Button variant="outline" size="sm" onClick={toggleSelectAll} className="shrink-0 text-xs h-8">
                   <Users className="h-3 w-3 mr-1" />
-                  {selectedUsers.size === displayUsers.length ? 'Deselect' : 'Select All'}
+                  {selectedUsers.size === users.length ? 'Deselect' : 'Select All'}
                 </Button>
               )}
             </div>
           </CardHeader>
           <CardContent className="p-2 sm:p-4 pt-0">
-            {displayUsers.length === 0 ? (
+            {users.length === 0 ? (
               <div className="text-center py-8 sm:py-12">
                 <div className="mx-auto mb-4 h-12 w-12 sm:h-16 sm:w-16 rounded-full bg-green-500/10 flex items-center justify-center">
                   <User className="h-6 w-6 sm:h-8 sm:w-8 text-green-500" />
@@ -267,7 +267,7 @@ export default function AtRiskUsers() {
               </div>
             ) : (
               <div className="space-y-2">
-                {displayUsers.map((user) => {
+                {users.map((user) => {
                   const severity = getSeverity(user.days_inactive);
                   const isSelected = selectedUsers.has(user.user_id);
                   return (
@@ -277,7 +277,6 @@ export default function AtRiskUsers() {
                         isSelected ? 'border-primary/50 bg-primary/5' : ''
                       }`}
                     >
-                      {/* Mobile-first layout with stacked content */}
                       <div className="flex items-start gap-3">
                         <Checkbox
                           checked={isSelected}
@@ -308,7 +307,7 @@ export default function AtRiskUsers() {
                           <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                             <span className="flex items-center gap-1 text-[10px] sm:text-xs text-muted-foreground">
                               <Clock className="h-3 w-3" />
-                              {user.last_entry_date ? format(new Date(user.last_entry_date), 'MMM d') : 'Never'}
+                              Last: {formatLastActive(user.last_entry_date)}
                             </span>
                             <span className="flex items-center gap-1 text-[10px] sm:text-xs text-muted-foreground">
                               {user.app_mode === 'islamic' ? (
@@ -326,23 +325,19 @@ export default function AtRiskUsers() {
                             )}
                           </div>
                           
-                          {/* Action buttons - mobile friendly */}
+                          {/* Action buttons */}
                           <div className="flex gap-2 mt-2">
-                            {!showDemoData && (
-                              <>
-                                <Button variant="outline" size="sm" asChild className="h-7 text-xs flex-1 sm:flex-none">
-                                  <Link to={`/admin/feedback?user=${user.user_id}`}>
-                                    <MessageSquare className="h-3 w-3 mr-1" />
-                                    Send
-                                  </Link>
-                                </Button>
-                                <Button variant="ghost" size="sm" asChild className="h-7 px-2">
-                                  <Link to={`/admin/users?id=${user.user_id}`}>
-                                    <ChevronRight className="h-4 w-4" />
-                                  </Link>
-                                </Button>
-                              </>
-                            )}
+                            <Button variant="outline" size="sm" asChild className="h-7 text-xs flex-1 sm:flex-none">
+                              <Link to={`/admin/feedback?user=${user.user_id}`}>
+                                <MessageSquare className="h-3 w-3 mr-1" />
+                                Send
+                              </Link>
+                            </Button>
+                            <Button variant="ghost" size="sm" asChild className="h-7 px-2">
+                              <Link to={`/admin/users?id=${user.user_id}`}>
+                                <ChevronRight className="h-4 w-4" />
+                              </Link>
+                            </Button>
                           </div>
                         </div>
                       </div>
@@ -356,17 +351,15 @@ export default function AtRiskUsers() {
       </div>
 
       {/* Batch Encouragement Modal */}
-      {!showDemoData && (
-        <BatchEncouragementModal
-          isOpen={showBatchModal}
-          onClose={() => setShowBatchModal(false)}
-          users={getSelectedUsersList()}
-          onSuccess={() => {
-            setSelectedUsers(new Set());
-            fetchAtRiskUsers();
-          }}
-        />
-      )}
+      <BatchEncouragementModal
+        isOpen={showBatchModal}
+        onClose={() => setShowBatchModal(false)}
+        users={getSelectedUsersList()}
+        onSuccess={() => {
+          setSelectedUsers(new Set());
+          fetchAtRiskUsers();
+        }}
+      />
     </AdminLayout>
   );
 }
