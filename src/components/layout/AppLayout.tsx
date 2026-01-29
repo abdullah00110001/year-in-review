@@ -6,6 +6,7 @@ import OfflineIndicator from '@/components/OfflineIndicator';
 import SyncStatus from '@/components/SyncStatus';
 import PullToRefresh from '@/components/pwa/PullToRefresh';
 import { useQueryClient } from '@tanstack/react-query';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -13,12 +14,11 @@ interface AppLayoutProps {
 
 export default function AppLayout({ children }: AppLayoutProps) {
   const queryClient = useQueryClient();
+  const isMobile = useIsMobile();
 
   // Handle pull-to-refresh
   const handleRefresh = useCallback(async () => {
-    // Invalidate all queries to refetch data
     await queryClient.invalidateQueries();
-    // Small delay to show the refresh animation
     await new Promise(resolve => setTimeout(resolve, 500));
   }, [queryClient]);
 
@@ -35,22 +35,28 @@ export default function AppLayout({ children }: AppLayoutProps) {
       {/* Mobile Navigation */}
       <MobileNav />
       
-      {/* Main content with proper spacing */}
-      <main className="flex-1 w-full overflow-x-hidden overflow-y-auto pt-16 lg:pt-0 lg:pl-64" style={{ WebkitOverflowScrolling: 'touch' }}>
+      {/* Main content area */}
+      <main className="flex-1 w-full pt-16 lg:pt-0 lg:pl-64">
         {/* Desktop Sync Status */}
         <div className="hidden lg:flex lg:justify-end lg:p-2 lg:border-b lg:border-border">
           <SyncStatus />
         </div>
         
-        {/* Pull to Refresh wrapper for mobile */}
-        <PullToRefresh 
-          onRefresh={handleRefresh}
-          className="min-h-[calc(100vh-4rem)] lg:min-h-screen pb-20 lg:pb-0"
-        >
-          <div className="animate-fade-in">
+        {/* Content - Use PullToRefresh only on mobile */}
+        {isMobile ? (
+          <PullToRefresh 
+            onRefresh={handleRefresh}
+            className="min-h-[calc(100vh-4rem)] pb-24"
+          >
+            <div className="animate-fade-in">
+              {children}
+            </div>
+          </PullToRefresh>
+        ) : (
+          <div className="min-h-screen pb-8 animate-fade-in">
             {children}
           </div>
-        </PullToRefresh>
+        )}
       </main>
 
       {/* Quick Action FAB */}
