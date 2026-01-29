@@ -36,7 +36,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
       <MobileNav />
       
       {/* Main content with proper spacing */}
-      <main className="flex-1 w-full overflow-x-hidden pt-16 lg:pt-0 lg:pl-64">
+      <main className="flex-1 w-full overflow-x-hidden overflow-y-auto pt-16 lg:pt-0 lg:pl-64" style={{ WebkitOverflowScrolling: 'touch' }}>
         {/* Desktop Sync Status */}
         <div className="hidden lg:flex lg:justify-end lg:p-2 lg:border-b lg:border-border">
           <SyncStatus />
@@ -45,7 +45,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
         {/* Pull to Refresh wrapper for mobile */}
         <PullToRefresh 
           onRefresh={handleRefresh}
-          className="min-h-[calc(100vh-4rem)] lg:min-h-screen"
+          className="min-h-[calc(100vh-4rem)] lg:min-h-screen pb-20 lg:pb-0"
         >
           <div className="animate-fade-in">
             {children}
