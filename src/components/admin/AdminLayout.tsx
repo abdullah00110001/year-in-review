@@ -159,8 +159,8 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
       </div>
 
       {/* Main Content */}
-      <main className="flex-1 w-full overflow-x-hidden pt-16 pb-20 lg:pt-0 lg:pb-0 lg:pl-72">
-        <div className="min-h-screen">
+      <main className="flex-1 w-full overflow-x-hidden overflow-y-auto pt-16 pb-20 lg:pt-0 lg:pb-0 lg:pl-72">
+        <div className="min-h-screen p-3 sm:p-4 lg:p-6">
           {children}
         </div>
       </main>
