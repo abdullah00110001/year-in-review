@@ -93,8 +93,12 @@ export default function PullToRefresh({
   return (
     <div
       ref={containerRef}
-      className={cn('relative overflow-auto touch-scroll', className)}
-      style={{ overscrollBehaviorY: 'contain' }}
+      className={cn('relative overflow-y-auto overflow-x-hidden touch-scroll', className)}
+      style={{ 
+        overscrollBehaviorY: 'contain',
+        WebkitOverflowScrolling: 'touch',
+        minHeight: '100%',
+      }}
     >
       {/* Pull indicator */}
       <div
