@@ -9,13 +9,14 @@ import {
   AlertTriangle, 
   Loader2, 
   User,
-  Mail,
   MessageSquare,
   ChevronRight,
   Clock,
   TrendingDown,
   Send,
-  Users
+  Users,
+  Moon,
+  Sun
 } from 'lucide-react';
 import { format, subDays } from 'date-fns';
 import { Link } from 'react-router-dom';
@@ -31,11 +32,22 @@ interface AtRiskUser {
   declining: boolean;
 }
 
+// Demo data for when no real data exists
+const DEMO_USERS: AtRiskUser[] = [
+  { user_id: 'demo-1', full_name: 'Ahmed Rahman', app_mode: 'islamic', days_inactive: 14, last_entry_date: '2026-01-15', last_score: 65, declining: true },
+  { user_id: 'demo-2', full_name: 'Sarah Ahmed', app_mode: 'regular', days_inactive: 10, last_entry_date: '2026-01-19', last_score: 72, declining: false },
+  { user_id: 'demo-3', full_name: 'Mohammad Ali', app_mode: 'islamic', days_inactive: 7, last_entry_date: '2026-01-22', last_score: 58, declining: true },
+  { user_id: 'demo-4', full_name: 'Fatima Khan', app_mode: 'regular', days_inactive: 5, last_entry_date: '2026-01-24', last_score: 80, declining: false },
+  { user_id: 'demo-5', full_name: 'Omar Hassan', app_mode: 'islamic', days_inactive: 4, last_entry_date: '2026-01-25', last_score: 45, declining: true },
+];
+
 export default function AtRiskUsers() {
   const [users, setUsers] = useState<AtRiskUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedUsers, setSelectedUsers] = useState<Set<string>>(new Set());
   const [showBatchModal, setShowBatchModal] = useState(false);
+  const [showDemoData, setShowDemoData] = useState(false);
+
   useEffect(() => {
     fetchAtRiskUsers();
   }, []);
@@ -108,17 +120,26 @@ export default function AtRiskUsers() {
       // Sort by days inactive
       atRiskList.sort((a, b) => b.days_inactive - a.days_inactive);
       setUsers(atRiskList);
+      
+      // Show demo data if no real data
+      if (atRiskList.length === 0) {
+        setShowDemoData(true);
+      }
+      
       setLoading(false);
     } catch (error) {
       console.error('Error fetching at-risk users:', error);
+      setShowDemoData(true);
       setLoading(false);
     }
   };
 
+  const displayUsers = showDemoData ? DEMO_USERS : users;
+
   const getSeverity = (days: number) => {
-    if (days >= 14) return { label: 'Critical', variant: 'destructive' as const };
-    if (days >= 7) return { label: 'High', variant: 'destructive' as const };
-    return { label: 'Medium', variant: 'secondary' as const };
+    if (days >= 14) return { label: 'Critical', color: 'bg-destructive text-destructive-foreground' };
+    if (days >= 7) return { label: 'High', color: 'bg-orange-500 text-white' };
+    return { label: 'Medium', color: 'bg-yellow-500 text-white' };
   };
 
   const toggleSelectUser = (userId: string) => {
@@ -134,21 +155,21 @@ export default function AtRiskUsers() {
   };
 
   const toggleSelectAll = () => {
-    if (selectedUsers.size === users.length) {
+    if (selectedUsers.size === displayUsers.length) {
       setSelectedUsers(new Set());
     } else {
-      setSelectedUsers(new Set(users.map(u => u.user_id)));
+      setSelectedUsers(new Set(displayUsers.map(u => u.user_id)));
     }
   };
 
   const getSelectedUsersList = () => {
-    return users.filter(u => selectedUsers.has(u.user_id));
+    return displayUsers.filter(u => selectedUsers.has(u.user_id));
   };
 
   if (loading) {
     return (
       <AdminLayout>
-        <div className="flex items-center justify-center min-h-screen">
+        <div className="flex items-center justify-center min-h-[50vh]">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
       </AdminLayout>
@@ -157,146 +178,172 @@ export default function AtRiskUsers() {
 
   return (
     <AdminLayout>
-      <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto">
+      <div className="space-y-4 sm:space-y-6">
         {/* Header */}
-        <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 className="text-headline font-bold tracking-tight flex items-center gap-2">
-              <AlertTriangle className="h-7 w-7 text-destructive" />
-              At-Risk Users
-            </h1>
-            <p className="text-body text-muted-foreground">
-              Users who haven't logged data for 3+ days and may need support
-            </p>
+        <div className="flex flex-col gap-3">
+          <div className="flex items-start justify-between">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-xl bg-destructive/10 flex items-center justify-center shrink-0">
+                <AlertTriangle className="h-5 w-5 text-destructive" />
+              </div>
+              <div>
+                <h1 className="text-lg sm:text-xl font-bold">At-Risk Users</h1>
+                <p className="text-xs sm:text-sm text-muted-foreground">
+                  Users who haven't logged data for 3+ days
+                </p>
+              </div>
+            </div>
           </div>
+          
           {selectedUsers.size > 0 && (
-            <Button onClick={() => setShowBatchModal(true)} className="shrink-0">
+            <Button onClick={() => setShowBatchModal(true)} className="w-full sm:w-auto">
               <Send className="h-4 w-4 mr-2" />
               Send to {selectedUsers.size} Selected
             </Button>
           )}
         </div>
 
-        {/* Stats */}
-        <div className="grid grid-cols-3 gap-4 mb-6">
-          <Card>
-            <CardContent className="p-4 text-center">
-              <p className="text-display font-bold text-destructive">{users.length}</p>
-              <p className="text-caption text-muted-foreground">Total At-Risk</p>
+        {/* Demo Data Banner */}
+        {showDemoData && (
+          <div className="rounded-xl bg-primary/10 border border-primary/20 p-3">
+            <p className="text-sm text-primary font-medium">📊 Showing demo data for preview</p>
+          </div>
+        )}
+
+        {/* Stats - Responsive Grid */}
+        <div className="grid grid-cols-3 gap-2 sm:gap-4">
+          <Card className="overflow-hidden">
+            <CardContent className="p-3 sm:p-4 text-center">
+              <p className="text-xl sm:text-3xl font-bold text-destructive">{displayUsers.length}</p>
+              <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">Total At-Risk</p>
             </CardContent>
           </Card>
-          <Card>
-            <CardContent className="p-4 text-center">
-              <p className="text-display font-bold text-orange-500">
-                {users.filter(u => u.days_inactive >= 7).length}
+          <Card className="overflow-hidden">
+            <CardContent className="p-3 sm:p-4 text-center">
+              <p className="text-xl sm:text-3xl font-bold text-orange-500">
+                {displayUsers.filter(u => u.days_inactive >= 7).length}
               </p>
-              <p className="text-caption text-muted-foreground">7+ Days Inactive</p>
+              <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">7+ Days</p>
             </CardContent>
           </Card>
-          <Card>
-            <CardContent className="p-4 text-center">
-              <p className="text-display font-bold text-red-600">
-                {users.filter(u => u.declining).length}
+          <Card className="overflow-hidden">
+            <CardContent className="p-3 sm:p-4 text-center">
+              <p className="text-xl sm:text-3xl font-bold text-red-600">
+                {displayUsers.filter(u => u.declining).length}
               </p>
-              <p className="text-caption text-muted-foreground">Declining Trend</p>
+              <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">Declining</p>
             </CardContent>
           </Card>
         </div>
 
         {/* User List */}
         <Card>
-          <CardHeader className="p-4 sm:p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="text-subtitle">At-Risk User List</CardTitle>
-                <CardDescription className="text-caption">
+          <CardHeader className="p-3 sm:p-4 pb-2">
+            <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <CardTitle className="text-sm sm:text-base truncate">At-Risk User List</CardTitle>
+                <CardDescription className="text-xs hidden sm:block">
                   Sorted by days inactive (highest first)
                 </CardDescription>
               </div>
-              {users.length > 0 && (
-                <Button variant="outline" size="sm" onClick={toggleSelectAll}>
-                  <Users className="h-4 w-4 mr-2" />
-                  {selectedUsers.size === users.length ? 'Deselect All' : 'Select All'}
+              {displayUsers.length > 0 && (
+                <Button variant="outline" size="sm" onClick={toggleSelectAll} className="shrink-0 text-xs h-8">
+                  <Users className="h-3 w-3 mr-1" />
+                  {selectedUsers.size === displayUsers.length ? 'Deselect' : 'Select All'}
                 </Button>
               )}
             </div>
           </CardHeader>
-          <CardContent className="p-4 sm:p-6 pt-0">
-            {users.length === 0 ? (
-              <div className="text-center py-12">
-                <div className="mx-auto mb-4 h-16 w-16 rounded-full bg-green-500/10 flex items-center justify-center">
-                  <User className="h-8 w-8 text-green-500" />
+          <CardContent className="p-2 sm:p-4 pt-0">
+            {displayUsers.length === 0 ? (
+              <div className="text-center py-8 sm:py-12">
+                <div className="mx-auto mb-4 h-12 w-12 sm:h-16 sm:w-16 rounded-full bg-green-500/10 flex items-center justify-center">
+                  <User className="h-6 w-6 sm:h-8 sm:w-8 text-green-500" />
                 </div>
-                <h3 className="text-subtitle font-semibold mb-2">All Users Active!</h3>
-                <p className="text-body text-muted-foreground">
+                <h3 className="text-sm sm:text-base font-semibold mb-2">All Users Active!</h3>
+                <p className="text-xs sm:text-sm text-muted-foreground">
                   Great news! No users have been inactive for 3+ days.
                 </p>
               </div>
             ) : (
-              <div className="space-y-3">
-                {users.map((user) => {
+              <div className="space-y-2">
+                {displayUsers.map((user) => {
                   const severity = getSeverity(user.days_inactive);
                   const isSelected = selectedUsers.has(user.user_id);
                   return (
                     <div 
                       key={user.user_id} 
-                      className={`flex items-center justify-between p-4 rounded-xl border bg-card hover:bg-muted/50 transition-colors ${
+                      className={`p-3 rounded-xl border bg-card transition-colors ${
                         isSelected ? 'border-primary/50 bg-primary/5' : ''
                       }`}
                     >
-                      <div className="flex items-center gap-4">
+                      {/* Mobile-first layout with stacked content */}
+                      <div className="flex items-start gap-3">
                         <Checkbox
                           checked={isSelected}
                           onCheckedChange={() => toggleSelectUser(user.user_id)}
-                          className="shrink-0"
+                          className="shrink-0 mt-1"
                         />
-                        <div className={`h-12 w-12 rounded-full flex items-center justify-center ${
+                        
+                        <div className={`h-10 w-10 rounded-xl flex items-center justify-center shrink-0 ${
                           severity.label === 'Critical' ? 'bg-red-500/10' : 
                           severity.label === 'High' ? 'bg-orange-500/10' : 'bg-yellow-500/10'
                         }`}>
-                          <AlertTriangle className={`h-6 w-6 ${
+                          <AlertTriangle className={`h-5 w-5 ${
                             severity.label === 'Critical' ? 'text-red-500' : 
                             severity.label === 'High' ? 'text-orange-500' : 'text-yellow-500'
                           }`} />
                         </div>
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <p className="font-medium text-body">{user.full_name || `User ${user.user_id.slice(0, 6)}`}</p>
+                        
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="font-medium text-sm truncate">
+                              {user.full_name || `User ${user.user_id.slice(0, 6)}`}
+                            </p>
+                            <Badge className={`${severity.color} text-xs px-2 py-0.5 shrink-0`}>
+                              {user.days_inactive} days
+                            </Badge>
+                          </div>
+                          
+                          <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                            <span className="flex items-center gap-1 text-[10px] sm:text-xs text-muted-foreground">
+                              <Clock className="h-3 w-3" />
+                              {user.last_entry_date ? format(new Date(user.last_entry_date), 'MMM d') : 'Never'}
+                            </span>
+                            <span className="flex items-center gap-1 text-[10px] sm:text-xs text-muted-foreground">
+                              {user.app_mode === 'islamic' ? (
+                                <Moon className="h-3 w-3" />
+                              ) : (
+                                <Sun className="h-3 w-3" />
+                              )}
+                              {user.app_mode || 'regular'}
+                            </span>
                             {user.declining && (
-                              <Badge variant="outline" className="text-red-500 border-red-500">
-                                <TrendingDown className="h-3 w-3 mr-1" />
+                              <Badge variant="outline" className="text-red-500 border-red-500 text-[10px] px-1.5 py-0">
+                                <TrendingDown className="h-2.5 w-2.5 mr-0.5" />
                                 Declining
                               </Badge>
                             )}
                           </div>
-                          <div className="flex items-center gap-3 mt-1 text-caption text-muted-foreground">
-                            <span className="flex items-center gap-1">
-                              <Clock className="h-3 w-3" />
-                              Last: {user.last_entry_date ? format(new Date(user.last_entry_date), 'MMM d') : 'Never'}
-                            </span>
-                            <span>
-                              {user.app_mode === 'islamic' ? '🌙' : '☀️'} {user.app_mode || 'Regular'}
-                            </span>
+                          
+                          {/* Action buttons - mobile friendly */}
+                          <div className="flex gap-2 mt-2">
+                            {!showDemoData && (
+                              <>
+                                <Button variant="outline" size="sm" asChild className="h-7 text-xs flex-1 sm:flex-none">
+                                  <Link to={`/admin/feedback?user=${user.user_id}`}>
+                                    <MessageSquare className="h-3 w-3 mr-1" />
+                                    Send
+                                  </Link>
+                                </Button>
+                                <Button variant="ghost" size="sm" asChild className="h-7 px-2">
+                                  <Link to={`/admin/users?id=${user.user_id}`}>
+                                    <ChevronRight className="h-4 w-4" />
+                                  </Link>
+                                </Button>
+                              </>
+                            )}
                           </div>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-3">
-                        <Badge variant={severity.variant}>
-                          {user.days_inactive} days
-                        </Badge>
-                        <div className="flex gap-2">
-                          <Button variant="outline" size="sm" asChild>
-                            <Link to={`/admin/feedback?user=${user.user_id}`}>
-                              <MessageSquare className="h-4 w-4 mr-1" />
-                              Send
-                            </Link>
-                          </Button>
-                          <Button variant="ghost" size="sm" asChild>
-                            <Link to={`/admin/users?id=${user.user_id}`}>
-                              <ChevronRight className="h-4 w-4" />
-                            </Link>
-                          </Button>
                         </div>
                       </div>
                     </div>
@@ -309,15 +356,17 @@ export default function AtRiskUsers() {
       </div>
 
       {/* Batch Encouragement Modal */}
-      <BatchEncouragementModal
-        isOpen={showBatchModal}
-        onClose={() => setShowBatchModal(false)}
-        users={getSelectedUsersList()}
-        onSuccess={() => {
-          setSelectedUsers(new Set());
-          fetchAtRiskUsers();
-        }}
-      />
+      {!showDemoData && (
+        <BatchEncouragementModal
+          isOpen={showBatchModal}
+          onClose={() => setShowBatchModal(false)}
+          users={getSelectedUsersList()}
+          onSuccess={() => {
+            setSelectedUsers(new Set());
+            fetchAtRiskUsers();
+          }}
+        />
+      )}
     </AdminLayout>
   );
 }

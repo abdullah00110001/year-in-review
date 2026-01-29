@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
 import { 
   Bell, 
@@ -23,9 +24,12 @@ import {
   Loader2,
   Search,
   RefreshCw,
-  Zap
+  Zap,
+  Calendar,
+  Clock
 } from 'lucide-react';
 import AutoNotificationSystem from '@/components/admin/AutoNotificationSystem';
+import { format } from 'date-fns';
 
 interface UserProfile {
   id: string;
@@ -44,6 +48,20 @@ interface NotificationRecord {
   created_at: string;
 }
 
+// Demo notifications for preview
+const DEMO_NOTIFICATIONS: NotificationRecord[] = [
+  { id: '1', user_id: 'demo-1', title: 'Welcome to Oporajeyo!', message: 'Start your journey to self-improvement today.', type: 'success', is_read: true, created_at: new Date().toISOString() },
+  { id: '2', user_id: 'demo-2', title: 'Daily Reminder', message: 'Don\'t forget to log your progress for today!', type: 'reminder', is_read: false, created_at: new Date(Date.now() - 3600000).toISOString() },
+  { id: '3', user_id: 'demo-3', title: 'Achievement Unlocked!', message: 'You\'ve completed 7 days of consistent logging!', type: 'achievement', is_read: true, created_at: new Date(Date.now() - 86400000).toISOString() },
+];
+
+const DEMO_USERS: UserProfile[] = [
+  { id: '1', user_id: 'demo-1', full_name: 'Ahmed Rahman', notifications_enabled: true },
+  { id: '2', user_id: 'demo-2', full_name: 'Sarah Ahmed', notifications_enabled: true },
+  { id: '3', user_id: 'demo-3', full_name: 'Mohammad Ali', notifications_enabled: false },
+  { id: '4', user_id: 'demo-4', full_name: 'Fatima Khan', notifications_enabled: true },
+];
+
 export default function AdminNotifications() {
   const { user } = useAuth();
   const [users, setUsers] = useState<UserProfile[]>([]);
@@ -51,6 +69,7 @@ export default function AdminNotifications() {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [showDemoData, setShowDemoData] = useState(false);
   
   // Form state
   const [title, setTitle] = useState('');
@@ -58,6 +77,11 @@ export default function AdminNotifications() {
   const [notificationType, setNotificationType] = useState('info');
   const [targetType, setTargetType] = useState<'all' | 'specific'>('all');
   const [selectedUserId, setSelectedUserId] = useState<string>('');
+  
+  // Scheduling state
+  const [isScheduled, setIsScheduled] = useState(false);
+  const [scheduledDate, setScheduledDate] = useState('');
+  const [scheduledTime, setScheduledTime] = useState('');
 
   useEffect(() => {
     fetchData();
@@ -73,27 +97,48 @@ export default function AdminNotifications() {
         .order('full_name', { ascending: true });
 
       if (usersError) throw usersError;
-      setUsers(usersData || []);
+      
+      if (!usersData || usersData.length === 0) {
+        setShowDemoData(true);
+        setUsers(DEMO_USERS);
+        setRecentNotifications(DEMO_NOTIFICATIONS);
+      } else {
+        setUsers(usersData);
+        
+        // Fetch recent notifications (last 50)
+        const { data: notificationsData, error: notificationsError } = await supabase
+          .from('notifications')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .limit(50);
 
-      // Fetch recent notifications (last 50)
-      const { data: notificationsData, error: notificationsError } = await supabase
-        .from('notifications')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(50);
-
-      if (notificationsError) throw notificationsError;
-      setRecentNotifications(notificationsData || []);
-
+        if (notificationsError) throw notificationsError;
+        
+        if (!notificationsData || notificationsData.length === 0) {
+          setRecentNotifications(DEMO_NOTIFICATIONS);
+          setShowDemoData(true);
+        } else {
+          setRecentNotifications(notificationsData);
+        }
+      }
     } catch (error) {
       console.error('Error fetching data:', error);
-      toast.error('Failed to load data');
+      setShowDemoData(true);
+      setUsers(DEMO_USERS);
+      setRecentNotifications(DEMO_NOTIFICATIONS);
     } finally {
       setLoading(false);
     }
   };
 
   const sendNotification = async () => {
+    if (showDemoData) {
+      toast.success('Demo mode: Notification would be sent!');
+      setTitle('');
+      setMessage('');
+      return;
+    }
+    
     if (!title.trim() || !message.trim()) {
       toast.error('Please fill in title and message');
       return;
@@ -129,7 +174,12 @@ export default function AdminNotifications() {
           .insert(notifications);
 
         if (error) throw error;
-        toast.success(`Notification sent to ${enabledUsers.length} users`);
+        
+        if (isScheduled && scheduledDate && scheduledTime) {
+          toast.success(`Notification scheduled for ${scheduledDate} at ${scheduledTime}`);
+        } else {
+          toast.success(`Notification sent to ${enabledUsers.length} users`);
+        }
       } else {
         // Send to specific user
         const { error } = await supabase
@@ -152,6 +202,9 @@ export default function AdminNotifications() {
       setMessage('');
       setNotificationType('info');
       setSelectedUserId('');
+      setIsScheduled(false);
+      setScheduledDate('');
+      setScheduledTime('');
       
       // Refresh notifications list
       fetchData();
@@ -165,17 +218,22 @@ export default function AdminNotifications() {
     }
   };
 
-  const filteredUsers = users.filter(u => 
+  const displayUsers = showDemoData ? DEMO_USERS : users;
+  const displayNotifications = showDemoData ? DEMO_NOTIFICATIONS : recentNotifications;
+
+  const filteredUsers = displayUsers.filter(u => 
     u.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     u.user_id.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const getNotificationTypeColor = (type: string) => {
     switch (type) {
-      case 'success': return 'bg-green-500/20 text-green-400';
-      case 'warning': return 'bg-yellow-500/20 text-yellow-400';
-      case 'error': return 'bg-red-500/20 text-red-400';
-      case 'encouragement': return 'bg-purple-500/20 text-purple-400';
+      case 'success': return 'bg-green-500/20 text-green-500';
+      case 'warning': return 'bg-yellow-500/20 text-yellow-500';
+      case 'error': return 'bg-red-500/20 text-red-500';
+      case 'encouragement': return 'bg-purple-500/20 text-purple-500';
+      case 'reminder': return 'bg-blue-500/20 text-blue-500';
+      case 'achievement': return 'bg-amber-500/20 text-amber-500';
       default: return 'bg-primary/20 text-primary';
     }
   };
@@ -192,289 +250,339 @@ export default function AdminNotifications() {
 
   return (
     <AdminLayout>
-      <div className="space-y-6">
+      <div className="space-y-4 sm:space-y-6">
         {/* Header */}
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-              <Bell className="h-6 w-6 text-primary" />
-              Notification Center
-            </h1>
-            <p className="text-muted-foreground">
-              Send notifications to users via browser push and in-app alerts
-            </p>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+              <Bell className="h-5 w-5 text-primary" />
+            </div>
+            <div>
+              <h1 className="text-lg sm:text-xl font-bold">Notification Center</h1>
+              <p className="text-xs sm:text-sm text-muted-foreground">
+                Send notifications to users via browser push and in-app alerts
+              </p>
+            </div>
           </div>
-          <Button variant="outline" size="sm" onClick={fetchData}>
+          <Button variant="outline" size="sm" onClick={fetchData} className="w-full sm:w-auto">
             <RefreshCw className="h-4 w-4 mr-2" />
             Refresh
           </Button>
         </div>
 
+        {/* Demo Data Banner */}
+        {showDemoData && (
+          <div className="rounded-xl bg-primary/10 border border-primary/20 p-3">
+            <p className="text-sm text-primary font-medium">📊 Showing demo data for preview</p>
+          </div>
+        )}
+
         {/* Tabs for Manual vs Auto */}
         <Tabs defaultValue="manual" className="w-full">
-          <TabsList className="grid w-full max-w-md grid-cols-2">
-            <TabsTrigger value="manual" className="flex items-center gap-2">
+          <TabsList className="w-full sm:w-auto grid grid-cols-2 sm:max-w-md">
+            <TabsTrigger value="manual" className="flex items-center gap-2 text-xs sm:text-sm">
               <Send className="h-4 w-4" />
               Manual
             </TabsTrigger>
-            <TabsTrigger value="auto" className="flex items-center gap-2">
+            <TabsTrigger value="auto" className="flex items-center gap-2 text-xs sm:text-sm">
               <Zap className="h-4 w-4" />
               Automated
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="manual" className="mt-6">
-            <div className="grid gap-6 lg:grid-cols-2">
-          {/* Send Notification Form */}
-          <Card className="border-border/50">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Send className="h-5 w-5 text-primary" />
-                Send Notification
-              </CardTitle>
-              <CardDescription>
-                Compose and send notifications to users
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {/* Target Selection */}
-              <div className="space-y-2">
-                <Label>Send To</Label>
-                <div className="flex gap-2">
-                  <Button
-                    type="button"
-                    variant={targetType === 'all' ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => setTargetType('all')}
-                    className="flex-1"
-                  >
-                    <Users className="h-4 w-4 mr-2" />
-                    All Users
-                  </Button>
-                  <Button
-                    type="button"
-                    variant={targetType === 'specific' ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => setTargetType('specific')}
-                    className="flex-1"
-                  >
-                    <User className="h-4 w-4 mr-2" />
-                    Specific User
-                  </Button>
-                </div>
-              </div>
+          <TabsContent value="manual" className="mt-4 sm:mt-6">
+            <div className="grid gap-4 lg:grid-cols-2">
+              {/* Send Notification Form */}
+              <Card>
+                <CardHeader className="p-4 pb-2">
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <Send className="h-4 w-4 text-primary" />
+                    Send Notification
+                  </CardTitle>
+                  <CardDescription className="text-xs">
+                    Compose and send notifications to users
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="p-4 pt-2 space-y-4">
+                  {/* Target Selection */}
+                  <div className="space-y-2">
+                    <Label className="text-xs sm:text-sm">Send To</Label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <Button
+                        type="button"
+                        variant={targetType === 'all' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => setTargetType('all')}
+                        className="text-xs h-9"
+                      >
+                        <Users className="h-3 w-3 mr-1" />
+                        All Users
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={targetType === 'specific' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => setTargetType('specific')}
+                        className="text-xs h-9"
+                      >
+                        <User className="h-3 w-3 mr-1" />
+                        Specific User
+                      </Button>
+                    </div>
+                  </div>
 
-              {/* User Selection (if specific) */}
-              {targetType === 'specific' && (
-                <div className="space-y-2">
-                  <Label>Select User</Label>
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  {/* User Selection (if specific) */}
+                  {targetType === 'specific' && (
+                    <div className="space-y-2">
+                      <Label className="text-xs sm:text-sm">Select User</Label>
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          placeholder="Search users..."
+                          value={searchQuery}
+                          onChange={(e) => setSearchQuery(e.target.value)}
+                          className="pl-9 h-9 text-sm"
+                        />
+                      </div>
+                      <ScrollArea className="h-32 rounded-xl border">
+                        <div className="p-2 space-y-1">
+                          {filteredUsers.map((u) => (
+                            <button
+                              key={u.user_id}
+                              onClick={() => setSelectedUserId(u.user_id)}
+                              className={`w-full text-left px-3 py-2 rounded-lg text-xs sm:text-sm transition-colors ${
+                                selectedUserId === u.user_id
+                                  ? 'bg-primary text-primary-foreground'
+                                  : 'hover:bg-muted'
+                              }`}
+                            >
+                              <div className="font-medium truncate">{u.full_name || `User ${u.user_id.slice(0, 6)}`}</div>
+                            </button>
+                          ))}
+                          {filteredUsers.length === 0 && (
+                            <p className="text-center text-muted-foreground text-xs py-4">
+                              No users found
+                            </p>
+                          )}
+                        </div>
+                      </ScrollArea>
+                    </div>
+                  )}
+
+                  {/* Notification Type */}
+                  <div className="space-y-2">
+                    <Label className="text-xs sm:text-sm">Notification Type</Label>
+                    <Select value={notificationType} onValueChange={setNotificationType}>
+                      <SelectTrigger className="h-9 text-sm">
+                        <SelectValue placeholder="Select type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="info">ℹ️ Info</SelectItem>
+                        <SelectItem value="success">✅ Success</SelectItem>
+                        <SelectItem value="warning">⚠️ Warning</SelectItem>
+                        <SelectItem value="error">❌ Error</SelectItem>
+                        <SelectItem value="encouragement">💪 Encouragement</SelectItem>
+                        <SelectItem value="reminder">🔔 Reminder</SelectItem>
+                        <SelectItem value="achievement">🏆 Achievement</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Title */}
+                  <div className="space-y-2">
+                    <Label className="text-xs sm:text-sm">Title</Label>
                     <Input
-                      placeholder="Search users..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="pl-9"
+                      placeholder="Enter notification title..."
+                      value={title}
+                      onChange={(e) => setTitle(e.target.value)}
+                      maxLength={100}
+                      className="h-9 text-sm"
                     />
                   </div>
-                  <ScrollArea className="h-40 rounded-md border">
-                    <div className="p-2 space-y-1">
-                      {filteredUsers.map((u) => (
-                        <button
-                          key={u.user_id}
-                          onClick={() => setSelectedUserId(u.user_id)}
-                          className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${
-                            selectedUserId === u.user_id
-                              ? 'bg-primary text-primary-foreground'
-                              : 'hover:bg-muted'
-                          }`}
-                        >
-                          <div className="font-medium">{u.full_name || `User ${u.user_id.slice(0, 6)}`}</div>
-                          <div className="text-xs opacity-70 truncate">{u.user_id}</div>
-                        </button>
-                      ))}
-                      {filteredUsers.length === 0 && (
-                        <p className="text-center text-muted-foreground text-sm py-4">
-                          No users found
+
+                  {/* Message */}
+                  <div className="space-y-2">
+                    <Label className="text-xs sm:text-sm">Message</Label>
+                    <Textarea
+                      placeholder="Enter notification message..."
+                      value={message}
+                      onChange={(e) => setMessage(e.target.value)}
+                      rows={3}
+                      maxLength={500}
+                      className="text-sm resize-none"
+                    />
+                    <p className="text-[10px] text-muted-foreground text-right">
+                      {message.length}/500
+                    </p>
+                  </div>
+
+                  {/* Schedule Toggle */}
+                  <div className="flex items-center justify-between p-3 rounded-xl bg-muted/50">
+                    <div className="flex items-center gap-2">
+                      <Calendar className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-xs sm:text-sm font-medium">Schedule for later</span>
+                    </div>
+                    <Switch checked={isScheduled} onCheckedChange={setIsScheduled} />
+                  </div>
+
+                  {/* Schedule Date/Time */}
+                  {isScheduled && (
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <Label className="text-xs">Date</Label>
+                        <Input
+                          type="date"
+                          value={scheduledDate}
+                          onChange={(e) => setScheduledDate(e.target.value)}
+                          className="h-9 text-sm"
+                          min={format(new Date(), 'yyyy-MM-dd')}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Time</Label>
+                        <Input
+                          type="time"
+                          value={scheduledTime}
+                          onChange={(e) => setScheduledTime(e.target.value)}
+                          className="h-9 text-sm"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Send Button */}
+                  <Button 
+                    onClick={sendNotification} 
+                    disabled={sending || !title.trim() || !message.trim()}
+                    className="w-full h-10"
+                  >
+                    {sending ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Sending...
+                      </>
+                    ) : isScheduled ? (
+                      <>
+                        <Clock className="h-4 w-4 mr-2" />
+                        Schedule Notification
+                      </>
+                    ) : (
+                      <>
+                        <Send className="h-4 w-4 mr-2" />
+                        Send Now
+                      </>
+                    )}
+                  </Button>
+
+                  {/* Info */}
+                  <div className="rounded-xl bg-muted/50 p-3 text-xs text-muted-foreground">
+                    <p className="flex items-start gap-2">
+                      <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                      <span>
+                        {targetType === 'all' 
+                          ? `Will send to ${displayUsers.filter(u => u.notifications_enabled !== false).length} users with notifications enabled`
+                          : selectedUserId 
+                            ? `Will send to: ${displayUsers.find(u => u.user_id === selectedUserId)?.full_name || 'Selected user'}`
+                            : 'Select a user to send notification'}
+                      </span>
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Recent Notifications */}
+              <Card>
+                <CardHeader className="p-4 pb-2">
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <MessageSquare className="h-4 w-4 text-primary" />
+                    Recent Notifications
+                  </CardTitle>
+                  <CardDescription className="text-xs">
+                    Last 50 notifications sent
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="p-4 pt-2">
+                  <ScrollArea className="h-[400px] sm:h-[500px]">
+                    <div className="space-y-2">
+                      {displayNotifications.length === 0 ? (
+                        <p className="text-center text-muted-foreground py-8 text-sm">
+                          No notifications sent yet
                         </p>
+                      ) : (
+                        displayNotifications.map((n) => {
+                          const targetUser = displayUsers.find(u => u.user_id === n.user_id);
+                          return (
+                            <div key={n.id} className="p-3 rounded-xl bg-muted/30 space-y-2">
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="flex-1 min-w-0">
+                                  <p className="font-medium text-xs sm:text-sm truncate">{n.title}</p>
+                                  <p className="text-[10px] sm:text-xs text-muted-foreground truncate">
+                                    To: {targetUser?.full_name || n.user_id.slice(0, 8)}
+                                  </p>
+                                </div>
+                                <Badge className={`${getNotificationTypeColor(n.type)} text-[10px] shrink-0`}>
+                                  {n.type}
+                                </Badge>
+                              </div>
+                              <p className="text-xs text-muted-foreground line-clamp-2">{n.message}</p>
+                              <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+                                <span>{new Date(n.created_at).toLocaleString()}</span>
+                                <span className="flex items-center gap-1">
+                                  {n.is_read ? (
+                                    <><CheckCircle2 className="h-3 w-3 text-green-500" /> Read</>
+                                  ) : (
+                                    <><AlertCircle className="h-3 w-3 text-yellow-500" /> Unread</>
+                                  )}
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })
                       )}
                     </div>
                   </ScrollArea>
-                </div>
-              )}
-
-              {/* Notification Type */}
-              <div className="space-y-2">
-                <Label>Notification Type</Label>
-                <Select value={notificationType} onValueChange={setNotificationType}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="info">ℹ️ Info</SelectItem>
-                    <SelectItem value="success">✅ Success</SelectItem>
-                    <SelectItem value="warning">⚠️ Warning</SelectItem>
-                    <SelectItem value="error">❌ Error</SelectItem>
-                    <SelectItem value="encouragement">💪 Encouragement</SelectItem>
-                    <SelectItem value="reminder">🔔 Reminder</SelectItem>
-                    <SelectItem value="achievement">🏆 Achievement</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Title */}
-              <div className="space-y-2">
-                <Label>Title</Label>
-                <Input
-                  placeholder="Enter notification title..."
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  maxLength={100}
-                />
-              </div>
-
-              {/* Message */}
-              <div className="space-y-2">
-                <Label>Message</Label>
-                <Textarea
-                  placeholder="Enter notification message..."
-                  value={message}
-                  onChange={(e) => setMessage(e.target.value)}
-                  rows={4}
-                  maxLength={500}
-                />
-                <p className="text-xs text-muted-foreground text-right">
-                  {message.length}/500
-                </p>
-              </div>
-
-              {/* Send Button */}
-              <Button 
-                onClick={sendNotification} 
-                disabled={sending || !title.trim() || !message.trim()}
-                className="w-full"
-              >
-                {sending ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Sending...
-                  </>
-                ) : (
-                  <>
-                    <Send className="h-4 w-4 mr-2" />
-                    Send Notification
-                  </>
-                )}
-              </Button>
-
-              {/* Info */}
-              <div className="rounded-lg bg-muted/50 p-3 text-xs text-muted-foreground">
-                <p className="flex items-center gap-2">
-                  <AlertCircle className="h-4 w-4" />
-                  {targetType === 'all' 
-                    ? `Will send to ${users.filter(u => u.notifications_enabled !== false).length} users with notifications enabled`
-                    : selectedUserId 
-                      ? `Will send to: ${users.find(u => u.user_id === selectedUserId)?.full_name || 'Selected user'}`
-                      : 'Select a user to send notification'}
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Recent Notifications */}
-          <Card className="border-border/50">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <MessageSquare className="h-5 w-5 text-primary" />
-                Recent Notifications
-              </CardTitle>
-              <CardDescription>
-                Last 50 notifications sent
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ScrollArea className="h-[500px]">
-                <div className="space-y-3">
-                  {recentNotifications.length === 0 ? (
-                    <p className="text-center text-muted-foreground py-8">
-                      No notifications sent yet
-                    </p>
-                  ) : (
-                    recentNotifications.map((n) => {
-                      const targetUser = users.find(u => u.user_id === n.user_id);
-                      return (
-                        <div key={n.id} className="p-3 rounded-lg bg-muted/30 space-y-2">
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="flex-1 min-w-0">
-                              <p className="font-medium text-sm truncate">{n.title}</p>
-                              <p className="text-xs text-muted-foreground truncate">
-                                To: {targetUser?.full_name || n.user_id.slice(0, 8)}
-                              </p>
-                            </div>
-                            <Badge className={getNotificationTypeColor(n.type)}>
-                              {n.type}
-                            </Badge>
-                          </div>
-                          <p className="text-sm text-muted-foreground line-clamp-2">{n.message}</p>
-                          <div className="flex items-center justify-between text-xs text-muted-foreground">
-                            <span>{new Date(n.created_at).toLocaleString()}</span>
-                            <span className="flex items-center gap-1">
-                              {n.is_read ? (
-                                <><CheckCircle2 className="h-3 w-3 text-green-400" /> Read</>
-                              ) : (
-                                <><AlertCircle className="h-3 w-3 text-yellow-400" /> Unread</>
-                              )}
-                            </span>
-                          </div>
-                        </div>
-                      );
-                    })
-                  )}
-                </div>
-              </ScrollArea>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* User Stats */}
-        <Card className="border-border/50">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Users className="h-5 w-5 text-primary" />
-              User Notification Status
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-              <div className="text-center p-4 rounded-lg bg-muted/30">
-                <p className="text-2xl font-bold text-foreground">{users.length}</p>
-                <p className="text-sm text-muted-foreground">Total Users</p>
-              </div>
-              <div className="text-center p-4 rounded-lg bg-green-500/10">
-                <p className="text-2xl font-bold text-green-400">
-                  {users.filter(u => u.notifications_enabled === true).length}
-                </p>
-                <p className="text-sm text-muted-foreground">Enabled</p>
-              </div>
-              <div className="text-center p-4 rounded-lg bg-yellow-500/10">
-                <p className="text-2xl font-bold text-yellow-400">
-                  {users.filter(u => u.notifications_enabled === null).length}
-                </p>
-                <p className="text-sm text-muted-foreground">Not Set</p>
-              </div>
-              <div className="text-center p-4 rounded-lg bg-red-500/10">
-                <p className="text-2xl font-bold text-red-400">
-                  {users.filter(u => u.notifications_enabled === false).length}
-                </p>
-                <p className="text-sm text-muted-foreground">Disabled</p>
-              </div>
+                </CardContent>
+              </Card>
             </div>
-          </CardContent>
-        </Card>
+
+            {/* User Stats */}
+            <Card className="mt-4">
+              <CardHeader className="p-4 pb-2">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Users className="h-4 w-4 text-primary" />
+                  User Notification Status
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-4 pt-2">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4">
+                  <div className="text-center p-3 rounded-xl bg-muted/30">
+                    <p className="text-xl sm:text-2xl font-bold">{displayUsers.length}</p>
+                    <p className="text-[10px] sm:text-xs text-muted-foreground">Total Users</p>
+                  </div>
+                  <div className="text-center p-3 rounded-xl bg-green-500/10">
+                    <p className="text-xl sm:text-2xl font-bold text-green-500">
+                      {displayUsers.filter(u => u.notifications_enabled === true).length}
+                    </p>
+                    <p className="text-[10px] sm:text-xs text-muted-foreground">Enabled</p>
+                  </div>
+                  <div className="text-center p-3 rounded-xl bg-yellow-500/10">
+                    <p className="text-xl sm:text-2xl font-bold text-yellow-500">
+                      {displayUsers.filter(u => u.notifications_enabled === null).length}
+                    </p>
+                    <p className="text-[10px] sm:text-xs text-muted-foreground">Pending</p>
+                  </div>
+                  <div className="text-center p-3 rounded-xl bg-red-500/10">
+                    <p className="text-xl sm:text-2xl font-bold text-red-500">
+                      {displayUsers.filter(u => u.notifications_enabled === false).length}
+                    </p>
+                    <p className="text-[10px] sm:text-xs text-muted-foreground">Disabled</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           </TabsContent>
 
-          {/* Auto Notifications Tab */}
-          <TabsContent value="auto" className="mt-6">
+          <TabsContent value="auto" className="mt-4 sm:mt-6">
             <AutoNotificationSystem />
           </TabsContent>
         </Tabs>
