@@ -127,11 +127,12 @@ export default function MobileNav() {
     { name: t('nav.settings'), href: '/settings', icon: Settings },
   ];
 
-  // Bottom navigation items - main quick access
+  // Bottom navigation items - Life Control Panel
   const bottomNavItems = [
     { name: language === 'bn' ? 'হোম' : 'Home', href: '/dashboard', icon: Home },
-    { name: language === 'bn' ? 'ইনপুট' : 'Input', href: '/daily-input', icon: Plus },
-    { name: language === 'bn' ? 'অভ্যাস' : 'Habits', href: '/habits', icon: CheckSquare },
+    { name: language === 'bn' ? 'শিল্ড' : 'Shield', href: '/shield', icon: Shield },
+    { name: language === 'bn' ? 'ইনপুট' : 'Input', href: '/daily-input', icon: Plus, isCenter: true },
+    { name: language === 'bn' ? 'রাইজ' : 'Rise', href: '/rise', icon: Target },
     { name: language === 'bn' ? 'সেটিংস' : 'Settings', href: '/settings', icon: Settings },
   ];
 
@@ -221,25 +222,39 @@ export default function MobileNav() {
 
       {/* Fixed Bottom Navigation for Mobile */}
       <div className="fixed bottom-0 left-0 right-0 z-40 lg:hidden bg-background/95 backdrop-blur-sm border-t safe-area-inset-bottom">
-        <nav className="flex items-center justify-around h-16 px-2">
+        <nav className="flex items-center justify-around h-16 px-1">
           {bottomNavItems.map((item) => {
             const isActive = location.pathname === item.href || 
                            (item.href !== '/dashboard' && location.pathname.startsWith(item.href));
+            const isCenter = 'isCenter' in item && item.isCenter;
+            
+            if (isCenter) {
+              return (
+                <Link
+                  key={item.href}
+                  to={item.href}
+                  className="flex items-center justify-center -mt-4"
+                >
+                  <div className={cn(
+                    'h-14 w-14 rounded-full flex items-center justify-center shadow-lg',
+                    isActive ? 'bg-primary' : 'bg-primary/90'
+                  )}>
+                    <item.icon className="h-6 w-6 text-primary-foreground" />
+                  </div>
+                </Link>
+              );
+            }
+            
             return (
               <Link
                 key={item.href}
                 to={item.href}
                 className={cn(
-                  'flex flex-col items-center justify-center gap-1 px-3 py-2 rounded-lg transition-all min-w-[60px]',
-                  isActive
-                    ? 'text-primary'
-                    : 'text-muted-foreground'
+                  'flex flex-col items-center justify-center gap-1 px-2 py-2 rounded-lg transition-all min-w-[56px]',
+                  isActive ? 'text-primary' : 'text-muted-foreground'
                 )}
               >
-                <item.icon className={cn(
-                  'h-5 w-5 transition-transform',
-                  isActive && 'scale-110'
-                )} />
+                <item.icon className={cn('h-5 w-5 transition-transform', isActive && 'scale-110')} />
                 <span className="text-[10px] font-medium">{item.name}</span>
               </Link>
             );
