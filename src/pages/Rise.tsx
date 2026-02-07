@@ -1,23 +1,20 @@
 import { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Switch } from '@/components/ui/switch';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
   Sunrise, 
-  Bell, 
-  Users, 
   Moon,
   Flame,
-  AlertCircle,
-  Settings,
-  TrendingUp
+  AlertCircle
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
+import { RiseBottomNav } from '@/components/rise/RiseBottomNav';
 import { RiseAlarmList } from '@/components/rise/RiseAlarmList';
-import { RiseAnalytics } from '@/components/rise/RiseAnalytics';
+import { RiseMissions } from '@/components/rise/RiseMissions';
+import { RiseSleepTracker } from '@/components/rise/RiseSleepTracker';
 import { RiseGroupWake } from '@/components/rise/RiseGroupWake';
+import { RiseAnalytics } from '@/components/rise/RiseAnalytics';
 
 interface RiseAlarm {
   id: string;
@@ -47,6 +44,15 @@ export default function RisePage() {
   const [streak, setStreak] = useState<RiseStreak | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [nextAlarm, setNextAlarm] = useState<{ time: string; countdown: string } | null>(null);
+  const [selectedMissions, setSelectedMissions] = useState<string[]>(['math', 'shake']);
+
+  // Mock sleep data
+  const sleepData = {
+    avgDuration: 7.2,
+    sleepScore: 78,
+    bedtime: '11:30 PM',
+    wakeTime: '6:45 AM'
+  };
 
   useEffect(() => {
     if (user) {
@@ -153,6 +159,14 @@ export default function RisePage() {
     ));
   };
 
+  const toggleMission = (missionId: string) => {
+    setSelectedMissions(prev => 
+      prev.includes(missionId)
+        ? prev.filter(m => m !== missionId)
+        : [...prev, missionId]
+    );
+  };
+
   const formatTime = (time: string) => {
     const [hours, minutes] = time.split(':');
     const h = parseInt(hours);
@@ -174,7 +188,7 @@ export default function RisePage() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background pb-20">
       {/* Header */}
       <div className="bg-gradient-to-br from-orange-900/80 via-amber-800/60 to-yellow-700/40 text-white p-4 pb-6 rounded-b-3xl">
         <div className="flex items-center justify-between mb-4">
@@ -204,6 +218,21 @@ export default function RisePage() {
                 <span className="text-4xl font-bold">{formatTime(nextAlarm.time).time}</span>
                 <span className="text-lg text-white/70">{formatTime(nextAlarm.time).ampm}</span>
               </div>
+              {selectedMissions.length > 0 && (
+                <div className="mt-3 flex items-center gap-2">
+                  <span className="text-xs text-white/60">Missions:</span>
+                  {selectedMissions.slice(0, 3).map(m => (
+                    <Badge key={m} variant="secondary" className="text-xs bg-white/20 text-white">
+                      {m}
+                    </Badge>
+                  ))}
+                  {selectedMissions.length > 3 && (
+                    <Badge variant="secondary" className="text-xs bg-white/20 text-white">
+                      +{selectedMissions.length - 3}
+                    </Badge>
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
         ) : (
@@ -227,72 +256,38 @@ export default function RisePage() {
         )}
       </div>
 
-      {/* Tabs Navigation */}
-      <div className="px-4 -mt-3">
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="w-full grid grid-cols-4 h-12 rounded-2xl">
-            <TabsTrigger value="alarms" className="rounded-xl data-[state=active]:bg-primary">
-              <Bell className="h-4 w-4" />
-            </TabsTrigger>
-            <TabsTrigger value="group" className="rounded-xl data-[state=active]:bg-primary">
-              <Users className="h-4 w-4" />
-            </TabsTrigger>
-            <TabsTrigger value="analytics" className="rounded-xl data-[state=active]:bg-primary">
-              <TrendingUp className="h-4 w-4" />
-            </TabsTrigger>
-            <TabsTrigger value="settings" className="rounded-xl data-[state=active]:bg-primary">
-              <Settings className="h-4 w-4" />
-            </TabsTrigger>
-          </TabsList>
+      {/* Content Area */}
+      <div className="px-4 mt-4">
+        {activeTab === 'alarms' && (
+          <RiseAlarmList 
+            alarms={alarms}
+            onToggle={toggleAlarm}
+            onRefresh={loadRiseData}
+          />
+        )}
 
-          <TabsContent value="alarms" className="mt-4 pb-24">
-            <RiseAlarmList 
-              alarms={alarms}
-              onToggle={toggleAlarm}
-              onRefresh={loadRiseData}
-            />
-          </TabsContent>
+        {activeTab === 'missions' && (
+          <RiseMissions 
+            selectedMissions={selectedMissions}
+            onMissionToggle={toggleMission}
+          />
+        )}
 
-          <TabsContent value="group" className="mt-4 pb-24">
-            <RiseGroupWake streak={streak} />
-          </TabsContent>
+        {activeTab === 'sleep' && (
+          <RiseSleepTracker sleepData={sleepData} />
+        )}
 
-          <TabsContent value="analytics" className="mt-4 pb-24">
-            <RiseAnalytics streak={streak} />
-          </TabsContent>
+        {activeTab === 'group' && (
+          <RiseGroupWake streak={streak} />
+        )}
 
-          <TabsContent value="settings" className="mt-4 pb-24">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Alarm Settings</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-medium">Snooze Limit</p>
-                    <p className="text-sm text-muted-foreground">Max snoozes before escalation</p>
-                  </div>
-                  <Badge>3</Badge>
-                </div>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-medium">Group Notifications</p>
-                    <p className="text-sm text-muted-foreground">Alert group if you oversleep</p>
-                  </div>
-                  <Switch defaultChecked />
-                </div>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-medium">Islamic Mode</p>
-                    <p className="text-sm text-muted-foreground">Fajr-linked alarms</p>
-                  </div>
-                  <Switch />
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
+        {activeTab === 'analytics' && (
+          <RiseAnalytics streak={streak} />
+        )}
       </div>
+
+      {/* Bottom Navigation */}
+      <RiseBottomNav activeTab={activeTab} onTabChange={setActiveTab} />
     </div>
   );
 }

@@ -1,27 +1,23 @@
 import { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Switch } from '@/components/ui/switch';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
   Shield, 
   Lock, 
   Unlock, 
-  Zap,
-  Target,
-  BarChart3, 
-  Users, 
-  Pause,
-  Flame
+  Flame,
+  Pause
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { Button } from '@/components/ui/button';
+import { ShieldBottomNav } from '@/components/shield/ShieldBottomNav';
+import { ShieldDashboard } from '@/components/shield/ShieldDashboard';
+import { ShieldBlocking } from '@/components/shield/ShieldBlocking';
+import { ShieldUsageTracker } from '@/components/shield/ShieldUsageTracker';
 import { ShieldProfiles } from '@/components/shield/ShieldProfiles';
-import { ShieldQuickActions } from '@/components/shield/ShieldQuickActions';
 import { ShieldAnalytics } from '@/components/shield/ShieldAnalytics';
-import { ShieldAccountability } from '@/components/shield/ShieldAccountability';
 
 interface DisciplineProfile {
   id: string;
@@ -63,6 +59,15 @@ export default function ShieldPage() {
   const [disciplineScore, setDisciplineScore] = useState<DisciplineScore | null>(null);
   const [activeSession, setActiveSession] = useState<ShieldSession | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [screenTime, setScreenTime] = useState(145); // Mock: 2h 25m
+  const [dailyLimit, setDailyLimit] = useState(180); // 3 hours
+  
+  // Blocking state
+  const [blockedApps, setBlockedApps] = useState<string[]>(['Instagram', 'TikTok']);
+  const [blockedWebsites, setBlockedWebsites] = useState<string[]>(['instagram.com', 'tiktok.com']);
+  const [blockedKeywords, setBlockedKeywords] = useState<string[]>(['shorts', 'reels']);
+  const [blockInfiniteContent, setBlockInfiniteContent] = useState(true);
+  const [blockAdultContent, setBlockAdultContent] = useState(true);
 
   useEffect(() => {
     if (user) {
@@ -108,7 +113,7 @@ export default function ShieldPage() {
         name: p.name,
         icon: p.icon || '🎯',
         description: p.description,
-        strictness_level: p.strictness_level,
+        strictness_level: p.strictness_level || 'normal',
         is_active: p.is_active || false,
         blocked_apps: Array.isArray(p.blocked_apps) ? p.blocked_apps as string[] : [],
         blocked_websites: Array.isArray(p.blocked_websites) ? p.blocked_websites as string[] : [],
@@ -205,7 +210,7 @@ export default function ShieldPage() {
         name: p.name,
         icon: p.icon || '🎯',
         description: p.description,
-        strictness_level: p.strictness_level,
+        strictness_level: p.strictness_level || 'normal',
         is_active: p.is_active || false,
         blocked_apps: Array.isArray(p.blocked_apps) ? p.blocked_apps as string[] : [],
         blocked_websites: Array.isArray(p.blocked_websites) ? p.blocked_websites as string[] : [],
@@ -275,6 +280,25 @@ export default function ShieldPage() {
     loadShieldData();
   };
 
+  const handleBlockingUpdate = (data: any) => {
+    if (data.blockedApps !== undefined) setBlockedApps(data.blockedApps);
+    if (data.blockedWebsites !== undefined) setBlockedWebsites(data.blockedWebsites);
+    if (data.blockedKeywords !== undefined) setBlockedKeywords(data.blockedKeywords);
+    if (data.blockInfiniteContent !== undefined) setBlockInfiniteContent(data.blockInfiniteContent);
+    if (data.blockAdultContent !== undefined) setBlockAdultContent(data.blockAdultContent);
+  };
+
+  const getRemainingTime = () => {
+    if (!activeSession?.scheduled_end_at) return null;
+    const end = new Date(activeSession.scheduled_end_at);
+    const now = new Date();
+    const diff = end.getTime() - now.getTime();
+    if (diff <= 0) return 'Completed';
+    const hours = Math.floor(diff / (1000 * 60 * 60));
+    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+    return `${hours}h ${minutes}m remaining`;
+  };
+
   const getStrictnessColor = (level: string) => {
     switch (level) {
       case 'normal': return 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30';
@@ -293,17 +317,6 @@ export default function ShieldPage() {
     }
   };
 
-  const getRemainingTime = () => {
-    if (!activeSession?.scheduled_end_at) return null;
-    const end = new Date(activeSession.scheduled_end_at);
-    const now = new Date();
-    const diff = end.getTime() - now.getTime();
-    if (diff <= 0) return 'Completed';
-    const hours = Math.floor(diff / (1000 * 60 * 60));
-    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-    return `${hours}h ${minutes}m remaining`;
-  };
-
   if (isLoading) {
     return (
       <div className="min-h-screen bg-background p-4">
@@ -317,7 +330,7 @@ export default function ShieldPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background pb-20">
       {/* Header */}
       <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white p-4 pb-6 rounded-b-3xl">
         <div className="flex items-center justify-between mb-4">
@@ -339,7 +352,7 @@ export default function ShieldPage() {
         </div>
 
         {/* Active Session Card */}
-        {activeSession ? (
+        {activeSession && (
           <Card className="bg-white/10 border-white/20 text-white">
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
@@ -364,11 +377,11 @@ export default function ShieldPage() {
                   <p className="text-xs text-white/60">Bypass Attempts</p>
                 </div>
                 <div className="bg-white/5 rounded-xl p-2">
-                  <p className="text-lg font-bold">0</p>
+                  <p className="text-lg font-bold">{blockedApps.length}</p>
                   <p className="text-xs text-white/60">Apps Blocked</p>
                 </div>
                 <div className="bg-white/5 rounded-xl p-2">
-                  <p className="text-lg font-bold">0</p>
+                  <p className="text-lg font-bold">{blockedWebsites.length}</p>
                   <p className="text-xs text-white/60">Sites Blocked</p>
                 </div>
               </div>
@@ -385,61 +398,58 @@ export default function ShieldPage() {
               )}
             </CardContent>
           </Card>
-        ) : (
-          <Card className="bg-white/10 border-white/20 text-white">
-            <CardContent className="p-4 text-center">
-              <Shield className="h-10 w-10 mx-auto mb-2 text-white/50" />
-              <p className="text-white/70">No active shield</p>
-              <p className="text-xs text-white/50">Select a profile below to start</p>
-            </CardContent>
-          </Card>
         )}
       </div>
 
-      {/* Tabs Navigation */}
-      <div className="px-4 -mt-3">
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="w-full grid grid-cols-4 h-12 rounded-2xl">
-            <TabsTrigger value="dashboard" className="rounded-xl data-[state=active]:bg-primary">
-              <Target className="h-4 w-4" />
-            </TabsTrigger>
-            <TabsTrigger value="profiles" className="rounded-xl data-[state=active]:bg-primary">
-              <Zap className="h-4 w-4" />
-            </TabsTrigger>
-            <TabsTrigger value="analytics" className="rounded-xl data-[state=active]:bg-primary">
-              <BarChart3 className="h-4 w-4" />
-            </TabsTrigger>
-            <TabsTrigger value="accountability" className="rounded-xl data-[state=active]:bg-primary">
-              <Users className="h-4 w-4" />
-            </TabsTrigger>
-          </TabsList>
+      {/* Content Area */}
+      <div className="px-4 mt-4">
+        {activeTab === 'dashboard' && (
+          <ShieldDashboard
+            profiles={profiles}
+            activeSession={activeSession}
+            disciplineScore={disciplineScore}
+            onStartSession={startSession}
+            onEndSession={endSession}
+            screenTime={screenTime}
+            dailyLimit={dailyLimit}
+          />
+        )}
 
-          <TabsContent value="dashboard" className="mt-4 space-y-4 pb-24">
-            <ShieldQuickActions 
-              profiles={profiles}
-              onStartSession={startSession}
-              activeSession={activeSession}
-            />
-          </TabsContent>
+        {activeTab === 'blocking' && (
+          <ShieldBlocking
+            blockedApps={blockedApps}
+            blockedWebsites={blockedWebsites}
+            blockedKeywords={blockedKeywords}
+            blockInfiniteContent={blockInfiniteContent}
+            blockAdultContent={blockAdultContent}
+            onUpdate={handleBlockingUpdate}
+          />
+        )}
 
-          <TabsContent value="profiles" className="mt-4 pb-24">
-            <ShieldProfiles 
-              profiles={profiles}
-              onStartSession={startSession}
-              activeSession={activeSession}
-              onRefresh={loadShieldData}
-            />
-          </TabsContent>
+        {activeTab === 'usage' && (
+          <ShieldUsageTracker
+            totalScreenTime={screenTime}
+            dailyLimit={dailyLimit}
+            onLimitChange={setDailyLimit}
+          />
+        )}
 
-          <TabsContent value="analytics" className="mt-4 pb-24">
-            <ShieldAnalytics disciplineScore={disciplineScore} />
-          </TabsContent>
+        {activeTab === 'profiles' && (
+          <ShieldProfiles 
+            profiles={profiles}
+            onStartSession={startSession}
+            activeSession={activeSession}
+            onRefresh={loadShieldData}
+          />
+        )}
 
-          <TabsContent value="accountability" className="mt-4 pb-24">
-            <ShieldAccountability />
-          </TabsContent>
-        </Tabs>
+        {activeTab === 'analytics' && (
+          <ShieldAnalytics disciplineScore={disciplineScore} />
+        )}
       </div>
+
+      {/* Bottom Navigation */}
+      <ShieldBottomNav activeTab={activeTab} onTabChange={setActiveTab} />
     </div>
   );
 }
