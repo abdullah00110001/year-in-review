@@ -53,6 +53,8 @@ import ComparativeAnalytics from "./pages/ComparativeAnalytics";
 import Install from "./pages/Install";
 import NotFound from "./pages/NotFound";
 import OfflineIndicator from "./components/OfflineIndicator";
+import ShieldPage from "./pages/Shield";
+import RisePage from "./pages/Rise";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -396,6 +398,22 @@ const App = () => (
                   element={
                     <ProtectedRoute>
                       <ComparativeAnalytics />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/shield"
+                  element={
+                    <ProtectedRoute>
+                      <ShieldPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/rise"
+                  element={
+                    <ProtectedRoute>
+                      <RisePage />
                     </ProtectedRoute>
                   }
                 />

@@ -14,6 +14,83 @@ export type Database = {
   }
   public: {
     Tables: {
+      accountability_group_members: {
+        Row: {
+          group_id: string
+          id: string
+          joined_at: string
+          role: string | null
+          user_id: string
+        }
+        Insert: {
+          group_id: string
+          id?: string
+          joined_at?: string
+          role?: string | null
+          user_id: string
+        }
+        Update: {
+          group_id?: string
+          id?: string
+          joined_at?: string
+          role?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "accountability_group_members_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "accountability_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      accountability_groups: {
+        Row: {
+          can_approve_unlock: boolean | null
+          can_extend_focus: boolean | null
+          can_send_encouragement: boolean | null
+          can_view_shield_status: boolean | null
+          created_at: string
+          created_by: string
+          description: string | null
+          id: string
+          invite_code: string | null
+          name: string
+          notification_level: string | null
+          updated_at: string
+        }
+        Insert: {
+          can_approve_unlock?: boolean | null
+          can_extend_focus?: boolean | null
+          can_send_encouragement?: boolean | null
+          can_view_shield_status?: boolean | null
+          created_at?: string
+          created_by: string
+          description?: string | null
+          id?: string
+          invite_code?: string | null
+          name: string
+          notification_level?: string | null
+          updated_at?: string
+        }
+        Update: {
+          can_approve_unlock?: boolean | null
+          can_extend_focus?: boolean | null
+          can_send_encouragement?: boolean | null
+          can_view_shield_status?: boolean | null
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          id?: string
+          invite_code?: string | null
+          name?: string
+          notification_level?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       activity_tags: {
         Row: {
           color: string
@@ -412,6 +489,36 @@ export type Database = {
         }
         Relationships: []
       }
+      daily_intentions: {
+        Row: {
+          created_at: string
+          date: string
+          evening_reflection: string | null
+          id: string
+          morning_intention: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          date?: string
+          evening_reflection?: string | null
+          id?: string
+          morning_intention?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          date?: string
+          evening_reflection?: string | null
+          id?: string
+          morning_intention?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       daily_logs: {
         Row: {
           created_at: string
@@ -455,6 +562,129 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      discipline_profiles: {
+        Row: {
+          allowed_apps: Json | null
+          auto_triggers: Json | null
+          block_adult_content: boolean | null
+          block_infinite_content: boolean | null
+          blocked_apps: Json | null
+          blocked_keywords: Json | null
+          blocked_websites: Json | null
+          created_at: string
+          default_duration_minutes: number | null
+          description: string | null
+          duration_type: string | null
+          icon: string | null
+          id: string
+          is_active: boolean | null
+          is_preset: boolean | null
+          name: string
+          schedule: Json | null
+          strictness_level: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          allowed_apps?: Json | null
+          auto_triggers?: Json | null
+          block_adult_content?: boolean | null
+          block_infinite_content?: boolean | null
+          blocked_apps?: Json | null
+          blocked_keywords?: Json | null
+          blocked_websites?: Json | null
+          created_at?: string
+          default_duration_minutes?: number | null
+          description?: string | null
+          duration_type?: string | null
+          icon?: string | null
+          id?: string
+          is_active?: boolean | null
+          is_preset?: boolean | null
+          name: string
+          schedule?: Json | null
+          strictness_level?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          allowed_apps?: Json | null
+          auto_triggers?: Json | null
+          block_adult_content?: boolean | null
+          block_infinite_content?: boolean | null
+          blocked_apps?: Json | null
+          blocked_keywords?: Json | null
+          blocked_websites?: Json | null
+          created_at?: string
+          default_duration_minutes?: number | null
+          description?: string | null
+          duration_type?: string | null
+          icon?: string | null
+          id?: string
+          is_active?: boolean | null
+          is_preset?: boolean | null
+          name?: string
+          schedule?: Json | null
+          strictness_level?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      discipline_scores: {
+        Row: {
+          bypass_penalty: number | null
+          can_use_absolute_mode: boolean | null
+          consistency_bonus: number | null
+          created_at: string
+          current_score: number | null
+          current_streak_days: number | null
+          focus_completion_score: number | null
+          id: string
+          longest_streak_days: number | null
+          time_saved_bonus: number | null
+          total_focus_minutes: number | null
+          total_time_saved_minutes: number | null
+          unlock_penalty: number | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          bypass_penalty?: number | null
+          can_use_absolute_mode?: boolean | null
+          consistency_bonus?: number | null
+          created_at?: string
+          current_score?: number | null
+          current_streak_days?: number | null
+          focus_completion_score?: number | null
+          id?: string
+          longest_streak_days?: number | null
+          time_saved_bonus?: number | null
+          total_focus_minutes?: number | null
+          total_time_saved_minutes?: number | null
+          unlock_penalty?: number | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          bypass_penalty?: number | null
+          can_use_absolute_mode?: boolean | null
+          consistency_bonus?: number | null
+          created_at?: string
+          current_score?: number | null
+          current_streak_days?: number | null
+          focus_completion_score?: number | null
+          id?: string
+          longest_streak_days?: number | null
+          time_saved_bonus?: number | null
+          total_focus_minutes?: number | null
+          total_time_saved_minutes?: number | null
+          unlock_penalty?: number | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       feedback_templates: {
         Row: {
@@ -551,6 +781,66 @@ export type Database = {
           year?: number
         }
         Relationships: []
+      }
+      group_wake_status: {
+        Row: {
+          alarm_log_id: string | null
+          confirmed_at: string | null
+          created_at: string
+          group_id: string
+          id: string
+          needs_help: boolean | null
+          scheduled_time: string | null
+          status: string | null
+          updated_at: string
+          user_id: string
+          wake_date: string
+          woke_at: string | null
+        }
+        Insert: {
+          alarm_log_id?: string | null
+          confirmed_at?: string | null
+          created_at?: string
+          group_id: string
+          id?: string
+          needs_help?: boolean | null
+          scheduled_time?: string | null
+          status?: string | null
+          updated_at?: string
+          user_id: string
+          wake_date?: string
+          woke_at?: string | null
+        }
+        Update: {
+          alarm_log_id?: string | null
+          confirmed_at?: string | null
+          created_at?: string
+          group_id?: string
+          id?: string
+          needs_help?: boolean | null
+          scheduled_time?: string | null
+          status?: string | null
+          updated_at?: string
+          user_id?: string
+          wake_date?: string
+          woke_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "group_wake_status_alarm_log_id_fkey"
+            columns: ["alarm_log_id"]
+            isOneToOne: false
+            referencedRelation: "rise_alarm_logs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "group_wake_status_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "accountability_groups"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       habit_entries: {
         Row: {
@@ -1131,6 +1421,178 @@ export type Database = {
         }
         Relationships: []
       }
+      rise_alarm_logs: {
+        Row: {
+          actual_wake_time: string | null
+          alarm_id: string | null
+          created_at: string
+          feeling: string | null
+          friend_wake_signal_sent: boolean | null
+          group_help_requested: boolean | null
+          id: string
+          minutes_late: number | null
+          scheduled_time: string
+          snooze_count: number | null
+          status: string | null
+          user_id: string
+          verification_completed: boolean | null
+        }
+        Insert: {
+          actual_wake_time?: string | null
+          alarm_id?: string | null
+          created_at?: string
+          feeling?: string | null
+          friend_wake_signal_sent?: boolean | null
+          group_help_requested?: boolean | null
+          id?: string
+          minutes_late?: number | null
+          scheduled_time: string
+          snooze_count?: number | null
+          status?: string | null
+          user_id: string
+          verification_completed?: boolean | null
+        }
+        Update: {
+          actual_wake_time?: string | null
+          alarm_id?: string | null
+          created_at?: string
+          feeling?: string | null
+          friend_wake_signal_sent?: boolean | null
+          group_help_requested?: boolean | null
+          id?: string
+          minutes_late?: number | null
+          scheduled_time?: string
+          snooze_count?: number | null
+          status?: string | null
+          user_id?: string
+          verification_completed?: boolean | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rise_alarm_logs_alarm_id_fkey"
+            columns: ["alarm_id"]
+            isOneToOne: false
+            referencedRelation: "rise_alarms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rise_alarms: {
+        Row: {
+          alarm_time: string
+          alarm_type: string | null
+          allow_friend_enforce: boolean | null
+          created_at: string
+          days_of_week: number[] | null
+          group_id: string | null
+          id: string
+          intention: string | null
+          is_enabled: boolean | null
+          is_intention_shared: boolean | null
+          label: string | null
+          snooze_interval_minutes: number | null
+          snooze_limit: number | null
+          sound_type: string | null
+          updated_at: string
+          user_id: string
+          verification_type: string | null
+          vibration_enabled: boolean | null
+          who_depends: string | null
+        }
+        Insert: {
+          alarm_time: string
+          alarm_type?: string | null
+          allow_friend_enforce?: boolean | null
+          created_at?: string
+          days_of_week?: number[] | null
+          group_id?: string | null
+          id?: string
+          intention?: string | null
+          is_enabled?: boolean | null
+          is_intention_shared?: boolean | null
+          label?: string | null
+          snooze_interval_minutes?: number | null
+          snooze_limit?: number | null
+          sound_type?: string | null
+          updated_at?: string
+          user_id: string
+          verification_type?: string | null
+          vibration_enabled?: boolean | null
+          who_depends?: string | null
+        }
+        Update: {
+          alarm_time?: string
+          alarm_type?: string | null
+          allow_friend_enforce?: boolean | null
+          created_at?: string
+          days_of_week?: number[] | null
+          group_id?: string | null
+          id?: string
+          intention?: string | null
+          is_enabled?: boolean | null
+          is_intention_shared?: boolean | null
+          label?: string | null
+          snooze_interval_minutes?: number | null
+          snooze_limit?: number | null
+          sound_type?: string | null
+          updated_at?: string
+          user_id?: string
+          verification_type?: string | null
+          vibration_enabled?: boolean | null
+          who_depends?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rise_alarms_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "accountability_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rise_streaks: {
+        Row: {
+          created_at: string
+          current_streak: number | null
+          id: string
+          is_recovery_mode: boolean | null
+          last_wake_date: string | null
+          longest_streak: number | null
+          recovery_started_at: string | null
+          total_alarms: number | null
+          total_on_time_wakes: number | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          current_streak?: number | null
+          id?: string
+          is_recovery_mode?: boolean | null
+          last_wake_date?: string | null
+          longest_streak?: number | null
+          recovery_started_at?: string | null
+          total_alarms?: number | null
+          total_on_time_wakes?: number | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          current_streak?: number | null
+          id?: string
+          is_recovery_mode?: boolean | null
+          last_wake_date?: string | null
+          longest_streak?: number | null
+          recovery_started_at?: string | null
+          total_alarms?: number | null
+          total_on_time_wakes?: number | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       service_logs: {
         Row: {
           beneficiary: string | null
@@ -1196,6 +1658,109 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      shield_bypass_logs: {
+        Row: {
+          attempt_type: string
+          created_at: string
+          details: Json | null
+          id: string
+          session_id: string | null
+          user_id: string
+          was_blocked: boolean | null
+        }
+        Insert: {
+          attempt_type: string
+          created_at?: string
+          details?: Json | null
+          id?: string
+          session_id?: string | null
+          user_id: string
+          was_blocked?: boolean | null
+        }
+        Update: {
+          attempt_type?: string
+          created_at?: string
+          details?: Json | null
+          id?: string
+          session_id?: string | null
+          user_id?: string
+          was_blocked?: boolean | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shield_bypass_logs_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "shield_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      shield_sessions: {
+        Row: {
+          actual_end_at: string | null
+          apps_blocked_count: number | null
+          bypass_attempts: number | null
+          completed_successfully: boolean | null
+          created_at: string
+          early_exit_reason: string | null
+          id: string
+          profile_id: string | null
+          profile_name: string
+          scheduled_end_at: string | null
+          sites_blocked_count: number | null
+          started_at: string
+          status: string | null
+          strictness_level: string
+          time_saved_minutes: number | null
+          user_id: string
+        }
+        Insert: {
+          actual_end_at?: string | null
+          apps_blocked_count?: number | null
+          bypass_attempts?: number | null
+          completed_successfully?: boolean | null
+          created_at?: string
+          early_exit_reason?: string | null
+          id?: string
+          profile_id?: string | null
+          profile_name: string
+          scheduled_end_at?: string | null
+          sites_blocked_count?: number | null
+          started_at?: string
+          status?: string | null
+          strictness_level?: string
+          time_saved_minutes?: number | null
+          user_id: string
+        }
+        Update: {
+          actual_end_at?: string | null
+          apps_blocked_count?: number | null
+          bypass_attempts?: number | null
+          completed_successfully?: boolean | null
+          created_at?: string
+          early_exit_reason?: string | null
+          id?: string
+          profile_id?: string | null
+          profile_name?: string
+          scheduled_end_at?: string | null
+          sites_blocked_count?: number | null
+          started_at?: string
+          status?: string | null
+          strictness_level?: string
+          time_saved_minutes?: number | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shield_sessions_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "discipline_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       small_wins: {
         Row: {
@@ -1298,6 +1863,101 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      unlock_request_responses: {
+        Row: {
+          created_at: string
+          extend_minutes: number | null
+          id: string
+          message: string | null
+          request_id: string
+          responder_id: string
+          response: string
+        }
+        Insert: {
+          created_at?: string
+          extend_minutes?: number | null
+          id?: string
+          message?: string | null
+          request_id: string
+          responder_id: string
+          response: string
+        }
+        Update: {
+          created_at?: string
+          extend_minutes?: number | null
+          id?: string
+          message?: string | null
+          request_id?: string
+          responder_id?: string
+          response?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "unlock_request_responses_request_id_fkey"
+            columns: ["request_id"]
+            isOneToOne: false
+            referencedRelation: "unlock_requests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      unlock_requests: {
+        Row: {
+          approvals_received: number | null
+          approvals_required: number | null
+          created_at: string
+          expires_at: string | null
+          group_id: string | null
+          id: string
+          reason: string
+          resolved_at: string | null
+          session_id: string | null
+          status: string | null
+          user_id: string
+        }
+        Insert: {
+          approvals_received?: number | null
+          approvals_required?: number | null
+          created_at?: string
+          expires_at?: string | null
+          group_id?: string | null
+          id?: string
+          reason: string
+          resolved_at?: string | null
+          session_id?: string | null
+          status?: string | null
+          user_id: string
+        }
+        Update: {
+          approvals_received?: number | null
+          approvals_required?: number | null
+          created_at?: string
+          expires_at?: string | null
+          group_id?: string | null
+          id?: string
+          reason?: string
+          resolved_at?: string | null
+          session_id?: string | null
+          status?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "unlock_requests_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "accountability_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "unlock_requests_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "shield_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_badges: {
         Row: {
