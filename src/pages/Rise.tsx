@@ -8,8 +8,7 @@ import { RiseBottomNav } from '@/components/rise/RiseBottomNav';
 import { RiseHeader } from '@/components/rise/RiseHeader';
 import { RiseAlarmCard } from '@/components/rise/RiseAlarmCard';
 import { RiseAlarmEditor } from '@/components/rise/RiseAlarmEditor';
-import { RiseSleepTracker } from '@/components/rise/RiseSleepTracker';
-import { RiseMorningRoutines } from '@/components/rise/RiseMorningRoutines';
+import { RiseGroupWake } from '@/components/rise/RiseGroupWake';
 import { RiseReports } from '@/components/rise/RiseReports';
 import { RiseSettings } from '@/components/rise/RiseSettings';
 import { Card, CardContent } from '@/components/ui/card';
@@ -50,14 +49,6 @@ export default function RisePage() {
   // Editor state
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingAlarm, setEditingAlarm] = useState<RiseAlarm | null>(null);
-
-  // Mock sleep data - will be replaced with real data
-  const sleepData = {
-    avgDuration: 7.2,
-    sleepScore: 78,
-    bedtime: '11:30 PM',
-    wakeTime: '6:45 AM'
-  };
 
   useEffect(() => {
     if (user) {
@@ -360,12 +351,8 @@ export default function RisePage() {
           </div>
         )}
 
-        {activeTab === 'sleep' && (
-          <RiseSleepTracker sleepData={sleepData} />
-        )}
-
-        {activeTab === 'morning' && (
-          <RiseMorningRoutines />
+        {activeTab === 'group' && (
+          <RiseGroupWake />
         )}
 
         {activeTab === 'reports' && (
