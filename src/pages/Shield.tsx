@@ -11,8 +11,8 @@ import { ShieldBlockScreen } from '@/components/shield/ShieldBlockScreen';
 import { ShieldAnalytics } from '@/components/shield/ShieldAnalytics';
 import { ShieldAccountability } from '@/components/shield/ShieldAccountability';
 import { ShieldUsageStats } from '@/components/shield/ShieldUsageStats';
-import { ShieldBlockingCard } from '@/components/shield/ShieldBlockingCard';
 import { ShieldFocusTimer } from '@/components/shield/ShieldFocusTimer';
+import { ShieldQuickActions } from '@/components/shield/ShieldQuickActions';
 
 type StrictnessMode = 'normal' | 'lock' | 'strict';
 type SubPage = 'main' | 'block-screen';
@@ -317,23 +317,26 @@ export default function ShieldPage() {
               disabled={!!activeSession}
             />
 
-            {/* Blocking Controls */}
-            <ShieldBlockingCard
-              blockedApps={blockedApps}
-              blockedWebsites={blockedWebsites}
-              blockedKeywords={blockedKeywords}
-              adultBlockEnabled={adultBlockEnabled}
-              reelsBlockEnabled={reelsBlockEnabled}
-              onAdultBlockToggle={setAdultBlockEnabled}
-              onReelsBlockToggle={setReelsBlockEnabled}
-            />
-
             {/* Profiles Section */}
             <ShieldProfilesSection
               profiles={profiles}
               onActivate={startSession}
               activeSession={activeSession}
               onRefresh={loadShieldData}
+            />
+
+            {/* Quick Actions */}
+            <ShieldQuickActions
+              blockedAppsCount={blockedApps.length}
+              blockedSitesCount={blockedWebsites.length}
+              blockedKeywordsCount={blockedKeywords.length}
+              reelsBlockEnabled={reelsBlockEnabled}
+              adultBlockEnabled={adultBlockEnabled}
+              onReelsToggle={setReelsBlockEnabled}
+              onAdultToggle={setAdultBlockEnabled}
+              onManageApps={() => toast.info('Manage blocked apps')}
+              onManageSites={() => toast.info('Manage blocked websites')}
+              onManageKeywords={() => toast.info('Manage blocked keywords')}
             />
           </>
         )}
