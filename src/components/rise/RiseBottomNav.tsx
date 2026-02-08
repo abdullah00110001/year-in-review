@@ -1,8 +1,7 @@
 import { cn } from '@/lib/utils';
 import { 
   AlarmClock, 
-  Moon,
-  Sun, 
+  Users,
   BarChart3, 
   Settings
 } from 'lucide-react';
@@ -15,8 +14,7 @@ interface RiseBottomNavProps {
 export function RiseBottomNav({ activeTab, onTabChange }: RiseBottomNavProps) {
   const tabs = [
     { id: 'alarms', icon: AlarmClock, label: 'Alarm' },
-    { id: 'sleep', icon: Moon, label: 'Sleep' },
-    { id: 'morning', icon: Sun, label: 'Morning' },
+    { id: 'group', icon: Users, label: 'Group' },
     { id: 'reports', icon: BarChart3, label: 'Report' },
     { id: 'settings', icon: Settings, label: 'Setting' },
   ];
