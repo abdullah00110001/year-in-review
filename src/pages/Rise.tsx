@@ -1,20 +1,20 @@
 import { useState, useEffect } from 'react';
-import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { 
-  Sunrise, 
-  Moon,
-  Flame,
-  AlertCircle
-} from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Plus, Sunrise } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 import { RiseBottomNav } from '@/components/rise/RiseBottomNav';
-import { RiseAlarmList } from '@/components/rise/RiseAlarmList';
-import { RiseMissions } from '@/components/rise/RiseMissions';
+import { RiseHeader } from '@/components/rise/RiseHeader';
+import { RiseAlarmCard } from '@/components/rise/RiseAlarmCard';
+import { RiseAlarmEditor } from '@/components/rise/RiseAlarmEditor';
 import { RiseSleepTracker } from '@/components/rise/RiseSleepTracker';
-import { RiseGroupWake } from '@/components/rise/RiseGroupWake';
-import { RiseAnalytics } from '@/components/rise/RiseAnalytics';
+import { RiseMorningRoutines } from '@/components/rise/RiseMorningRoutines';
+import { RiseReports } from '@/components/rise/RiseReports';
+import { RiseSettings } from '@/components/rise/RiseSettings';
+import { Card, CardContent } from '@/components/ui/card';
+import { scheduleAlarm, cancelAlarm } from '@/lib/capacitor/nativeAlarm';
+import { isNative } from '@/lib/capacitor/platform';
 
 interface RiseAlarm {
   id: string;
@@ -26,7 +26,9 @@ interface RiseAlarm {
   label: string | null;
   verification_type: string;
   snooze_limit: number;
-  group_id: string | null;
+  snooze_interval_minutes?: number;
+  sound_type?: string;
+  vibration_enabled?: boolean;
 }
 
 interface RiseStreak {
@@ -44,9 +46,12 @@ export default function RisePage() {
   const [streak, setStreak] = useState<RiseStreak | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [nextAlarm, setNextAlarm] = useState<{ time: string; countdown: string } | null>(null);
-  const [selectedMissions, setSelectedMissions] = useState<string[]>(['math', 'shake']);
+  
+  // Editor state
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [editingAlarm, setEditingAlarm] = useState<RiseAlarm | null>(null);
 
-  // Mock sleep data
+  // Mock sleep data - will be replaced with real data
   const sleepData = {
     avgDuration: 7.2,
     sleepScore: 78,
@@ -141,7 +146,7 @@ export default function RisePage() {
       
       setNextAlarm({
         time: closestAlarm.alarm.alarm_time,
-        countdown: `Ring in ${hours}h ${minutes}m`
+        countdown: `Ring in ${hours} hr. ${minutes} min`
       });
     } else {
       setNextAlarm(null);
@@ -149,30 +154,149 @@ export default function RisePage() {
   };
 
   const toggleAlarm = async (alarmId: string, enabled: boolean) => {
+    const alarm = alarms.find(a => a.id === alarmId);
+    if (!alarm) return;
+
     await supabase
       .from('rise_alarms')
       .update({ is_enabled: enabled })
       .eq('id', alarmId);
+
+    // Schedule/cancel native alarm
+    if (isNative) {
+      if (enabled) {
+        const [hours, minutes] = alarm.alarm_time.split(':').map(Number);
+        const scheduledAt = new Date();
+        scheduledAt.setHours(hours, minutes, 0, 0);
+        if (scheduledAt <= new Date()) {
+          scheduledAt.setDate(scheduledAt.getDate() + 1);
+        }
+        
+        await scheduleAlarm({
+          id: parseInt(alarmId.replace(/-/g, '').slice(0, 8), 16),
+          title: alarm.label || 'Rise Alarm',
+          body: alarm.intention || 'Time to wake up!',
+          scheduledAt,
+          missionType: alarm.verification_type as any,
+          intention: alarm.intention || undefined
+        });
+      } else {
+        await cancelAlarm(parseInt(alarmId.replace(/-/g, '').slice(0, 8), 16));
+      }
+    }
 
     setAlarms(prev => prev.map(a => 
       a.id === alarmId ? { ...a, is_enabled: enabled } : a
     ));
   };
 
-  const toggleMission = (missionId: string) => {
-    setSelectedMissions(prev => 
-      prev.includes(missionId)
-        ? prev.filter(m => m !== missionId)
-        : [...prev, missionId]
-    );
+  const handleEditAlarm = (alarm: RiseAlarm) => {
+    setEditingAlarm(alarm);
+    setEditorOpen(true);
   };
 
-  const formatTime = (time: string) => {
-    const [hours, minutes] = time.split(':');
-    const h = parseInt(hours);
-    const ampm = h >= 12 ? 'PM' : 'AM';
-    const displayHour = h > 12 ? h - 12 : h === 0 ? 12 : h;
-    return { time: `${displayHour}:${minutes}`, ampm };
+  const handleCreateAlarm = () => {
+    setEditingAlarm(null);
+    setEditorOpen(true);
+  };
+
+  const handleSaveAlarm = async (data: any) => {
+    if (!user) return;
+
+    try {
+      if (editingAlarm) {
+        // Update existing alarm
+        const { error } = await supabase
+          .from('rise_alarms')
+          .update({
+            alarm_time: data.alarm_time,
+            days_of_week: data.days_of_week,
+            alarm_type: data.alarm_type,
+            intention: data.intention || null,
+            label: data.label || null,
+            verification_type: data.verification_type,
+            snooze_limit: data.snooze_limit,
+            snooze_interval_minutes: data.snooze_interval_minutes,
+            sound_type: data.sound_type,
+            vibration_enabled: data.vibration_enabled
+          })
+          .eq('id', editingAlarm.id);
+
+        if (error) throw error;
+        toast.success('Alarm updated!');
+      } else {
+        // Create new alarm
+        const { error } = await supabase
+          .from('rise_alarms')
+          .insert({
+            user_id: user.id,
+            alarm_time: data.alarm_time,
+            days_of_week: data.days_of_week,
+            alarm_type: data.alarm_type,
+            intention: data.intention || null,
+            label: data.label || null,
+            verification_type: data.verification_type,
+            snooze_limit: data.snooze_limit,
+            snooze_interval_minutes: data.snooze_interval_minutes,
+            is_enabled: true
+          });
+
+        if (error) throw error;
+        toast.success('Alarm created!');
+      }
+
+      loadRiseData();
+    } catch (error) {
+      console.error('Error saving alarm:', error);
+      toast.error('Failed to save alarm');
+    }
+  };
+
+  const handleDeleteAlarm = async (alarmId: string) => {
+    const { error } = await supabase
+      .from('rise_alarms')
+      .delete()
+      .eq('id', alarmId);
+
+    if (error) {
+      toast.error('Failed to delete alarm');
+      return;
+    }
+
+    // Cancel native alarm
+    if (isNative) {
+      await cancelAlarm(parseInt(alarmId.replace(/-/g, '').slice(0, 8), 16));
+    }
+
+    toast.success('Alarm deleted');
+    loadRiseData();
+  };
+
+  const handleDuplicateAlarm = async (alarm: RiseAlarm) => {
+    if (!user) return;
+
+    const { error } = await supabase
+      .from('rise_alarms')
+      .insert({
+        user_id: user.id,
+        alarm_time: alarm.alarm_time,
+        days_of_week: alarm.days_of_week,
+        alarm_type: alarm.alarm_type,
+        intention: alarm.intention,
+        label: alarm.label ? `${alarm.label} (copy)` : null,
+        verification_type: alarm.verification_type,
+        snooze_limit: alarm.snooze_limit,
+        snooze_interval_minutes: alarm.snooze_interval_minutes,
+        is_enabled: false
+      });
+
+    if (error) {
+      toast.error('Failed to duplicate alarm');
+      return;
+    }
+
+    toast.success('Alarm duplicated');
+    loadRiseData();
   };
 
   if (isLoading) {
@@ -189,102 +313,94 @@ export default function RisePage() {
 
   return (
     <div className="min-h-screen bg-background pb-20">
-      {/* Header */}
-      <div className="bg-gradient-to-br from-orange-900/80 via-amber-800/60 to-yellow-700/40 text-white p-4 pb-6 rounded-b-3xl">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-3">
-            <div className="h-12 w-12 rounded-2xl bg-amber-500/20 flex items-center justify-center">
-              <Sunrise className="h-6 w-6 text-amber-300" />
-            </div>
-            <div>
-              <h1 className="text-xl font-bold">Rise</h1>
-              <p className="text-sm text-white/70">Wake with Purpose</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Badge variant="outline" className="border-white/20 text-white">
-              <Flame className="h-3 w-3 mr-1 text-orange-400" />
-              {streak?.current_streak || 0} days
-            </Badge>
-          </div>
-        </div>
-
-        {/* Next Alarm Card */}
-        {nextAlarm ? (
-          <Card className="bg-white/10 border-white/20 text-white">
-            <CardContent className="p-4">
-              <p className="text-sm text-white/70 mb-1">{nextAlarm.countdown}</p>
-              <div className="flex items-baseline gap-2">
-                <span className="text-4xl font-bold">{formatTime(nextAlarm.time).time}</span>
-                <span className="text-lg text-white/70">{formatTime(nextAlarm.time).ampm}</span>
-              </div>
-              {selectedMissions.length > 0 && (
-                <div className="mt-3 flex items-center gap-2">
-                  <span className="text-xs text-white/60">Missions:</span>
-                  {selectedMissions.slice(0, 3).map(m => (
-                    <Badge key={m} variant="secondary" className="text-xs bg-white/20 text-white">
-                      {m}
-                    </Badge>
-                  ))}
-                  {selectedMissions.length > 3 && (
-                    <Badge variant="secondary" className="text-xs bg-white/20 text-white">
-                      +{selectedMissions.length - 3}
-                    </Badge>
-                  )}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        ) : (
-          <Card className="bg-white/10 border-white/20 text-white">
-            <CardContent className="p-4 text-center">
-              <Moon className="h-8 w-8 mx-auto mb-2 text-white/50" />
-              <p className="text-white/70">No alarms set</p>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Recovery Mode Banner */}
-        {streak?.is_recovery_mode && (
-          <div className="mt-3 p-3 bg-amber-500/20 rounded-xl flex items-center gap-3">
-            <AlertCircle className="h-5 w-5 text-amber-300" />
-            <div>
-              <p className="text-sm font-medium">Recovery Mode Active</p>
-              <p className="text-xs text-white/70">Gentler wake-up expectations</p>
-            </div>
-          </div>
-        )}
-      </div>
+      {/* Header - only show on alarms tab */}
+      {activeTab === 'alarms' && (
+        <RiseHeader 
+          streak={streak?.current_streak || 0}
+          nextAlarm={nextAlarm}
+        />
+      )}
 
       {/* Content Area */}
       <div className="px-4 mt-4">
         {activeTab === 'alarms' && (
-          <RiseAlarmList 
-            alarms={alarms}
-            onToggle={toggleAlarm}
-            onRefresh={loadRiseData}
-          />
-        )}
+          <div className="space-y-3">
+            {/* Alarms List */}
+            {alarms.length === 0 ? (
+              <Card>
+                <CardContent className="py-8 text-center">
+                  <Sunrise className="h-12 w-12 mx-auto mb-3 text-muted-foreground/50" />
+                  <h3 className="font-semibold mb-1">No Alarms Set</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Create an alarm to start your disciplined mornings
+                  </p>
+                </CardContent>
+              </Card>
+            ) : (
+              alarms.map((alarm) => (
+                <RiseAlarmCard
+                  key={alarm.id}
+                  alarm={alarm}
+                  onToggle={toggleAlarm}
+                  onEdit={handleEditAlarm}
+                  onDelete={handleDeleteAlarm}
+                  onDuplicate={handleDuplicateAlarm}
+                />
+              ))
+            )}
 
-        {activeTab === 'missions' && (
-          <RiseMissions 
-            selectedMissions={selectedMissions}
-            onMissionToggle={toggleMission}
-          />
+            {/* FAB */}
+            <Button
+              onClick={handleCreateAlarm}
+              className="fixed bottom-24 right-4 h-14 w-14 rounded-full shadow-lg bg-rose-500 hover:bg-rose-600"
+              size="icon"
+            >
+              <Plus className="h-6 w-6" />
+            </Button>
+          </div>
         )}
 
         {activeTab === 'sleep' && (
           <RiseSleepTracker sleepData={sleepData} />
         )}
 
-        {activeTab === 'group' && (
-          <RiseGroupWake streak={streak} />
+        {activeTab === 'morning' && (
+          <RiseMorningRoutines />
         )}
 
-        {activeTab === 'analytics' && (
-          <RiseAnalytics streak={streak} />
+        {activeTab === 'reports' && (
+          <RiseReports />
+        )}
+
+        {activeTab === 'settings' && (
+          <RiseSettings />
         )}
       </div>
+
+      {/* Alarm Editor */}
+      <RiseAlarmEditor
+        open={editorOpen}
+        onClose={() => {
+          setEditorOpen(false);
+          setEditingAlarm(null);
+        }}
+        onSave={handleSaveAlarm}
+        initialData={editingAlarm ? {
+          alarm_time: editingAlarm.alarm_time,
+          days_of_week: editingAlarm.days_of_week,
+          alarm_type: editingAlarm.alarm_type,
+          intention: editingAlarm.intention || '',
+          label: editingAlarm.label || '',
+          verification_type: editingAlarm.verification_type,
+          snooze_limit: editingAlarm.snooze_limit,
+          snooze_interval_minutes: editingAlarm.snooze_interval_minutes || 5,
+          sound_type: editingAlarm.sound_type || 'default',
+          vibration_enabled: editingAlarm.vibration_enabled ?? true,
+          volume: 80,
+          gentle_wakeup_seconds: 30
+        } : undefined}
+        isEditing={!!editingAlarm}
+      />
 
       {/* Bottom Navigation */}
       <RiseBottomNav activeTab={activeTab} onTabChange={setActiveTab} />
