@@ -8,6 +8,7 @@ import { ThemeProvider } from "@/contexts/ThemeContext";
 import { LanguageProvider } from "@/contexts/LanguageContext";
 import { AppModeProvider } from "@/contexts/AppModeContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
+import { useCapacitor } from "@/hooks/useCapacitor";
 import UpdatePrompt from "@/components/pwa/UpdatePrompt";
 import ScrollToTop from "@/components/ScrollToTop";
 import Index from "./pages/Index";
@@ -79,17 +80,24 @@ const queryClient = new QueryClient({
   },
 });
 
+// Capacitor initialization wrapper
+const CapacitorInit = ({ children }: { children: React.ReactNode }) => {
+  useCapacitor();
+  return <>{children}</>;
+};
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <ThemeProvider>
       <AuthProvider>
-        <LanguageProvider>
-          <AppModeProvider>
-            <TooltipProvider>
-              <Toaster />
-              <Sonner />
-              <OfflineIndicator />
-              <UpdatePrompt />
+        <CapacitorInit>
+          <LanguageProvider>
+            <AppModeProvider>
+              <TooltipProvider>
+                <Toaster />
+                <Sonner />
+                <OfflineIndicator />
+                <UpdatePrompt />
               <BrowserRouter>
               <ScrollToTop />
               <Routes>
@@ -423,9 +431,10 @@ const App = () => (
             </TooltipProvider>
           </AppModeProvider>
         </LanguageProvider>
-      </AuthProvider>
-    </ThemeProvider>
-  </QueryClientProvider>
+      </CapacitorInit>
+    </AuthProvider>
+  </ThemeProvider>
+</QueryClientProvider>
 );
 
 export default App;
