@@ -1,8 +1,8 @@
 import { cn } from '@/lib/utils';
 import { 
-  Bell, 
-  Users, 
+  AlarmClock, 
   Moon,
+  Sun, 
   BarChart3, 
   Settings
 } from 'lucide-react';
@@ -14,11 +14,11 @@ interface RiseBottomNavProps {
 
 export function RiseBottomNav({ activeTab, onTabChange }: RiseBottomNavProps) {
   const tabs = [
-    { id: 'alarms', icon: Bell, label: 'Alarms' },
-    { id: 'missions', icon: Settings, label: 'Missions' },
+    { id: 'alarms', icon: AlarmClock, label: 'Alarm' },
     { id: 'sleep', icon: Moon, label: 'Sleep' },
-    { id: 'group', icon: Users, label: 'Group' },
-    { id: 'analytics', icon: BarChart3, label: 'Stats' },
+    { id: 'morning', icon: Sun, label: 'Morning' },
+    { id: 'reports', icon: BarChart3, label: 'Report' },
+    { id: 'settings', icon: Settings, label: 'Setting' },
   ];
 
   return (
@@ -29,15 +29,15 @@ export function RiseBottomNav({ activeTab, onTabChange }: RiseBottomNavProps) {
             key={tab.id}
             onClick={() => onTabChange(tab.id)}
             className={cn(
-              'flex flex-col items-center justify-center py-2 px-3 rounded-xl transition-all min-w-[60px]',
+              'flex flex-col items-center justify-center py-2 px-3 rounded-xl transition-all min-w-[56px]',
               activeTab === tab.id 
-                ? 'bg-primary/10 text-primary' 
+                ? 'text-amber-500' 
                 : 'text-muted-foreground hover:text-foreground'
             )}
           >
             <tab.icon className={cn(
               'h-5 w-5 mb-1',
-              activeTab === tab.id && 'text-primary'
+              activeTab === tab.id && 'text-amber-500'
             )} />
             <span className="text-[10px] font-medium">{tab.label}</span>
           </button>
