@@ -1,28 +1,21 @@
 import { useState, useEffect } from 'react';
-import { Badge } from '@/components/ui/badge';
-import { 
-  Shield, 
-  Flame
-} from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { ShieldBottomNav } from '@/components/shield/ShieldBottomNav';
 import { ShieldHeader } from '@/components/shield/ShieldHeader';
-import { ShieldAnalyticsCards } from '@/components/shield/ShieldAnalyticsCards';
-import { ShieldTakeABreak } from '@/components/shield/ShieldTakeABreak';
-import { ShieldStrictnessCard } from '@/components/shield/ShieldStrictnessCard';
 import { ShieldProfilesSection } from '@/components/shield/ShieldProfilesSection';
-import { ShieldQuickActionsCard } from '@/components/shield/ShieldQuickActionsCard';
 import { ShieldModes } from '@/components/shield/ShieldModes';
 import { ShieldSettings } from '@/components/shield/ShieldSettings';
 import { ShieldBlockScreen } from '@/components/shield/ShieldBlockScreen';
-import { ShieldOrganiseDashboard } from '@/components/shield/ShieldOrganiseDashboard';
 import { ShieldAnalytics } from '@/components/shield/ShieldAnalytics';
 import { ShieldAccountability } from '@/components/shield/ShieldAccountability';
+import { ShieldUsageStats } from '@/components/shield/ShieldUsageStats';
+import { ShieldBlockingCard } from '@/components/shield/ShieldBlockingCard';
+import { ShieldFocusTimer } from '@/components/shield/ShieldFocusTimer';
 
 type StrictnessMode = 'normal' | 'lock' | 'strict';
-type SubPage = 'main' | 'settings' | 'block-screen' | 'organise';
+type SubPage = 'main' | 'block-screen';
 
 interface DisciplineProfile {
   id: string;
@@ -66,25 +59,19 @@ export default function ShieldPage() {
   const [activeSession, setActiveSession] = useState<ShieldSession | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   
-  // Screen time and usage data
-  const [screenTime, setScreenTime] = useState(789); // 13h 9m in minutes
-  const [appLaunches, setAppLaunches] = useState(317);
-  
   // Strictness mode
   const [strictnessMode, setStrictnessMode] = useState<StrictnessMode>('normal');
   
-  // Blocking state
-  const [blockedApps, setBlockedApps] = useState<string[]>(['Instagram', 'TikTok']);
-  const [blockedWebsites, setBlockedWebsites] = useState<string[]>(['instagram.com', 'tiktok.com']);
-  const [blockedKeywords, setBlockedKeywords] = useState<string[]>(['shorts', 'reels']);
-  const [keywordsEnabled, setKeywordsEnabled] = useState(true);
+  // Blocking state from database - will be loaded from profiles
+  const [blockedApps] = useState<string[]>(['Instagram', 'TikTok', 'YouTube']);
+  const [blockedWebsites] = useState<string[]>(['instagram.com', 'tiktok.com']);
+  const [blockedKeywords] = useState<string[]>(['shorts', 'reels']);
   const [adultBlockEnabled, setAdultBlockEnabled] = useState(false);
   const [reelsBlockEnabled, setReelsBlockEnabled] = useState(true);
   
   // Settings state
   const [settings, setSettings] = useState({
     pauseDurationEnabled: true,
-    blockUnsupportedBrowsers: false,
     blockSplitScreen: false,
     blockPowerOff: false,
     blockRecentApps: false,
@@ -94,16 +81,6 @@ export default function ShieldPage() {
   
   // Block screen selection
   const [selectedBlockScreen, setSelectedBlockScreen] = useState('default');
-  
-  // Dashboard organization
-  const [dashboardItems, setDashboardItems] = useState([
-    { id: 'profiles', label: 'Profiles' },
-    { id: 'apps', label: 'Apps Blocked' },
-    { id: 'sites', label: 'Sites Blocked' },
-    { id: 'keywords', label: 'Keywords Blocked' },
-    { id: 'adult', label: 'Block Adult Content' },
-    { id: 'reels', label: 'Block Reels/Shorts' },
-  ]);
 
   useEffect(() => {
     if (user) {
@@ -179,7 +156,7 @@ export default function ShieldPage() {
     const defaultProfiles = [
       {
         user_id: user.id,
-        name: 'Study',
+        name: 'Study Mode',
         icon: '📚',
         description: 'Block distractions while studying',
         strictness_level: 'hard',
@@ -193,7 +170,7 @@ export default function ShieldPage() {
       },
       {
         user_id: user.id,
-        name: 'study 11',
+        name: 'Deep Work',
         icon: '💼',
         description: 'Maximum focus for important work',
         strictness_level: 'absolute',
@@ -270,9 +247,18 @@ export default function ShieldPage() {
   };
 
   const handleNavigate = (page: string) => {
-    if (page === 'settings' || page === 'block-screen' || page === 'organise') {
+    if (page === 'block-screen') {
       setSubPage(page as SubPage);
     }
+  };
+
+  const handleTabChange = (tab: string) => {
+    setActiveTab(tab);
+    setSubPage('main');
+  };
+
+  const handleBreakStart = (minutes: number) => {
+    toast.success(`Break started for ${minutes} minutes`);
   };
 
   const getGreeting = () => {
@@ -282,33 +268,13 @@ export default function ShieldPage() {
     return 'Good Evening';
   };
 
-  // Render sub-pages
-  if (subPage === 'settings') {
-    return (
-      <ShieldSettings 
-        onBack={() => setSubPage('main')}
-        settings={settings}
-        onSettingChange={handleSettingChange}
-      />
-    );
-  }
-
+  // Render block screen sub-page
   if (subPage === 'block-screen') {
     return (
       <ShieldBlockScreen 
         onBack={() => setSubPage('main')}
         selectedScreen={selectedBlockScreen}
         onSelectScreen={setSelectedBlockScreen}
-      />
-    );
-  }
-
-  if (subPage === 'organise') {
-    return (
-      <ShieldOrganiseDashboard 
-        onBack={() => setSubPage('main')}
-        items={dashboardItems}
-        onReorder={setDashboardItems}
       />
     );
   }
@@ -329,9 +295,7 @@ export default function ShieldPage() {
   return (
     <div className="min-h-screen bg-background pb-24">
       {/* Header */}
-      <ShieldHeader 
-        onNavigate={handleNavigate}
-      />
+      <ShieldHeader />
       
       {/* Content Area */}
       <div className="px-4 py-4 space-y-4">
@@ -339,30 +303,29 @@ export default function ShieldPage() {
           <>
             {/* Welcome Message */}
             <div className="mb-2">
-              <p className="text-sm text-muted-foreground">Welcome</p>
+              <p className="text-sm text-muted-foreground">Welcome back</p>
               <h1 className="text-2xl font-bold">{getGreeting()}</h1>
             </div>
 
-            {/* Analytics Cards */}
-            <ShieldAnalyticsCards
-              screenTimeMinutes={screenTime}
-              screenTimeChange={8}
-              appLaunches={appLaunches}
-              appLaunchesChange={6}
-              onScreenTimeClick={() => setActiveTab('analytics')}
-              onAppLaunchesClick={() => setActiveTab('analytics')}
-            />
+            {/* Usage Stats */}
+            <ShieldUsageStats onViewDetails={() => handleTabChange('analytics')} />
 
-            {/* Take a Break */}
-            <ShieldTakeABreak 
-              onBreakStart={(minutes) => console.log('Break started:', minutes)}
+            {/* Focus Timer / Take a Break */}
+            <ShieldFocusTimer 
+              isSessionActive={!!activeSession}
+              onStartBreak={handleBreakStart}
               disabled={!!activeSession}
             />
 
-            {/* Strictness Level Card */}
-            <ShieldStrictnessCard 
-              activeMode={strictnessMode}
-              onClick={() => setActiveTab('modes')}
+            {/* Blocking Controls */}
+            <ShieldBlockingCard
+              blockedApps={blockedApps}
+              blockedWebsites={blockedWebsites}
+              blockedKeywords={blockedKeywords}
+              adultBlockEnabled={adultBlockEnabled}
+              reelsBlockEnabled={reelsBlockEnabled}
+              onAdultBlockToggle={setAdultBlockEnabled}
+              onReelsBlockToggle={setReelsBlockEnabled}
             />
 
             {/* Profiles Section */}
@@ -371,24 +334,6 @@ export default function ShieldPage() {
               onActivate={startSession}
               activeSession={activeSession}
               onRefresh={loadShieldData}
-            />
-
-            {/* Quick Actions */}
-            <ShieldQuickActionsCard
-              appsBlocked={blockedApps.length}
-              sitesBlocked={blockedWebsites.length}
-              keywordsBlocked={blockedKeywords.length}
-              keywordsEnabled={keywordsEnabled}
-              adultBlockEnabled={adultBlockEnabled}
-              reelsBlockEnabled={reelsBlockEnabled}
-              onKeywordsToggle={setKeywordsEnabled}
-              onAdultBlockToggle={setAdultBlockEnabled}
-              onReelsBlockToggle={setReelsBlockEnabled}
-              onAppsClick={() => {}}
-              onSitesClick={() => {}}
-              onKeywordsClick={() => {}}
-              onAdultClick={() => {}}
-              onReelsClick={() => {}}
             />
           </>
         )}
@@ -408,10 +353,18 @@ export default function ShieldPage() {
         {activeTab === 'account' && (
           <ShieldAccountability />
         )}
+
+        {activeTab === 'settings' && (
+          <ShieldSettings 
+            settings={settings}
+            onSettingChange={handleSettingChange}
+            onNavigate={handleNavigate}
+          />
+        )}
       </div>
 
       {/* Bottom Navigation */}
-      <ShieldBottomNav activeTab={activeTab} onTabChange={setActiveTab} />
+      <ShieldBottomNav activeTab={activeTab} onTabChange={handleTabChange} />
     </div>
   );
 }

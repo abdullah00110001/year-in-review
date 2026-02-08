@@ -3,7 +3,8 @@ import {
   LayoutDashboard, 
   Zap, 
   BarChart3, 
-  User
+  Users,
+  Settings
 } from 'lucide-react';
 
 interface ShieldBottomNavProps {
@@ -13,15 +14,16 @@ interface ShieldBottomNavProps {
 
 export function ShieldBottomNav({ activeTab, onTabChange }: ShieldBottomNavProps) {
   const tabs = [
-    { id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+    { id: 'dashboard', icon: LayoutDashboard, label: 'Home' },
     { id: 'modes', icon: Zap, label: 'Modes' },
-    { id: 'analytics', icon: BarChart3, label: 'Analytics' },
-    { id: 'account', icon: User, label: 'Account' },
+    { id: 'analytics', icon: BarChart3, label: 'Stats' },
+    { id: 'account', icon: Users, label: 'Group' },
+    { id: 'settings', icon: Settings, label: 'Settings' },
   ];
 
   return (
     <div className="fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur-lg border-t border-border z-50">
-      <div className="flex items-center justify-around py-2 px-2 max-w-lg mx-auto">
+      <div className="flex items-center justify-around py-2 px-1 max-w-lg mx-auto">
         {tabs.map((tab) => {
           const isActive = activeTab === tab.id;
           return (
@@ -29,15 +31,15 @@ export function ShieldBottomNav({ activeTab, onTabChange }: ShieldBottomNavProps
               key={tab.id}
               onClick={() => onTabChange(tab.id)}
               className={cn(
-                'flex flex-col items-center justify-center py-2 px-4 rounded-xl transition-all min-w-[70px]',
+                'flex flex-col items-center justify-center py-1.5 px-3 rounded-xl transition-all min-w-[56px]',
                 isActive 
-                  ? 'bg-primary/20' 
+                  ? 'bg-primary/10' 
                   : 'text-muted-foreground hover:text-foreground'
               )}
             >
               <div className={cn(
-                'p-2 rounded-xl transition-all',
-                isActive && 'bg-primary/30'
+                'p-1.5 rounded-xl transition-all',
+                isActive && 'bg-primary/20'
               )}>
                 <tab.icon className={cn(
                   'h-5 w-5',
@@ -45,7 +47,7 @@ export function ShieldBottomNav({ activeTab, onTabChange }: ShieldBottomNavProps
                 )} />
               </div>
               <span className={cn(
-                'text-[10px] font-medium mt-1',
+                'text-[10px] font-medium mt-0.5',
                 isActive ? 'text-primary' : 'text-muted-foreground'
               )}>
                 {tab.label}
