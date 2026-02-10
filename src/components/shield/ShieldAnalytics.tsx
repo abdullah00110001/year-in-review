@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { 
@@ -10,6 +11,9 @@ import {
   CheckCircle2,
   XCircle
 } from 'lucide-react';
+import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/integrations/supabase/client';
+import { format, subDays, startOfDay } from 'date-fns';
 
 interface DisciplineScore {
   current_score: number;
@@ -23,8 +27,79 @@ interface ShieldAnalyticsProps {
   disciplineScore: DisciplineScore | null;
 }
 
+interface SessionLog {
+  id: string;
+  profile_name: string;
+  status: string;
+  started_at: string;
+  actual_end_at: string | null;
+  bypass_attempts: number;
+}
+
 export function ShieldAnalytics({ disciplineScore }: ShieldAnalyticsProps) {
+  const { user } = useAuth();
   const score = disciplineScore?.current_score || 50;
+  const [weeklyData, setWeeklyData] = useState<{ day: string; score: number; sessions: number }[]>([]);
+  const [recentActivity, setRecentActivity] = useState<SessionLog[]>([]);
+  const [totalBypassAttempts, setTotalBypassAttempts] = useState(0);
+  const [yesterdayBypasses, setYesterdayBypasses] = useState(0);
+  
+  useEffect(() => {
+    if (user) {
+      loadAnalytics();
+    }
+  }, [user]);
+
+  const loadAnalytics = async () => {
+    if (!user) return;
+
+    try {
+      // Load last 7 days of sessions
+      const sevenDaysAgo = format(subDays(new Date(), 7), 'yyyy-MM-dd');
+      
+      const { data: sessions } = await supabase
+        .from('shield_sessions')
+        .select('*')
+        .eq('user_id', user.id)
+        .gte('started_at', sevenDaysAgo)
+        .order('started_at', { ascending: false });
+
+      // Build weekly data from real sessions
+      const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+      const weekData = days.map((day, i) => {
+        const daySessions = (sessions || []).filter(s => new Date(s.started_at).getDay() === i);
+        const completedSessions = daySessions.filter(s => s.status === 'completed');
+        const dayScore = daySessions.length > 0 
+          ? Math.round((completedSessions.length / daySessions.length) * 100)
+          : 0;
+        return { day, score: dayScore, sessions: daySessions.length };
+      });
+      setWeeklyData(weekData);
+
+      // Recent activity (last 5 sessions)
+      setRecentActivity((sessions || []).slice(0, 5) as SessionLog[]);
+
+      // Bypass attempts
+      const { data: bypassLogs } = await supabase
+        .from('shield_bypass_logs')
+        .select('id, created_at')
+        .eq('user_id', user.id)
+        .gte('created_at', format(startOfDay(new Date()), "yyyy-MM-dd'T'HH:mm:ss"));
+
+      setTotalBypassAttempts(bypassLogs?.length || 0);
+
+      const { data: yesterdayLogs } = await supabase
+        .from('shield_bypass_logs')
+        .select('id')
+        .eq('user_id', user.id)
+        .gte('created_at', format(startOfDay(subDays(new Date(), 1)), "yyyy-MM-dd'T'HH:mm:ss"))
+        .lt('created_at', format(startOfDay(new Date()), "yyyy-MM-dd'T'HH:mm:ss"));
+
+      setYesterdayBypasses(yesterdayLogs?.length || 0);
+    } catch (error) {
+      console.error('Error loading analytics:', error);
+    }
+  };
   
   const getScoreColor = () => {
     if (score >= 80) return 'text-emerald-500';
@@ -46,15 +121,15 @@ export function ShieldAnalytics({ disciplineScore }: ShieldAnalyticsProps) {
     return `${hours}h ${mins}m`;
   };
 
-  const weeklyData = [
-    { day: 'Mon', score: 72, sessions: 3 },
-    { day: 'Tue', score: 78, sessions: 4 },
-    { day: 'Wed', score: 65, sessions: 2 },
-    { day: 'Thu', score: 85, sessions: 5 },
-    { day: 'Fri', score: 70, sessions: 3 },
-    { day: 'Sat', score: 55, sessions: 1 },
-    { day: 'Sun', score: score, sessions: 2 }
-  ];
+  const formatSessionTime = (dateStr: string) => {
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    if (diffHours < 1) return 'Just now';
+    if (diffHours < 24) return `${diffHours}h ago`;
+    return format(date, 'MMM d');
+  };
 
   return (
     <div className="space-y-4">
@@ -119,62 +194,68 @@ export function ShieldAnalytics({ disciplineScore }: ShieldAnalyticsProps) {
               <div key={day.day} className="flex-1 flex flex-col items-center gap-1">
                 <div 
                   className="w-full bg-primary/20 rounded-t-lg transition-all"
-                  style={{ height: `${day.score}%` }}
+                  style={{ height: `${Math.max(day.score, 5)}%` }}
                 >
                   <div 
                     className="w-full bg-primary rounded-t-lg"
-                    style={{ height: `${Math.min(day.score, score)}%` }}
+                    style={{ height: '100%' }}
                   />
                 </div>
                 <p className="text-xs text-muted-foreground">{day.day}</p>
               </div>
             ))}
           </div>
+          {weeklyData.every(d => d.sessions === 0) && (
+            <p className="text-xs text-muted-foreground text-center mt-2">No sessions this week yet</p>
+          )}
         </CardContent>
       </Card>
 
-      {/* Recent Activity */}
+      {/* Recent Activity - from real data */}
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-base">Recent Activity</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          <div className="flex items-center gap-3 p-2 bg-emerald-500/10 rounded-lg">
-            <CheckCircle2 className="h-5 w-5 text-emerald-500" />
-            <div className="flex-1">
-              <p className="text-sm font-medium">Study Mode completed</p>
-              <p className="text-xs text-muted-foreground">2 hours focused</p>
-            </div>
-            <p className="text-xs text-muted-foreground">2h ago</p>
-          </div>
-          
-          <div className="flex items-center gap-3 p-2 bg-amber-500/10 rounded-lg">
-            <AlertTriangle className="h-5 w-5 text-amber-500" />
-            <div className="flex-1">
-              <p className="text-sm font-medium">Bypass attempt blocked</p>
-              <p className="text-xs text-muted-foreground">Tried to access Instagram</p>
-            </div>
-            <p className="text-xs text-muted-foreground">5h ago</p>
-          </div>
-          
-          <div className="flex items-center gap-3 p-2 bg-emerald-500/10 rounded-lg">
-            <CheckCircle2 className="h-5 w-5 text-emerald-500" />
-            <div className="flex-1">
-              <p className="text-sm font-medium">Deep Work completed</p>
-              <p className="text-xs text-muted-foreground">3 hours focused</p>
-            </div>
-            <p className="text-xs text-muted-foreground">Yesterday</p>
-          </div>
+          {recentActivity.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-4">No recent sessions</p>
+          ) : (
+            recentActivity.map((session) => (
+              <div key={session.id} className="flex items-center gap-3 p-2 bg-muted/50 rounded-lg">
+                {session.status === 'completed' ? (
+                  <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+                ) : session.bypass_attempts > 0 ? (
+                  <AlertTriangle className="h-5 w-5 text-amber-500" />
+                ) : (
+                  <XCircle className="h-5 w-5 text-muted-foreground" />
+                )}
+                <div className="flex-1">
+                  <p className="text-sm font-medium">{session.profile_name}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {session.status === 'completed' ? 'Completed' : session.status}
+                    {session.bypass_attempts > 0 && ` • ${session.bypass_attempts} bypass attempts`}
+                  </p>
+                </div>
+                <p className="text-xs text-muted-foreground">{formatSessionTime(session.started_at)}</p>
+              </div>
+            ))
+          )}
         </CardContent>
       </Card>
 
-      {/* Honest Insight */}
+      {/* Honest Insight - from real data */}
       <Card className="bg-muted/50">
         <CardContent className="p-4">
           <p className="text-sm text-muted-foreground text-center">
-            "You tried to escape focus <span className="font-bold text-foreground">2 times</span> today. 
-            Yesterday: <span className="font-bold text-foreground">4 times</span>. 
-            You're improving."
+            {totalBypassAttempts > 0 ? (
+              <>
+                You tried to escape focus <span className="font-bold text-foreground">{totalBypassAttempts} times</span> today. 
+                Yesterday: <span className="font-bold text-foreground">{yesterdayBypasses} times</span>. 
+                {totalBypassAttempts < yesterdayBypasses ? " You're improving. 💪" : " Stay strong! 🛡️"}
+              </>
+            ) : (
+              <>No bypass attempts today. Keep it up! 🎯</>
+            )}
           </p>
         </CardContent>
       </Card>
