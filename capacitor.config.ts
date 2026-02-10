@@ -5,12 +5,7 @@ const config: CapacitorConfig = {
   appName: 'Life OS',
   webDir: 'dist',
   server: {
-    // For development: point to live preview
-    url: 'https://77ecc391-ba6e-4f72-bf7d-26813e27ef4e.lovableproject.com?forceHideBadge=true',
-    cleartext: true,
-    
-    // For production: comment above and uncomment below
-    // androidScheme: 'https'
+    androidScheme: 'https'
   },
   plugins: {
     SplashScreen: {
