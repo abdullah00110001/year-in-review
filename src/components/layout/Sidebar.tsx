@@ -33,7 +33,8 @@ import {
   Compass,
   Flame,
   BookHeart,
-  TrendingUp
+  TrendingUp,
+  FileType
 } from 'lucide-react';
 import { useAppMode } from '@/contexts/AppModeContext';
 
@@ -88,9 +89,11 @@ export default function Sidebar() {
     { name: t('nav.journal'), href: '/journal', icon: BookOpen },
     { name: t('nav.analytics'), href: '/analytics', icon: BarChart3 },
     { name: t('nav.export'), href: '/export', icon: Download },
+    { name: 'BlackBox PDF', href: '/pdf-tools', icon: FileType },
     ...(isAdmin ? [
       { name: t('nav.admin'), href: '/admin', icon: Shield },
       { name: t('nav.adminCommand'), href: '/admin-command', icon: Shield },
+      { name: 'PDF Admin', href: '/admin/pdf-tools', icon: FileType },
     ] : []),
     { name: t('nav.settings'), href: '/settings', icon: Settings },
   ];

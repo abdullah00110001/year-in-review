@@ -7,8 +7,8 @@ import { AuthProvider } from "@/hooks/useAuth";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { LanguageProvider } from "@/contexts/LanguageContext";
 import { AppModeProvider } from "@/contexts/AppModeContext";
+import { CapacitorProvider } from "@/contexts/CapacitorContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
-import { useCapacitor } from "@/hooks/useCapacitor";
 import UpdatePrompt from "@/components/pwa/UpdatePrompt";
 import ScrollToTop from "@/components/ScrollToTop";
 import Index from "./pages/Index";
@@ -56,6 +56,9 @@ import NotFound from "./pages/NotFound";
 import OfflineIndicator from "./components/OfflineIndicator";
 import ShieldPage from "./pages/Shield";
 import RisePage from "./pages/Rise";
+import PDFTools from "./pages/PDFTools";
+import AdminPDFTools from "./pages/admin/AdminPDFTools";
+import AdminPanel from "./pages/admin/AdminPanel";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -80,17 +83,11 @@ const queryClient = new QueryClient({
   },
 });
 
-// Capacitor initialization wrapper
-const CapacitorInit = ({ children }: { children: React.ReactNode }) => {
-  useCapacitor();
-  return <>{children}</>;
-};
-
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <ThemeProvider>
       <AuthProvider>
-        <CapacitorInit>
+        <CapacitorProvider>
           <LanguageProvider>
             <AppModeProvider>
               <TooltipProvider>
@@ -282,6 +279,14 @@ const App = () => (
                   }
                 />
                 <Route
+                  path="/admin/panel"
+                  element={
+                    <AdminProtectedRoute>
+                      <AdminPanel />
+                    </AdminProtectedRoute>
+                  }
+                />
+                <Route
                   path="/wrapped"
                   element={
                     <ProtectedRoute>
@@ -425,13 +430,22 @@ const App = () => (
                     </ProtectedRoute>
                   }
                 />
+                <Route path="/pdf-tools" element={<PDFTools />} />
+                <Route
+                  path="/admin/pdf-tools"
+                  element={
+                    <AdminProtectedRoute>
+                      <AdminPDFTools />
+                    </AdminProtectedRoute>
+                  }
+                />
                 <Route path="*" element={<NotFound />} />
               </Routes>
               </BrowserRouter>
             </TooltipProvider>
           </AppModeProvider>
         </LanguageProvider>
-      </CapacitorInit>
+      </CapacitorProvider>
     </AuthProvider>
   </ThemeProvider>
 </QueryClientProvider>

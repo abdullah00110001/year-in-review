@@ -95,8 +95,9 @@ export default defineConfig(({ mode }) => ({
         navigateFallback: "index.html",
         navigateFallbackDenylist: [/^\/api/, /^\/auth/],
         // Skip waiting to activate new service worker immediately
-        skipWaiting: true,
-        clientsClaim: true,
+      skipWaiting: true,
+      clientsClaim: true,
+      maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/nxvtoviyldffcqbtgriw\.supabase\.co\/rest\/v1\/.*/i,

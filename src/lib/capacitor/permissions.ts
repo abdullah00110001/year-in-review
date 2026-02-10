@@ -93,12 +93,32 @@ export const checkExactAlarmPermission = async (): Promise<PermissionStatus> => 
   return 'granted';
 };
 
+// Android-specific: Request exact alarm permission
+export const requestExactAlarmPermission = async (): Promise<PermissionStatus> => {
+  if (!isAndroid) return 'granted';
+  
+  // Would open system settings for exact alarm permission
+  // Requires custom plugin
+  console.log('[Permissions] Would request exact alarm permission');
+  return 'granted';
+};
+
 // Android-specific: Check usage stats permission (for Shield)
 export const checkUsageStatsPermission = async (): Promise<PermissionStatus> => {
   if (!isAndroid) return 'denied';
   
   // This would need a custom Capacitor plugin for PACKAGE_USAGE_STATS
   // Returns 'prompt' to indicate user needs to go to Settings
+  return 'prompt';
+};
+
+// Android-specific: Request usage stats permission
+export const requestUsageStatsPermission = async (): Promise<PermissionStatus> => {
+  if (!isAndroid) return 'denied';
+  
+  // Would open Usage Access settings
+  // Requires custom plugin
+  await openUsageStatsSettings();
   return 'prompt';
 };
 
@@ -119,6 +139,13 @@ export const openUsageStatsSettings = async () => {
   console.log('[Permissions] Would open usage stats settings');
 };
 
+// Open battery optimization settings
+export const openBatterySettings = async () => {
+  if (!isAndroid) return;
+  
+  console.log('[Permissions] Would open battery optimization settings');
+};
+
 // Get all permission states
 export const getAllPermissions = async (): Promise<PermissionState> => {
   const [notifications, exactAlarm, usageStats] = await Promise.all([
@@ -128,4 +155,20 @@ export const getAllPermissions = async (): Promise<PermissionState> => {
   ]);
 
   return { notifications, exactAlarm, usageStats };
+};
+
+// Check if all required permissions are granted for Rise
+export const hasRisePermissions = async (): Promise<boolean> => {
+  const notifications = await checkNotificationPermission();
+  const exactAlarm = await checkExactAlarmPermission();
+  
+  return notifications === 'granted' && exactAlarm === 'granted';
+};
+
+// Check if all required permissions are granted for Shield
+export const hasShieldPermissions = async (): Promise<boolean> => {
+  const notifications = await checkNotificationPermission();
+  const usageStats = await checkUsageStatsPermission();
+  
+  return notifications === 'granted' && usageStats === 'granted';
 };

@@ -28,6 +28,11 @@ const adminNavItems = [
     icon: LayoutDashboard,
   },
   {
+    title: 'Control Center',
+    href: '/admin/panel',
+    icon: Shield,
+  },
+  {
     title: 'User Inspector',
     href: '/admin/users',
     icon: Search,

@@ -6,11 +6,11 @@ const config: CapacitorConfig = {
   webDir: 'dist',
   server: {
     // For development: point to live preview
-    // url: 'https://96d521a5-41fd-41e1-a1b5-fb9b8ee08e10.lovableproject.com?forceHideBadge=true',
-    // cleartext: true,
+    url: 'https://77ecc391-ba6e-4f72-bf7d-26813e27ef4e.lovableproject.com?forceHideBadge=true',
+    cleartext: true,
     
-    // For production: use bundled web assets
-    androidScheme: 'https'
+    // For production: comment above and uncomment below
+    // androidScheme: 'https'
   },
   plugins: {
     SplashScreen: {
@@ -35,12 +35,29 @@ const config: CapacitorConfig = {
     },
     PushNotifications: {
       presentationOptions: ['badge', 'sound', 'alert']
+    },
+    // Keyboard configuration for better input handling
+    Keyboard: {
+      resize: 'body',
+      style: 'dark',
+      resizeOnFullScreen: true
     }
   },
   android: {
     allowMixedContent: true,
     captureInput: true,
-    webContentsDebuggingEnabled: false
+    webContentsDebuggingEnabled: true, // Set to false for production
+    backgroundColor: '#0f172a',
+    // Custom permissions and features handled in AndroidManifest.xml
+    buildOptions: {
+      keystorePath: undefined,
+      keystoreAlias: undefined
+    }
+  },
+  ios: {
+    contentInset: 'automatic',
+    backgroundColor: '#0f172a',
+    scheme: 'Life OS'
   }
 };
 

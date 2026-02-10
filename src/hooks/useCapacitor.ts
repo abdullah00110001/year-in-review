@@ -7,16 +7,20 @@ import {
 } from '@/lib/capacitor/platform';
 import { 
   initializeAlarmChannel, 
-  setupAlarmListeners 
+  setupAlarmListeners,
+  registerAlarmActions
 } from '@/lib/capacitor/nativeAlarm';
 import { 
   initializeShieldChannel, 
-  setupShieldListeners 
+  setupShieldListeners,
+  extendSession
 } from '@/lib/capacitor/nativeShield';
 import { 
   initializeNotificationChannels,
   registerPushNotifications,
-  setupPushListeners
+  setupPushListeners,
+  type GroupWakeSignal,
+  type MentorFeedback
 } from '@/lib/capacitor/nativeNotifications';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
@@ -26,6 +30,7 @@ interface CapacitorState {
   isAndroid: boolean;
   isInitialized: boolean;
   deviceInfo: any;
+  pushToken: string | null;
 }
 
 export function useCapacitor() {
@@ -34,7 +39,8 @@ export function useCapacitor() {
     isNative,
     isAndroid,
     isInitialized: false,
-    deviceInfo: null
+    deviceInfo: null,
+    pushToken: null
   });
 
   // Handle back button (return true to prevent default)
@@ -54,6 +60,28 @@ export function useCapacitor() {
     return false;
   }, []);
 
+  // Handle deep links
+  const handleDeepLink = useCallback((url: string) => {
+    console.log('[Capacitor] Deep link received:', url);
+    
+    // Handle auth redirects
+    if (url.includes('auth/callback')) {
+      window.location.href = url;
+      return;
+    }
+    
+    // Handle app routes
+    try {
+      const urlObj = new URL(url);
+      const path = urlObj.pathname;
+      if (path && path !== '/') {
+        window.location.href = path;
+      }
+    } catch {
+      // Invalid URL
+    }
+  }, []);
+
   // Handle alarm triggered
   const handleAlarmTriggered = useCallback((alarmId: number, extra: any) => {
     console.log('[Capacitor] Alarm triggered:', alarmId, extra);
@@ -66,7 +94,13 @@ export function useCapacitor() {
     // Show toast if app is open
     toast('⏰ Alarm!', {
       description: extra.intention || 'Time to wake up!',
-      duration: 10000
+      duration: 10000,
+      action: {
+        label: 'Dismiss',
+        onClick: () => {
+          window.location.href = '/rise';
+        }
+      }
     });
   }, []);
 
@@ -77,20 +111,31 @@ export function useCapacitor() {
     window.dispatchEvent(new CustomEvent('rise:alarmAction', {
       detail: { alarmId, action }
     }));
+    
+    // Navigate to Rise for interaction
+    if (action === 'tap' || action === 'dismiss') {
+      window.location.href = '/rise';
+    }
   }, []);
 
   // Handle group wake signal
-  const handleGroupWakeSignal = useCallback((signal: any) => {
+  const handleGroupWakeSignal = useCallback((signal: GroupWakeSignal) => {
     toast.error('🚨 Wake Up Call!', {
       description: `${signal.fromUserName}: ${signal.message}`,
-      duration: 15000
+      duration: 15000,
+      action: {
+        label: 'View',
+        onClick: () => {
+          window.location.href = '/rise';
+        }
+      }
     });
   }, []);
 
   // Handle mentor feedback
-  const handleMentorFeedback = useCallback((message: string) => {
+  const handleMentorFeedback = useCallback((feedback: MentorFeedback) => {
     toast.success('📝 New Feedback', {
-      description: message,
+      description: feedback.message,
       action: {
         label: 'View',
         onClick: () => window.location.href = '/dashboard'
@@ -99,8 +144,14 @@ export function useCapacitor() {
   }, []);
 
   // Handle generic notification
-  const handleGenericNotification = useCallback((title: string, body: string) => {
-    toast(title, { description: body });
+  const handleGenericNotification = useCallback((title: string, body: string, data?: any) => {
+    toast(title, { 
+      description: body,
+      action: data?.route ? {
+        label: 'View',
+        onClick: () => window.location.href = data.route
+      } : undefined
+    });
   }, []);
 
   // Initialize Capacitor
@@ -112,8 +163,8 @@ export function useCapacitor() {
       }
 
       try {
-        // Initialize platform (splash, status bar, back button)
-        await initializeCapacitor(handleBackButton);
+        // Initialize platform (splash, status bar, back button, deep links)
+        await initializeCapacitor(handleBackButton, handleDeepLink);
 
         // Get device info
         const deviceInfo = await getDeviceInfo();
@@ -123,6 +174,7 @@ export function useCapacitor() {
           await initializeNotificationChannels();
           await initializeAlarmChannel();
           await initializeShieldChannel();
+          await registerAlarmActions();
         }
 
         // Setup alarm listeners
@@ -131,7 +183,10 @@ export function useCapacitor() {
         // Setup shield listeners
         setupShieldListeners(
           () => window.location.href = '/shield',
-          () => window.dispatchEvent(new CustomEvent('shield:extendSession'))
+          () => {
+            extendSession(15);
+            window.dispatchEvent(new CustomEvent('shield:extendSession'));
+          }
         );
 
         // Setup push listeners
@@ -145,7 +200,8 @@ export function useCapacitor() {
           isNative: true,
           isAndroid,
           isInitialized: true,
-          deviceInfo
+          deviceInfo,
+          pushToken: null
         });
 
         console.log('[Capacitor] Fully initialized');
@@ -156,7 +212,7 @@ export function useCapacitor() {
     };
 
     init();
-  }, [handleBackButton, handleAlarmTriggered, handleAlarmAction, handleGroupWakeSignal, handleMentorFeedback, handleGenericNotification]);
+  }, [handleBackButton, handleDeepLink, handleAlarmTriggered, handleAlarmAction, handleGroupWakeSignal, handleMentorFeedback, handleGenericNotification]);
 
   // Register push notifications when user logs in
   useEffect(() => {
@@ -164,6 +220,7 @@ export function useCapacitor() {
       registerPushNotifications(user.id).then(token => {
         if (token) {
           console.log('[Capacitor] Push registered for user');
+          setState(prev => ({ ...prev, pushToken: token }));
         }
       });
     }
