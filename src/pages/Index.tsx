@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { isPWAInstalled } from '@/lib/pwaUtils';
 import InstallPrompt from '@/components/InstallPrompt';
+import { isNative } from '@/lib/capacitor/platform';
 
 export default function Index() {
   const { user, loading } = useAuth();
@@ -19,8 +20,8 @@ export default function Index() {
       return;
     }
 
-    // If running as PWA (standalone mode), redirect to auth
-    if (!loading && !user && isPWAInstalled()) {
+    // If running as native app or PWA, skip landing page → go to auth
+    if (!loading && !user && (isNative || isPWAInstalled())) {
       navigate('/auth', { replace: true });
       return;
     }
