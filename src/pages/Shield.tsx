@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -59,17 +59,10 @@ export default function ShieldPage() {
   const [activeSession, setActiveSession] = useState<ShieldSession | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   
-  // Strictness mode
+  // Strictness mode - persisted to discipline_scores
   const [strictnessMode, setStrictnessMode] = useState<StrictnessMode>('normal');
   
-  // Blocking state from database - will be loaded from profiles
-  const [blockedApps] = useState<string[]>(['Instagram', 'TikTok', 'YouTube']);
-  const [blockedWebsites] = useState<string[]>(['instagram.com', 'tiktok.com']);
-  const [blockedKeywords] = useState<string[]>(['shorts', 'reels']);
-  const [adultBlockEnabled, setAdultBlockEnabled] = useState(false);
-  const [reelsBlockEnabled, setReelsBlockEnabled] = useState(true);
-  
-  // Settings state
+  // Settings state - persisted to app_settings
   const [settings, setSettings] = useState({
     pauseDurationEnabled: true,
     blockSplitScreen: false,
@@ -82,9 +75,17 @@ export default function ShieldPage() {
   // Block screen selection
   const [selectedBlockScreen, setSelectedBlockScreen] = useState('default');
 
+  // Derived from profiles - aggregate all blocked items across all profiles
+  const allBlockedApps = [...new Set(profiles.flatMap(p => p.blocked_apps))];
+  const allBlockedWebsites = [...new Set(profiles.flatMap(p => p.blocked_websites))];
+  const allBlockedKeywords = [...new Set(profiles.flatMap(p => p.blocked_keywords))];
+  const reelsBlockEnabled = profiles.some(p => p.block_infinite_content);
+  const adultBlockEnabled = profiles.some(p => p.block_adult_content);
+
   useEffect(() => {
     if (user) {
       loadShieldData();
+      loadSettings();
     }
   }, [user]);
 
@@ -149,6 +150,53 @@ export default function ShieldPage() {
       setIsLoading(false);
     }
   };
+
+  const loadSettings = async () => {
+    if (!user) return;
+    try {
+      const { data } = await supabase
+        .from('app_settings')
+        .select('key, value')
+        .in('key', ['shield_settings', 'shield_strictness_mode', 'shield_block_screen']);
+
+      if (data) {
+        for (const setting of data) {
+          if (setting.key === 'shield_settings' && typeof setting.value === 'object') {
+            setSettings(prev => ({ ...prev, ...setting.value as any }));
+          }
+          if (setting.key === 'shield_strictness_mode' && typeof setting.value === 'object') {
+            const val = (setting.value as any).mode;
+            if (val) setStrictnessMode(val as StrictnessMode);
+          }
+          if (setting.key === 'shield_block_screen' && typeof setting.value === 'object') {
+            const val = (setting.value as any).screen;
+            if (val) setSelectedBlockScreen(val);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error loading settings:', error);
+    }
+  };
+
+  const saveSettingToDB = useCallback(async (key: string, value: any) => {
+    if (!user) return;
+    try {
+      const { data: existing } = await supabase
+        .from('app_settings')
+        .select('id')
+        .eq('key', key)
+        .single();
+
+      if (existing) {
+        await supabase.from('app_settings').update({ value, updated_by: user.id }).eq('key', key);
+      } else {
+        await supabase.from('app_settings').insert({ key, value, updated_by: user.id });
+      }
+    } catch (error) {
+      console.error('Error saving setting:', error);
+    }
+  }, [user]);
 
   const createDefaultProfiles = async () => {
     if (!user) return;
@@ -242,8 +290,66 @@ export default function ShieldPage() {
     loadShieldData();
   };
 
+  const handleEndSession = async (reason?: string) => {
+    if (!user || !activeSession) return;
+
+    try {
+      await supabase
+        .from('shield_sessions')
+        .update({ 
+          status: 'completed',
+          actual_end_at: new Date().toISOString()
+        })
+        .eq('id', activeSession.id);
+
+      setActiveSession(null);
+      toast.success('Session ended');
+      loadShieldData();
+    } catch (error) {
+      console.error('Error ending session:', error);
+      toast.error('Failed to end session');
+    }
+  };
+
   const handleSettingChange = (key: string, value: boolean) => {
-    setSettings(prev => ({ ...prev, [key]: value }));
+    const newSettings = { ...settings, [key]: value };
+    setSettings(newSettings);
+    saveSettingToDB('shield_settings', newSettings);
+  };
+
+  const handleModeChange = (mode: StrictnessMode) => {
+    setStrictnessMode(mode);
+    saveSettingToDB('shield_strictness_mode', { mode });
+  };
+
+  const handleBlockScreenChange = (screen: string) => {
+    setSelectedBlockScreen(screen);
+    saveSettingToDB('shield_block_screen', { screen });
+  };
+
+  const handleReelsToggle = async (enabled: boolean) => {
+    if (!user) return;
+    // Update all profiles' block_infinite_content
+    for (const profile of profiles) {
+      await supabase
+        .from('discipline_profiles')
+        .update({ block_infinite_content: enabled })
+        .eq('id', profile.id);
+    }
+    loadShieldData();
+    toast.success(enabled ? 'Reels & Shorts blocked' : 'Reels & Shorts unblocked');
+  };
+
+  const handleAdultToggle = async (enabled: boolean) => {
+    if (!user) return;
+    for (const profile of profiles) {
+      await supabase
+        .from('discipline_profiles')
+        .update({ block_adult_content: enabled })
+        .eq('id', profile.id);
+    }
+    loadShieldData();
+    toast.success(enabled ? 'Adult content blocked' : 'Adult content filter off');
   };
 
   const handleNavigate = (page: string) => {
@@ -274,7 +380,7 @@ export default function ShieldPage() {
       <ShieldBlockScreen 
         onBack={() => setSubPage('main')}
         selectedScreen={selectedBlockScreen}
-        onSelectScreen={setSelectedBlockScreen}
+        onSelectScreen={handleBlockScreenChange}
       />
     );
   }
@@ -325,18 +431,18 @@ export default function ShieldPage() {
               onRefresh={loadShieldData}
             />
 
-            {/* Quick Actions */}
+            {/* Quick Actions - now from real data */}
             <ShieldQuickActions
-              blockedAppsCount={blockedApps.length}
-              blockedSitesCount={blockedWebsites.length}
-              blockedKeywordsCount={blockedKeywords.length}
+              blockedAppsCount={allBlockedApps.length}
+              blockedSitesCount={allBlockedWebsites.length}
+              blockedKeywordsCount={allBlockedKeywords.length}
               reelsBlockEnabled={reelsBlockEnabled}
               adultBlockEnabled={adultBlockEnabled}
-              onReelsToggle={setReelsBlockEnabled}
-              onAdultToggle={setAdultBlockEnabled}
-              onManageApps={() => toast.info('Manage blocked apps')}
-              onManageSites={() => toast.info('Manage blocked websites')}
-              onManageKeywords={() => toast.info('Manage blocked keywords')}
+              onReelsToggle={handleReelsToggle}
+              onAdultToggle={handleAdultToggle}
+              onManageApps={() => handleTabChange('modes')}
+              onManageSites={() => handleTabChange('modes')}
+              onManageKeywords={() => handleTabChange('modes')}
             />
           </>
         )}
@@ -344,7 +450,7 @@ export default function ShieldPage() {
         {activeTab === 'modes' && (
           <ShieldModes
             activeMode={strictnessMode}
-            onModeChange={setStrictnessMode}
+            onModeChange={handleModeChange}
             disciplineScore={disciplineScore?.current_score}
           />
         )}
