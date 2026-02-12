@@ -1,11 +1,11 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 
-type Theme = 'light' | 'dark' | 'system';
+type Theme = 'light' | 'dark' | 'amoled' | 'system';
 
 interface ThemeContextType {
   theme: Theme;
   setTheme: (theme: Theme) => void;
-  resolvedTheme: 'light' | 'dark';
+  resolvedTheme: 'light' | 'dark' | 'amoled';
 }
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
@@ -16,28 +16,29 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     return (stored as Theme) || 'system';
   });
 
-  const [resolvedTheme, setResolvedTheme] = useState<'light' | 'dark'>('light');
+  const [resolvedTheme, setResolvedTheme] = useState<'light' | 'dark' | 'amoled'>('light');
 
   useEffect(() => {
     const root = window.document.documentElement;
 
     const applyTheme = (t: Theme) => {
-      let resolved: 'light' | 'dark' = 'light';
+      let resolved: 'light' | 'dark' | 'amoled' = 'light';
 
       if (t === 'system') {
         resolved = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      } else if (t === 'amoled') {
+        resolved = 'amoled';
       } else {
         resolved = t;
       }
 
-      root.classList.remove('light', 'dark');
+      root.classList.remove('light', 'dark', 'amoled');
       root.classList.add(resolved);
       setResolvedTheme(resolved);
     };
 
     applyTheme(theme);
 
-    // Listen for system theme changes
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
     const handleChange = () => {
       if (theme === 'system') {

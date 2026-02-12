@@ -1,4 +1,5 @@
 import { Component, ErrorInfo, ReactNode } from 'react';
+import { isNative } from '@/lib/capacitor/platform';
 
 interface Props {
   children: ReactNode;
@@ -49,11 +50,11 @@ export class ErrorBoundary extends Component<Props, State> {
               <button
                 onClick={() => {
                   this.setState({ hasError: false, error: null });
-                  window.location.href = '/auth';
+                  window.location.reload();
                 }}
-                className="px-6 py-2 bg-muted text-muted-foreground rounded-lg text-sm font-medium"
+                className="px-6 py-2 bg-muted text-foreground rounded-lg text-sm font-medium"
               >
-                Back to Login
+                Reload
               </button>
             </div>
           </div>

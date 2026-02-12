@@ -46,7 +46,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
         {isMobile ? (
           <PullToRefresh 
             onRefresh={handleRefresh}
-            className="min-h-[calc(100vh-4rem)] pb-24"
+            className="min-h-[calc(100vh-4rem)] pb-[90px]"
           >
             <div className="animate-fade-in">
               {children}

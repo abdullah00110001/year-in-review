@@ -9,8 +9,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Settings, Plus, Edit, Trash2, Zap, Shield, Bell, Users, Brain, BarChart3, Globe, Smartphone } from 'lucide-react';
+import { Settings, Plus, Edit, Trash2, Zap, Shield, Bell, Users, Brain, BarChart3, Globe, Smartphone, Crown } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 interface FeatureFlag {
   id: string;
@@ -23,6 +24,7 @@ interface FeatureFlag {
   enabled_for_device_brands: string[];
   config: Record<string, any>;
   created_at: string;
+  min_plan: string;
 }
 
 const FEATURE_ICONS: Record<string, any> = {
@@ -111,6 +113,7 @@ export default function AdminFeatureControl() {
             enabled_for_plans: formData.enabled_for_plans,
             enabled_for_regions: formData.enabled_for_regions,
             enabled_for_device_brands: formData.enabled_for_device_brands,
+            min_plan: (formData as any).min_plan || 'free',
           })
           .eq('id', editingFeature.id);
 
@@ -127,6 +130,7 @@ export default function AdminFeatureControl() {
             enabled_for_plans: formData.enabled_for_plans,
             enabled_for_regions: formData.enabled_for_regions,
             enabled_for_device_brands: formData.enabled_for_device_brands,
+            min_plan: (formData as any).min_plan || 'free',
           });
 
         if (error) throw error;
@@ -165,7 +169,8 @@ export default function AdminFeatureControl() {
       enabled_for_plans: feature.enabled_for_plans || [],
       enabled_for_regions: feature.enabled_for_regions || [],
       enabled_for_device_brands: feature.enabled_for_device_brands || [],
-    });
+      min_plan: feature.min_plan || 'free',
+    } as any);
     setIsAddDialogOpen(true);
   };
 
@@ -291,6 +296,24 @@ export default function AdminFeatureControl() {
                 </div>
 
                 <div className="space-y-3">
+                  <Label className="text-base font-semibold flex items-center gap-2">
+                    <Crown className="h-4 w-4" />
+                    Minimum Plan Required
+                  </Label>
+                  <Select value={(formData as any).min_plan || 'free'} onValueChange={(v) => setFormData(prev => ({ ...prev, min_plan: v }))}>
+                    <SelectTrigger className="w-48">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="free">Free (Everyone)</SelectItem>
+                      <SelectItem value="premium">Premium</SelectItem>
+                      <SelectItem value="ultimate">Ultimate</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">Users need at least this plan to access this feature</p>
+                </div>
+
+                <div className="space-y-3">
                   <Label className="text-base font-semibold">Enabled for Plans</Label>
                   <div className="flex flex-wrap gap-2">
                     {PLANS.map(plan => (
@@ -364,6 +387,11 @@ export default function AdminFeatureControl() {
                         <div className="flex items-center gap-2">
                           <h4 className="font-medium">{feature.name}</h4>
                           <Badge variant="outline" className="text-xs">{feature.feature_key}</Badge>
+                          {feature.min_plan && feature.min_plan !== 'free' && (
+                            <Badge variant="default" className="text-xs capitalize flex items-center gap-1">
+                              <Crown className="h-3 w-3" />{feature.min_plan}
+                            </Badge>
+                          )}
                         </div>
                         <p className="text-sm text-muted-foreground">{feature.description || 'No description'}</p>
                         <div className="flex flex-wrap gap-1 mt-2">

@@ -34,7 +34,8 @@ import {
   Flame,
   BookHeart,
   TrendingUp,
-  FileType
+  FileType,
+  Crown
 } from 'lucide-react';
 import { useAppMode } from '@/contexts/AppModeContext';
 
@@ -90,6 +91,7 @@ export default function Sidebar() {
     { name: t('nav.analytics'), href: '/analytics', icon: BarChart3 },
     { name: t('nav.export'), href: '/export', icon: Download },
     { name: 'BlackBox PDF', href: '/pdf-tools', icon: FileType },
+    { name: language === 'bn' ? 'প্রিমিয়াম' : 'Premium', href: '/premium', icon: Crown },
     ...(isAdmin ? [
       { name: t('nav.admin'), href: '/admin', icon: Shield },
       { name: t('nav.adminCommand'), href: '/admin-command', icon: Shield },

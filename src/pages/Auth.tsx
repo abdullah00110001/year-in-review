@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
+import { isNative } from '@/lib/capacitor/platform';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -56,25 +57,37 @@ export default function Auth() {
   const { signIn, signUp, signInWithGoogle, user, loading } = useAuth();
   const navigate = useNavigate();
 
-  // Redirect authenticated users - single effect to prevent race conditions
+  // Redirect authenticated users - hardened for native
   useEffect(() => {
     if (loading || !user) return;
     
     let cancelled = false;
     
     const redirect = async () => {
+      // Longer delay for native to let WebView stabilize
+      await new Promise(r => setTimeout(r, isNative ? 300 : 100));
+      if (cancelled) return;
+
       try {
-        const result = await supabase.rpc('get_user_role', { _user_id: user.id });
+        const { data: roleData, error } = await supabase.rpc('get_user_role', { _user_id: user.id });
         if (cancelled) return;
-        const roleData = result?.data;
-        if (roleData === 'admin') {
-          navigate('/admin', { replace: true });
-        } else {
-          navigate('/dashboard', { replace: true });
+        
+        const target = (!error && roleData === 'admin') ? '/admin' : '/dashboard';
+        console.log('[Auth] Redirecting to:', target);
+        
+        try {
+          navigate(target, { replace: true });
+        } catch {
+          window.location.href = target;
         }
-      } catch {
+      } catch (err) {
+        console.error('[Auth] Redirect error:', err);
         if (!cancelled) {
-          navigate('/dashboard', { replace: true });
+          try {
+            navigate('/dashboard', { replace: true });
+          } catch {
+            window.location.href = '/dashboard';
+          }
         }
       }
     };
@@ -106,18 +119,25 @@ export default function Auth() {
     if (!validateForm()) return;
 
     setIsLoading(true);
-    const { error } = await signIn(email, password);
-    setIsLoading(false);
+    try {
+      const { error } = await signIn(email, password);
+      setIsLoading(false);
 
-    if (error) {
-      if (error.message.includes('Invalid login credentials')) {
-        toast.error('Invalid email or password');
+      if (error) {
+        if (error.message.includes('Invalid login credentials')) {
+          toast.error('Invalid email or password');
+        } else {
+          toast.error(error.message);
+        }
       } else {
-        toast.error(error.message);
+        console.log('[Auth] Login success, waiting for redirect');
+        toast.success('Welcome back!');
+        // Redirect handled by useEffect when user state updates
       }
-    } else {
-      toast.success('Welcome back!');
-      // Redirect handled by useEffect when user state updates
+    } catch (err) {
+      console.error('[Auth] handleSignIn crash:', err);
+      setIsLoading(false);
+      toast.error('Something went wrong. Please try again.');
     }
   };
 

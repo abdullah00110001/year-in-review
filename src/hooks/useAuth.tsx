@@ -20,14 +20,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const isMounted = useRef(true);
+  const initialSessionChecked = useRef(false);
 
   useEffect(() => {
     isMounted.current = true;
+    console.log('[Auth] Setting up auth listener');
 
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, currentSession) => {
         if (!isMounted.current) return;
+        console.log('[Auth] State change:', event, currentSession?.user?.email ?? 'no user');
+        
         setSession(currentSession);
         setUser(currentSession?.user ?? null);
         setLoading(false);
@@ -37,9 +41,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // THEN check for existing session
     supabase.auth.getSession().then(({ data: { session: currentSession } }) => {
       if (!isMounted.current) return;
-      setSession(currentSession);
-      setUser(currentSession?.user ?? null);
-      setLoading(false);
+      if (!initialSessionChecked.current) {
+        initialSessionChecked.current = true;
+        console.log('[Auth] Initial session:', currentSession?.user?.email ?? 'none');
+        setSession(currentSession);
+        setUser(currentSession?.user ?? null);
+        setLoading(false);
+      }
+    }).catch((err) => {
+      console.error('[Auth] getSession error:', err);
+      if (isMounted.current) setLoading(false);
     });
 
     return () => {
@@ -61,11 +72,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-    return { error: error as Error | null };
+    try {
+      console.log('[Auth] Signing in:', email);
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+      if (error) {
+        console.error('[Auth] Sign in error:', error.message);
+      } else {
+        console.log('[Auth] Sign in success');
+      }
+      return { error: error as Error | null };
+    } catch (err) {
+      console.error('[Auth] Sign in crash:', err);
+      return { error: err as Error };
+    }
   };
 
   const signInWithGoogle = async () => {
@@ -84,7 +106,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    try {
+      await supabase.auth.signOut();
+      console.log('[Auth] Signed out');
+    } catch (err) {
+      console.error('[Auth] Sign out error:', err);
+    }
   };
 
   return (

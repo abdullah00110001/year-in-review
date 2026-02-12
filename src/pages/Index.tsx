@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Target, CheckCircle2, BarChart3, Calendar, ArrowRight, Sparkles, Zap, Shield, TrendingUp, Star, ChevronRight } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { isPWAInstalled } from '@/lib/pwaUtils';
 import InstallPrompt from '@/components/InstallPrompt';
@@ -12,21 +12,36 @@ export default function Index() {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
   const [showInstallPrompt, setShowInstallPrompt] = useState(false);
+  const hasRedirected = useRef(false);
 
   useEffect(() => {
     // Don't act while auth is loading
     if (loading) return;
+    // Prevent double redirect
+    if (hasRedirected.current) return;
     
     // Redirect logged-in users to dashboard
     if (user) {
-      navigate('/dashboard', { replace: true });
+      hasRedirected.current = true;
+      console.log('[Index] User logged in, redirecting to dashboard');
+      try {
+        navigate('/dashboard', { replace: true });
+      } catch (err) {
+        console.error('[Index] Navigation error:', err);
+      }
       return;
     }
 
     // Always redirect to auth when not logged in (mobile-first app)
     // Skip the landing page entirely for native apps and PWA
     if (isNative || isPWAInstalled()) {
-      navigate('/auth', { replace: true });
+      hasRedirected.current = true;
+      console.log('[Index] Native/PWA, redirecting to auth');
+      try {
+        navigate('/auth', { replace: true });
+      } catch (err) {
+        console.error('[Index] Navigation error:', err);
+      }
       return;
     }
 

@@ -12,9 +12,11 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import UpdatePrompt from "@/components/pwa/UpdatePrompt";
 import ScrollToTop from "@/components/ScrollToTop";
+import SmartNotificationProvider from "@/components/notifications/SmartNotifications";
 import { lazy, Suspense, useState } from "react";
 import { Loader2 } from "lucide-react";
 import PWALoadingScreen from "@/components/pwa/PWALoadingScreen";
+import { isNative } from "@/lib/capacitor/platform";
 
 // Critical pages loaded eagerly
 import Index from "./pages/Index";
@@ -56,6 +58,9 @@ const Install = lazy(() => import("./pages/Install"));
 const ShieldPage = lazy(() => import("./pages/Shield"));
 const RisePage = lazy(() => import("./pages/Rise"));
 const PDFTools = lazy(() => import("./pages/PDFTools"));
+const TimeTracking = lazy(() => import("./pages/TimeTracking"));
+const LifeCalendar = lazy(() => import("./pages/LifeCalendar"));
+const Premium = lazy(() => import("./pages/Premium"));
 
 // Admin pages
 const AdminOverview = lazy(() => import("./pages/admin/AdminOverview"));
@@ -98,7 +103,8 @@ const queryClient = new QueryClient({
 });
 
 const App = () => {
-  const [splashDone, setSplashDone] = useState(false);
+  // Only show splash on native, skip on web entirely
+  const [splashDone, setSplashDone] = useState(!isNative);
 
   if (!splashDone) {
     return (
@@ -121,6 +127,7 @@ const App = () => {
                     <Sonner />
                     <OfflineIndicator />
                     <UpdatePrompt />
+                    <SmartNotificationProvider />
                     <BrowserRouter>
                       <ScrollToTop />
                       <Suspense fallback={<PageLoader />}>
@@ -162,7 +169,10 @@ const App = () => {
                           <Route path="/comparative-analytics" element={<ProtectedRoute><ComparativeAnalytics /></ProtectedRoute>} />
                           <Route path="/shield" element={<ProtectedRoute><ShieldPage /></ProtectedRoute>} />
                           <Route path="/rise" element={<ProtectedRoute><RisePage /></ProtectedRoute>} />
+                          <Route path="/time-tracking" element={<ProtectedRoute><TimeTracking /></ProtectedRoute>} />
+                          <Route path="/life-calendar" element={<ProtectedRoute><LifeCalendar /></ProtectedRoute>} />
                           <Route path="/pdf-tools" element={<PDFTools />} />
+                          <Route path="/premium" element={<Premium />} />
                           
                           {/* Admin routes */}
                           <Route path="/admin" element={<AdminProtectedRoute><AdminOverview /></AdminProtectedRoute>} />

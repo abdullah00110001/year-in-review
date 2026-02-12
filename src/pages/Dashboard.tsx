@@ -17,6 +17,7 @@ import LifeDistributionWidget from '@/components/dashboard/LifeDistributionWidge
 import UnifiedQuotes from '@/components/dashboard/UnifiedQuotes';
 import ModeOnboarding from '@/components/mode/ModeOnboarding';
 import OnboardingTour from '@/components/onboarding/OnboardingTour';
+import GuidedOnboarding from '@/components/onboarding/GuidedOnboarding';
 import AdminFeedbackNotifications from '@/components/dashboard/AdminFeedbackNotifications';
 import PushNotificationPrompt from '@/components/notifications/PushNotificationPrompt';
 import { SkeletonStats, SkeletonCard, SkeletonHero } from '@/components/ui/skeleton-card';
@@ -43,13 +44,17 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [showModeOnboarding, setShowModeOnboarding] = useState(false);
   const [showTour, setShowTour] = useState(false);
+  const [showGuidedOnboarding, setShowGuidedOnboarding] = useState(false);
   // Check if onboarding is needed
   useEffect(() => {
     if (!modeLoading && user) {
+      const guidedComplete = localStorage.getItem('guided_onboarding_complete');
       const modeComplete = localStorage.getItem('mode_onboarding_complete');
       const tourComplete = localStorage.getItem('onboarding_tour_complete');
       
-      if (!modeComplete) {
+      if (!guidedComplete) {
+        setShowGuidedOnboarding(true);
+      } else if (!modeComplete) {
         setShowModeOnboarding(true);
       } else if (!tourComplete) {
         setShowTour(true);
@@ -143,6 +148,16 @@ export default function Dashboard() {
 
   return (
     <AppLayout>
+      {/* Guided Onboarding (first-time) */}
+      <GuidedOnboarding
+        isOpen={showGuidedOnboarding}
+        onComplete={(selectedMode) => {
+          setShowGuidedOnboarding(false);
+          localStorage.setItem('mode_onboarding_complete', 'true');
+          localStorage.setItem('onboarding_tour_complete', 'true');
+        }}
+      />
+
       {/* Mode Onboarding Dialog */}
       <ModeOnboarding 
         isOpen={showModeOnboarding} 

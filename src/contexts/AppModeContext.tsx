@@ -252,19 +252,13 @@ export function AppModeProvider({ children }: { children: ReactNode }) {
         .from('profiles')
         .select('app_mode')
         .eq('user_id', user!.id)
-        .maybeSingle();
+        .single();
 
-      if (error) {
-        console.warn('[AppMode] Error fetching profile:', error.message);
-      } else if (!data) {
-        // Profile doesn't exist yet — create it
-        console.log('[AppMode] No profile found, creating one...');
-        await supabase.from('profiles').insert({ user_id: user!.id }).select().maybeSingle();
-      } else if (data.app_mode) {
+      if (data?.app_mode) {
         setModeState(data.app_mode as AppMode);
       }
-    } catch (err) {
-      console.error('[AppMode] Unexpected error:', err);
+    } catch (error) {
+      console.error('Error fetching app mode:', error);
     } finally {
       setIsLoading(false);
     }

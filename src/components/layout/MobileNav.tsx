@@ -1,6 +1,7 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
+import { isNative } from '@/lib/capacitor/platform';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -31,7 +32,9 @@ import {
   Plus,
   Flame,
   BookHeart,
-  TrendingUp
+  TrendingUp,
+  Clock,
+  Heart
 } from 'lucide-react';
 import { useAppMode } from '@/contexts/AppModeContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -46,6 +49,16 @@ export default function MobileNav() {
   const [isAdmin, setIsAdmin] = useState(false);
   const touchStartX = useRef(0);
   const touchEndX = useRef(0);
+
+  // Haptic feedback on nav tap (native only)
+  const triggerHaptic = useCallback(async () => {
+    if (isNative) {
+      try {
+        const { lightImpact } = await import('@/lib/capacitor/nativeHaptics');
+        lightImpact();
+      } catch {}
+    }
+  }, []);
 
   useEffect(() => {
     setOpen(false);
@@ -83,11 +96,9 @@ export default function MobileNav() {
       const swipeDistance = touchEndX.current - touchStartX.current;
       const minSwipeDistance = 50;
 
-      // Swipe right from left edge opens menu
       if (swipeDistance > minSwipeDistance && touchStartX.current < 50) {
         setOpen(true);
       }
-      // Swipe left closes menu
       if (swipeDistance < -minSwipeDistance && open) {
         setOpen(false);
       }
@@ -123,16 +134,18 @@ export default function MobileNav() {
     { name: t('nav.calendar'), href: '/calendar', icon: Calendar },
     { name: t('nav.journal'), href: '/journal', icon: BookOpen },
     { name: t('nav.analytics'), href: '/analytics', icon: BarChart3 },
+    { name: language === 'bn' ? 'টাইম ট্র্যাকিং' : 'Time Tracking', href: '/time-tracking', icon: Clock },
+    { name: language === 'bn' ? 'লাইফ ক্যালেন্ডার' : 'Life Calendar', href: '/life-calendar', icon: Heart },
     ...(isAdmin ? [{ name: t('nav.admin'), href: '/admin', icon: Shield }] : []),
     { name: t('nav.settings'), href: '/settings', icon: Settings },
   ];
 
-  // Bottom navigation items - Life Control Panel
+  // Bottom navigation: Home | Track | + Daily Input (FAB) | Life | Settings
   const bottomNavItems = [
     { name: language === 'bn' ? 'হোম' : 'Home', href: '/dashboard', icon: Home },
-    { name: language === 'bn' ? 'শিল্ড' : 'Shield', href: '/shield', icon: Shield },
+    { name: language === 'bn' ? 'অভ্যাস' : 'Habits', href: '/habits', icon: CheckSquare },
     { name: language === 'bn' ? 'ইনপুট' : 'Input', href: '/daily-input', icon: Plus, isCenter: true },
-    { name: language === 'bn' ? 'রাইজ' : 'Rise', href: '/rise', icon: Target },
+    { name: language === 'bn' ? 'লাইফ' : 'Life', href: '/life-calendar', icon: Heart },
     { name: language === 'bn' ? 'সেটিংস' : 'Settings', href: '/settings', icon: Settings },
   ];
 
@@ -221,8 +234,11 @@ export default function MobileNav() {
       </div>
 
       {/* Fixed Bottom Navigation for Mobile */}
-      <div className="fixed bottom-0 left-0 right-0 z-40 lg:hidden bg-background/95 backdrop-blur-sm border-t safe-area-inset-bottom">
-        <nav className="flex items-center justify-around h-16 px-1">
+      <div 
+        className="fixed bottom-0 left-0 right-0 z-50 lg:hidden bg-background/95 backdrop-blur-lg border-t border-border select-none"
+        style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+      >
+        <nav className="flex items-center justify-around h-16 px-1 max-w-lg mx-auto">
           {bottomNavItems.map((item) => {
             const isActive = location.pathname === item.href || 
                            (item.href !== '/dashboard' && location.pathname.startsWith(item.href));
@@ -233,10 +249,12 @@ export default function MobileNav() {
                 <Link
                   key={item.href}
                   to={item.href}
-                  className="flex items-center justify-center -mt-4"
+                  className="flex items-center justify-center -mt-5 select-none"
+                  style={{ minWidth: 44, minHeight: 44 }}
+                  onClick={triggerHaptic}
                 >
                   <div className={cn(
-                    'h-14 w-14 rounded-full flex items-center justify-center shadow-lg',
+                    'h-14 w-14 rounded-full flex items-center justify-center shadow-lg transition-transform active:scale-95',
                     isActive ? 'bg-primary' : 'bg-primary/90'
                   )}>
                     <item.icon className="h-6 w-6 text-primary-foreground" />
@@ -250,9 +268,11 @@ export default function MobileNav() {
                 key={item.href}
                 to={item.href}
                 className={cn(
-                  'flex flex-col items-center justify-center gap-1 px-2 py-2 rounded-lg transition-all min-w-[56px]',
+                  'flex flex-col items-center justify-center gap-1 px-2 py-2 rounded-lg transition-all select-none active:scale-95',
                   isActive ? 'text-primary' : 'text-muted-foreground'
                 )}
+                style={{ minWidth: 44, minHeight: 44 }}
+                onClick={triggerHaptic}
               >
                 <item.icon className={cn('h-5 w-5 transition-transform', isActive && 'scale-110')} />
                 <span className="text-[10px] font-medium">{item.name}</span>
