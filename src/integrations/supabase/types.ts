@@ -1023,6 +1023,7 @@ export type Database = {
           feature_key: string
           id: string
           is_enabled: boolean | null
+          min_plan: string | null
           name: string
           updated_at: string | null
         }
@@ -1036,6 +1037,7 @@ export type Database = {
           feature_key: string
           id?: string
           is_enabled?: boolean | null
+          min_plan?: string | null
           name: string
           updated_at?: string | null
         }
@@ -1049,6 +1051,7 @@ export type Database = {
           feature_key?: string
           id?: string
           is_enabled?: boolean | null
+          min_plan?: string | null
           name?: string
           updated_at?: string | null
         }
@@ -1409,6 +1412,126 @@ export type Database = {
         }
         Relationships: []
       }
+      life_milestones: {
+        Row: {
+          color: string | null
+          created_at: string
+          description: string | null
+          icon: string | null
+          id: string
+          milestone_date: string
+          milestone_type: string
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          color?: string | null
+          created_at?: string
+          description?: string | null
+          icon?: string | null
+          id?: string
+          milestone_date: string
+          milestone_type?: string
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          color?: string | null
+          created_at?: string
+          description?: string | null
+          icon?: string | null
+          id?: string
+          milestone_date?: string
+          milestone_type?: string
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      life_profile: {
+        Row: {
+          birth_date: string
+          country: string | null
+          created_at: string
+          gender: string | null
+          id: string
+          life_expectancy_years: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          birth_date: string
+          country?: string | null
+          created_at?: string
+          gender?: string | null
+          id?: string
+          life_expectancy_years?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          birth_date?: string
+          country?: string | null
+          created_at?: string
+          gender?: string | null
+          id?: string
+          life_expectancy_years?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      life_weeks: {
+        Row: {
+          created_at: string
+          discipline_score: number | null
+          focus_hours: number | null
+          id: string
+          life_event: string | null
+          mood_avg: number | null
+          notes: string | null
+          reflection: string | null
+          tags: string[] | null
+          updated_at: string
+          user_id: string
+          week_number: number
+          year_number: number
+        }
+        Insert: {
+          created_at?: string
+          discipline_score?: number | null
+          focus_hours?: number | null
+          id?: string
+          life_event?: string | null
+          mood_avg?: number | null
+          notes?: string | null
+          reflection?: string | null
+          tags?: string[] | null
+          updated_at?: string
+          user_id: string
+          week_number: number
+          year_number: number
+        }
+        Update: {
+          created_at?: string
+          discipline_score?: number | null
+          focus_hours?: number | null
+          id?: string
+          life_event?: string | null
+          mood_avg?: number | null
+          notes?: string | null
+          reflection?: string | null
+          tags?: string[] | null
+          updated_at?: string
+          user_id?: string
+          week_number?: number
+          year_number?: number
+        }
+        Relationships: []
+      }
       monthly_highlights: {
         Row: {
           created_at: string
@@ -1667,6 +1790,66 @@ export type Database = {
             columns: ["plan_id"]
             isOneToOne: false
             referencedRelation: "subscription_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      payment_transactions: {
+        Row: {
+          amount: number
+          coupon_id: string | null
+          created_at: string
+          currency: string
+          id: string
+          metadata: Json | null
+          payment_provider: string
+          provider_transaction_id: string | null
+          status: string
+          subscription_id: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          coupon_id?: string | null
+          created_at?: string
+          currency?: string
+          id?: string
+          metadata?: Json | null
+          payment_provider: string
+          provider_transaction_id?: string | null
+          status?: string
+          subscription_id?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          coupon_id?: string | null
+          created_at?: string
+          currency?: string
+          id?: string
+          metadata?: Json | null
+          payment_provider?: string
+          provider_transaction_id?: string | null
+          status?: string
+          subscription_id?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_transactions_coupon_id_fkey"
+            columns: ["coupon_id"]
+            isOneToOne: false
+            referencedRelation: "coupons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_transactions_subscription_id_fkey"
+            columns: ["subscription_id"]
+            isOneToOne: false
+            referencedRelation: "user_subscriptions"
             referencedColumns: ["id"]
           },
         ]
