@@ -12,8 +12,15 @@ import { RiseGroupWake } from '@/components/rise/RiseGroupWake';
 import { RiseReports } from '@/components/rise/RiseReports';
 import { RiseSettings } from '@/components/rise/RiseSettings';
 import { Card, CardContent } from '@/components/ui/card';
-import { scheduleAlarm, cancelAlarm } from '@/lib/capacitor/nativeAlarm';
+import { 
+  scheduleRecurringAlarm, 
+  cancelAlarmByUuid, 
+  uuidToNumericId,
+  checkAlarmPermission,
+  requestAlarmPermission 
+} from '@/lib/capacitor/nativeAlarm';
 import { isNative } from '@/lib/capacitor/platform';
+import { requestRisePermissions } from '@/lib/capacitor/permissions';
 
 interface RiseAlarm {
   id: string;
@@ -53,6 +60,10 @@ export default function RisePage() {
   useEffect(() => {
     if (user) {
       loadRiseData();
+      // Request native permissions on mount
+      if (isNative) {
+        requestRisePermissions().catch(console.error);
+      }
     }
   }, [user]);
 
@@ -156,23 +167,20 @@ export default function RisePage() {
     // Schedule/cancel native alarm
     if (isNative) {
       if (enabled) {
-        const [hours, minutes] = alarm.alarm_time.split(':').map(Number);
-        const scheduledAt = new Date();
-        scheduledAt.setHours(hours, minutes, 0, 0);
-        if (scheduledAt <= new Date()) {
-          scheduledAt.setDate(scheduledAt.getDate() + 1);
-        }
-        
-        await scheduleAlarm({
-          id: parseInt(alarmId.replace(/-/g, '').slice(0, 8), 16),
-          title: alarm.label || 'Rise Alarm',
-          body: alarm.intention || 'Time to wake up!',
-          scheduledAt,
-          missionType: alarm.verification_type as any,
-          intention: alarm.intention || undefined
-        });
+        await scheduleRecurringAlarm(
+          alarmId,
+          alarm.alarm_time,
+          alarm.days_of_week,
+          {
+            title: alarm.label || 'Rise Alarm',
+            body: alarm.intention || 'Time to wake up!',
+            missionType: alarm.verification_type as any,
+            intention: alarm.intention || undefined,
+            snoozeMinutes: alarm.snooze_interval_minutes || 5
+          }
+        );
       } else {
-        await cancelAlarm(parseInt(alarmId.replace(/-/g, '').slice(0, 8), 16));
+        await cancelAlarmByUuid(alarmId);
       }
     }
 
@@ -214,10 +222,28 @@ export default function RisePage() {
           .eq('id', editingAlarm.id);
 
         if (error) throw error;
+
+        // Reschedule native alarm
+        if (isNative) {
+          await cancelAlarmByUuid(editingAlarm.id);
+          await scheduleRecurringAlarm(
+            editingAlarm.id,
+            data.alarm_time,
+            data.days_of_week,
+            {
+              title: data.label || 'Rise Alarm',
+              body: data.intention || 'Time to wake up!',
+              missionType: data.verification_type as any,
+              intention: data.intention || undefined,
+              snoozeMinutes: data.snooze_interval_minutes || 5
+            }
+          );
+        }
+
         toast.success('Alarm updated!');
       } else {
         // Create new alarm
-        const { error } = await supabase
+        const { data: newAlarm, error } = await supabase
           .from('rise_alarms')
           .insert({
             user_id: user.id,
@@ -230,9 +256,28 @@ export default function RisePage() {
             snooze_limit: data.snooze_limit,
             snooze_interval_minutes: data.snooze_interval_minutes,
             is_enabled: true
-          });
+          })
+          .select()
+          .single();
 
         if (error) throw error;
+
+        // Schedule native alarm for new alarm
+        if (isNative && newAlarm) {
+          await scheduleRecurringAlarm(
+            newAlarm.id,
+            data.alarm_time,
+            data.days_of_week,
+            {
+              title: data.label || 'Rise Alarm',
+              body: data.intention || 'Time to wake up!',
+              missionType: data.verification_type as any,
+              intention: data.intention || undefined,
+              snoozeMinutes: data.snooze_interval_minutes || 5
+            }
+          );
+        }
+
         toast.success('Alarm created!');
       }
 
@@ -256,7 +301,7 @@ export default function RisePage() {
 
     // Cancel native alarm
     if (isNative) {
-      await cancelAlarm(parseInt(alarmId.replace(/-/g, '').slice(0, 8), 16));
+      await cancelAlarmByUuid(alarmId);
     }
 
     toast.success('Alarm deleted');

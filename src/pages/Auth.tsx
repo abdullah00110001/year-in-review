@@ -56,34 +56,32 @@ export default function Auth() {
   const { signIn, signUp, signInWithGoogle, user, loading } = useAuth();
   const navigate = useNavigate();
 
-  // Check if user is admin and redirect accordingly
-  const checkAdminAndRedirect = async (userId: string) => {
-    try {
-      const { data: roleData } = await supabase.rpc('get_user_role', { _user_id: userId });
-      if (roleData === 'admin') {
-        navigate('/admin');
-      } else {
-        navigate('/dashboard');
+  // Redirect authenticated users - single effect to prevent race conditions
+  useEffect(() => {
+    if (loading || !user) return;
+    
+    let cancelled = false;
+    
+    const redirect = async () => {
+      try {
+        const { data: roleData, error } = await supabase.rpc('get_user_role', { _user_id: user.id });
+        if (cancelled) return;
+        if (!error && roleData === 'admin') {
+          navigate('/admin', { replace: true });
+        } else {
+          navigate('/dashboard', { replace: true });
+        }
+      } catch {
+        // Always fallback to dashboard on any error
+        if (!cancelled) {
+          navigate('/dashboard', { replace: true });
+        }
       }
-    } catch (error) {
-      console.error('Error checking admin role:', error);
-      navigate('/dashboard');
-    }
-  };
-
-  useEffect(() => {
-    if (!loading && user) {
-      // Use replace to ensure user can't go back to auth page
-      checkAdminAndRedirect(user.id);
-    }
-  }, [user, loading]);
-
-  // Immediate redirect for already authenticated users
-  useEffect(() => {
-    if (user && !loading) {
-      navigate('/dashboard', { replace: true });
-    }
-  }, []);
+    };
+    
+    redirect();
+    return () => { cancelled = true; };
+  }, [user, loading, navigate]);
 
   const validateForm = () => {
     try {

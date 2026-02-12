@@ -13,6 +13,13 @@ import { ShieldAccountability } from '@/components/shield/ShieldAccountability';
 import { ShieldUsageStats } from '@/components/shield/ShieldUsageStats';
 import { ShieldFocusTimer } from '@/components/shield/ShieldFocusTimer';
 import { ShieldQuickActions } from '@/components/shield/ShieldQuickActions';
+import { isNative } from '@/lib/capacitor/platform';
+import { 
+  startShieldSession as startNativeSession, 
+  endShieldSession as endNativeSession,
+  requestEmergencyBypass
+} from '@/lib/capacitor/nativeShield';
+import { requestShieldPermissions } from '@/lib/capacitor/permissions';
 
 type StrictnessMode = 'normal' | 'lock' | 'strict';
 type SubPage = 'main' | 'block-screen';
@@ -86,6 +93,10 @@ export default function ShieldPage() {
     if (user) {
       loadShieldData();
       loadSettings();
+      // Request native permissions on mount
+      if (isNative) {
+        requestShieldPermissions().catch(console.error);
+      }
     }
   }, [user]);
 
@@ -259,6 +270,7 @@ export default function ShieldPage() {
   const startSession = async (profile: DisciplineProfile) => {
     if (!user) return;
 
+    const now = new Date();
     const endTime = new Date();
     endTime.setMinutes(endTime.getMinutes() + profile.default_duration_minutes);
 
@@ -280,6 +292,23 @@ export default function ShieldPage() {
       return;
     }
 
+    // Start native shield session for background protection
+    if (isNative && data) {
+      await startNativeSession({
+        id: data.id,
+        profileId: profile.id,
+        profileName: profile.name,
+        strictnessLevel: profile.strictness_level as any,
+        startedAt: now,
+        scheduledEndAt: endTime,
+        blockedApps: profile.blocked_apps,
+        blockedWebsites: profile.blocked_websites,
+        blockedKeywords: profile.blocked_keywords,
+        blockInfiniteContent: profile.block_infinite_content,
+        blockAdultContent: profile.block_adult_content,
+      }, user.id);
+    }
+
     await supabase
       .from('discipline_profiles')
       .update({ is_active: true })
@@ -294,6 +323,11 @@ export default function ShieldPage() {
     if (!user || !activeSession) return;
 
     try {
+      // End native shield session
+      if (isNative) {
+        await endNativeSession(reason, user.id);
+      }
+
       await supabase
         .from('shield_sessions')
         .update({ 

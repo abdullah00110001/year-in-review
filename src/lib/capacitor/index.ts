@@ -33,7 +33,12 @@ export {
   checkUsageStatsPermission,
   openAppSettings,
   openUsageStatsSettings,
+  openBatterySettings,
   getAllPermissions,
+  hasRisePermissions,
+  hasShieldPermissions,
+  requestRisePermissions,
+  requestShieldPermissions,
   type PermissionStatus,
   type PermissionState
 } from './permissions';

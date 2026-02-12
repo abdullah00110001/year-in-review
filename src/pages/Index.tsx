@@ -14,19 +14,23 @@ export default function Index() {
   const [showInstallPrompt, setShowInstallPrompt] = useState(false);
 
   useEffect(() => {
-    // Always redirect logged-in users to dashboard first
-    if (!loading && user) {
+    // Don't act while auth is loading
+    if (loading) return;
+    
+    // Redirect logged-in users to dashboard
+    if (user) {
       navigate('/dashboard', { replace: true });
       return;
     }
 
-    // If running as native app or PWA, skip landing page → go to auth
-    if (!loading && !user && (isNative || isPWAInstalled())) {
+    // Always redirect to auth when not logged in (mobile-first app)
+    // Skip the landing page entirely for native apps and PWA
+    if (isNative || isPWAInstalled()) {
       navigate('/auth', { replace: true });
       return;
     }
 
-    // Show install prompt after a short delay for new visitors
+    // Show install prompt after a short delay for new visitors on web
     const timer = setTimeout(() => {
       if (!isPWAInstalled()) {
         setShowInstallPrompt(true);

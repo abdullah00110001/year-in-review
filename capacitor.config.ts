@@ -5,9 +5,18 @@ const config: CapacitorConfig = {
   appName: 'Life OS',
   webDir: 'dist',
   server: {
-    androidScheme: 'https'
+    androidScheme: 'https',
+    cleartext: true,
+    allowNavigation: [
+      'nxvtoviyldffcqbtgriw.supabase.co',
+      '*.supabase.co',
+      '*.lovableproject.com'
+    ]
   },
   plugins: {
+    CapacitorHttp: {
+      enabled: true,
+    },
     SplashScreen: {
       launchShowDuration: 2000,
       launchAutoHide: true,
@@ -31,7 +40,6 @@ const config: CapacitorConfig = {
     PushNotifications: {
       presentationOptions: ['badge', 'sound', 'alert']
     },
-    // Keyboard configuration for better input handling
     Keyboard: {
       resize: 'body',
       style: 'dark',
@@ -41,9 +49,8 @@ const config: CapacitorConfig = {
   android: {
     allowMixedContent: true,
     captureInput: true,
-    webContentsDebuggingEnabled: true, // Set to false for production
+    webContentsDebuggingEnabled: true,
     backgroundColor: '#0f172a',
-    // Custom permissions and features handled in AndroidManifest.xml
     buildOptions: {
       keystorePath: undefined,
       keystoreAlias: undefined

@@ -1,27 +1,10 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { 
   isNative, 
   isAndroid,
   initializeCapacitor, 
   getDeviceInfo 
 } from '@/lib/capacitor/platform';
-import { 
-  initializeAlarmChannel, 
-  setupAlarmListeners,
-  registerAlarmActions
-} from '@/lib/capacitor/nativeAlarm';
-import { 
-  initializeShieldChannel, 
-  setupShieldListeners,
-  extendSession
-} from '@/lib/capacitor/nativeShield';
-import { 
-  initializeNotificationChannels,
-  registerPushNotifications,
-  setupPushListeners,
-  type GroupWakeSignal,
-  type MentorFeedback
-} from '@/lib/capacitor/nativeNotifications';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 
@@ -35,43 +18,45 @@ interface CapacitorState {
 
 export function useCapacitor() {
   const { user } = useAuth();
+  const initRef = useRef(false);
   const [state, setState] = useState<CapacitorState>({
     isNative,
     isAndroid,
-    isInitialized: false,
+    isInitialized: !isNative,
     deviceInfo: null,
     pushToken: null
   });
 
-  // Handle back button (return true to prevent default)
   const handleBackButton = useCallback((): boolean => {
-    // Check if any modals/dialogs are open
-    const dialogs = document.querySelectorAll('[role="dialog"][data-state="open"]');
-    if (dialogs.length > 0) {
-      // Close the topmost dialog
-      const closeButton = dialogs[dialogs.length - 1].querySelector('[aria-label="Close"]');
-      if (closeButton) {
-        (closeButton as HTMLElement).click();
+    try {
+      // Close dialogs first
+      const dialogs = document.querySelectorAll('[role="dialog"][data-state="open"]');
+      if (dialogs.length > 0) {
+        const closeButton = dialogs[dialogs.length - 1].querySelector('[aria-label="Close"]');
+        if (closeButton) {
+          (closeButton as HTMLElement).click();
+          return true;
+        }
+      }
+      // Close drawers
+      const drawers = document.querySelectorAll('[data-vaul-drawer][data-state="open"]');
+      if (drawers.length > 0) {
+        document.body.click();
         return true;
       }
+    } catch (e) {
+      console.error('[Capacitor] Back button handler error:', e);
     }
-    
-    // Let default behavior handle it
     return false;
   }, []);
 
-  // Handle deep links
   const handleDeepLink = useCallback((url: string) => {
-    console.log('[Capacitor] Deep link received:', url);
-    
-    // Handle auth redirects
-    if (url.includes('auth/callback')) {
-      window.location.href = url;
-      return;
-    }
-    
-    // Handle app routes
     try {
+      console.log('[Capacitor] Deep link received:', url);
+      if (url.includes('auth/callback') || url.includes('supabase.co')) {
+        window.location.href = url;
+        return;
+      }
       const urlObj = new URL(url);
       const path = urlObj.pathname;
       if (path && path !== '/') {
@@ -82,149 +67,154 @@ export function useCapacitor() {
     }
   }, []);
 
-  // Handle alarm triggered
-  const handleAlarmTriggered = useCallback((alarmId: number, extra: any) => {
-    console.log('[Capacitor] Alarm triggered:', alarmId, extra);
-    
-    // Navigate to Rise page with alarm data
-    window.dispatchEvent(new CustomEvent('rise:alarmTriggered', {
-      detail: { alarmId, ...extra }
-    }));
-    
-    // Show toast if app is open
-    toast('⏰ Alarm!', {
-      description: extra.intention || 'Time to wake up!',
-      duration: 10000,
-      action: {
-        label: 'Dismiss',
-        onClick: () => {
-          window.location.href = '/rise';
-        }
-      }
-    });
-  }, []);
-
-  // Handle alarm action
-  const handleAlarmAction = useCallback((alarmId: number, action: string) => {
-    console.log('[Capacitor] Alarm action:', alarmId, action);
-    
-    window.dispatchEvent(new CustomEvent('rise:alarmAction', {
-      detail: { alarmId, action }
-    }));
-    
-    // Navigate to Rise for interaction
-    if (action === 'tap' || action === 'dismiss') {
-      window.location.href = '/rise';
-    }
-  }, []);
-
-  // Handle group wake signal
-  const handleGroupWakeSignal = useCallback((signal: GroupWakeSignal) => {
-    toast.error('🚨 Wake Up Call!', {
-      description: `${signal.fromUserName}: ${signal.message}`,
-      duration: 15000,
-      action: {
-        label: 'View',
-        onClick: () => {
-          window.location.href = '/rise';
-        }
-      }
-    });
-  }, []);
-
-  // Handle mentor feedback
-  const handleMentorFeedback = useCallback((feedback: MentorFeedback) => {
-    toast.success('📝 New Feedback', {
-      description: feedback.message,
-      action: {
-        label: 'View',
-        onClick: () => window.location.href = '/dashboard'
-      }
-    });
-  }, []);
-
-  // Handle generic notification
-  const handleGenericNotification = useCallback((title: string, body: string, data?: any) => {
-    toast(title, { 
-      description: body,
-      action: data?.route ? {
-        label: 'View',
-        onClick: () => window.location.href = data.route
-      } : undefined
-    });
-  }, []);
-
-  // Initialize Capacitor
+  // Initialize Capacitor - runs once
   useEffect(() => {
+    if (!isNative || initRef.current) return;
+    initRef.current = true;
+
     const init = async () => {
-      if (!isNative) {
-        setState(prev => ({ ...prev, isInitialized: true }));
-        return;
+      // Step 1: Core platform init
+      try {
+        await initializeCapacitor(handleBackButton, handleDeepLink);
+      } catch (error) {
+        console.error('[Capacitor] Platform init error:', error);
+      }
+
+      let deviceInfo = null;
+      try {
+        deviceInfo = await getDeviceInfo();
+      } catch (error) {
+        console.error('[Capacitor] Device info error:', error);
+      }
+
+      // Step 2: Request notification permission early (Android 13+)
+      if (isAndroid) {
+        try {
+          const { requestNotificationPermission, checkExactAlarmPermission } = await import('@/lib/capacitor/permissions');
+          const permStatus = await requestNotificationPermission();
+          console.log('[Capacitor] Notification permission:', permStatus);
+          
+          // Also check exact alarm permission for Rise
+          const alarmPerm = await checkExactAlarmPermission();
+          console.log('[Capacitor] Exact alarm permission:', alarmPerm);
+        } catch (error) {
+          console.error('[Capacitor] Permission error:', error);
+        }
+      }
+
+      // Step 3: Notification channels (each wrapped separately)
+      if (isAndroid) {
+        try {
+          const { initializeNotificationChannels } = await import('@/lib/capacitor/nativeNotifications');
+          await initializeNotificationChannels();
+        } catch (error) {
+          console.error('[Capacitor] Notification channels error:', error);
+        }
+
+        try {
+          const { initializeAlarmChannel, registerAlarmActions } = await import('@/lib/capacitor/nativeAlarm');
+          await initializeAlarmChannel();
+          await registerAlarmActions();
+        } catch (error) {
+          console.error('[Capacitor] Alarm channel error:', error);
+        }
+
+        try {
+          const { initializeShieldChannel } = await import('@/lib/capacitor/nativeShield');
+          await initializeShieldChannel();
+        } catch (error) {
+          console.error('[Capacitor] Shield channel error:', error);
+        }
+      }
+
+      // Step 4: Set up listeners
+      try {
+        const { setupAlarmListeners } = await import('@/lib/capacitor/nativeAlarm');
+        setupAlarmListeners(
+          (alarmId, extra) => {
+            console.log('[Capacitor] Alarm triggered:', alarmId);
+            window.dispatchEvent(new CustomEvent('rise:alarmTriggered', { detail: { alarmId, ...extra } }));
+            toast('⏰ Alarm!', {
+              description: extra?.intention || 'Time to wake up!',
+              duration: 10000,
+            });
+          },
+          (alarmId, action) => {
+            console.log('[Capacitor] Alarm action:', alarmId, action);
+            window.dispatchEvent(new CustomEvent('rise:alarmAction', { detail: { alarmId, action } }));
+          }
+        );
+      } catch (error) {
+        console.error('[Capacitor] Alarm listeners error:', error);
       }
 
       try {
-        // Initialize platform (splash, status bar, back button, deep links)
-        await initializeCapacitor(handleBackButton, handleDeepLink);
-
-        // Get device info
-        const deviceInfo = await getDeviceInfo();
-
-        // Initialize notification channels (Android)
-        if (isAndroid) {
-          await initializeNotificationChannels();
-          await initializeAlarmChannel();
-          await initializeShieldChannel();
-          await registerAlarmActions();
-        }
-
-        // Setup alarm listeners
-        setupAlarmListeners(handleAlarmTriggered, handleAlarmAction);
-
-        // Setup shield listeners
+        const { setupShieldListeners, extendSession } = await import('@/lib/capacitor/nativeShield');
         setupShieldListeners(
-          () => window.location.href = '/shield',
+          () => { try { window.location.href = '/shield'; } catch {} },
           () => {
-            extendSession(15);
-            window.dispatchEvent(new CustomEvent('shield:extendSession'));
+            try {
+              extendSession(15);
+              window.dispatchEvent(new CustomEvent('shield:extendSession'));
+            } catch {}
           }
         );
-
-        // Setup push listeners
-        setupPushListeners(
-          handleGroupWakeSignal,
-          handleMentorFeedback,
-          handleGenericNotification
-        );
-
-        setState({
-          isNative: true,
-          isAndroid,
-          isInitialized: true,
-          deviceInfo,
-          pushToken: null
-        });
-
-        console.log('[Capacitor] Fully initialized');
       } catch (error) {
-        console.error('[Capacitor] Init error:', error);
-        setState(prev => ({ ...prev, isInitialized: true }));
+        console.error('[Capacitor] Shield listeners error:', error);
       }
+
+      try {
+        const { setupPushListeners } = await import('@/lib/capacitor/nativeNotifications');
+        setupPushListeners(
+          (signal) => {
+            toast.error('🚨 Wake Up Call!', { description: `${signal.fromUserName}: ${signal.message}`, duration: 15000 });
+          },
+          (feedback) => {
+            toast.success('📝 New Feedback', { description: feedback.message });
+          },
+          (title, body) => {
+            toast(title, { description: body });
+          }
+        );
+      } catch (error) {
+        console.error('[Capacitor] Push listeners error:', error);
+      }
+
+      // Mark as initialized
+      setState({
+        isNative: true,
+        isAndroid,
+        isInitialized: true,
+        deviceInfo,
+        pushToken: null
+      });
+
+      console.log('[Capacitor] Initialization complete');
     };
 
     init();
-  }, [handleBackButton, handleDeepLink, handleAlarmTriggered, handleAlarmAction, handleGroupWakeSignal, handleMentorFeedback, handleGenericNotification]);
+  }, []);
 
   // Register push notifications when user logs in
   useEffect(() => {
-    if (user && isNative && state.isInitialized) {
-      registerPushNotifications(user.id).then(token => {
+    if (!user || !isNative || !state.isInitialized) return;
+
+    const registerPush = async () => {
+      try {
+        const { registerPushNotifications } = await import('@/lib/capacitor/nativeNotifications');
+        const token = await registerPushNotifications(user.id);
         if (token) {
           console.log('[Capacitor] Push registered for user');
           setState(prev => ({ ...prev, pushToken: token }));
         }
-      });
-    }
-  }, [user, state.isInitialized]);
+      } catch (error) {
+        console.error('[Capacitor] Push registration error:', error);
+      }
+    };
+
+    const timer = setTimeout(registerPush, 3000);
+    return () => clearTimeout(timer);
+  }, [user?.id, state.isInitialized]);
 
   return state;
 }

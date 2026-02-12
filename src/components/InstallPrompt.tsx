@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, forwardRef } from 'react';
 import { useInstallPrompt } from '@/hooks/useInstallPrompt';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -11,7 +11,7 @@ interface InstallPromptProps {
   onDismiss?: () => void;
 }
 
-export default function InstallPrompt({ className, variant = 'banner', onDismiss }: InstallPromptProps) {
+const InstallPrompt = forwardRef<HTMLDivElement, InstallPromptProps>(function InstallPrompt({ className, variant = 'banner', onDismiss }, ref) {
   const { isInstallable, isInstalled, isIOSSafari, install } = useInstallPrompt();
   const [isDismissed, setIsDismissed] = useState(false);
 
@@ -31,6 +31,9 @@ export default function InstallPrompt({ className, variant = 'banner', onDismiss
   if (isInstalled || isDismissed) {
     return null;
   }
+
+  // Note: ref is accepted via forwardRef but not applied to a specific element
+  // since the component returns different variants. This prevents the React warning.
 
   // iOS Safari instructions
   if (isIOSSafari) {
@@ -166,4 +169,6 @@ export default function InstallPrompt({ className, variant = 'banner', onDismiss
       </div>
     </div>
   );
-}
+});
+
+export default InstallPrompt;
