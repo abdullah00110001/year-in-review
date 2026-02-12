@@ -64,15 +64,15 @@ export default function Auth() {
     
     const redirect = async () => {
       try {
-        const { data: roleData, error } = await supabase.rpc('get_user_role', { _user_id: user.id });
+        const result = await supabase.rpc('get_user_role', { _user_id: user.id });
         if (cancelled) return;
-        if (!error && roleData === 'admin') {
+        const roleData = result?.data;
+        if (roleData === 'admin') {
           navigate('/admin', { replace: true });
         } else {
           navigate('/dashboard', { replace: true });
         }
       } catch {
-        // Always fallback to dashboard on any error
         if (!cancelled) {
           navigate('/dashboard', { replace: true });
         }
