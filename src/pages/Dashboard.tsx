@@ -68,40 +68,32 @@ export default function Dashboard() {
   }, [user]);
 
   const fetchDashboardData = async () => {
-    const today = format(new Date(), 'yyyy-MM-dd');
+    if (!user) { setLoading(false); return; }
+    
+    try {
+      const today = format(new Date(), 'yyyy-MM-dd');
 
-    // Fetch goals count
-    const { count: goalsCount } = await supabase
-      .from('goals')
-      .select('*', { count: 'exact', head: true })
-      .eq('user_id', user!.id);
+      const [goalsResult, habitsResult, entriesResult] = await Promise.all([
+        supabase.from('goals').select('*', { count: 'exact', head: true }).eq('user_id', user.id),
+        supabase.from('habits').select('*', { count: 'exact' }).eq('user_id', user.id).eq('is_active', true).limit(5),
+        supabase.from('habit_entries').select('*').eq('user_id', user.id).eq('date', today),
+      ]);
 
-    // Fetch habits
-    const { data: habits, count: habitsCount } = await supabase
-      .from('habits')
-      .select('*', { count: 'exact' })
-      .eq('user_id', user!.id)
-      .eq('is_active', true)
-      .limit(5);
+      const completedToday = entriesResult.data?.filter(e => e.completed).length || 0;
 
-    // Fetch today's entries
-    const { data: todayEntries } = await supabase
-      .from('habit_entries')
-      .select('*')
-      .eq('user_id', user!.id)
-      .eq('date', today);
+      setStats({
+        totalGoals: goalsResult.count || 0,
+        totalHabits: habitsResult.count || 0,
+        todayCompleted: completedToday,
+        todayTotal: habitsResult.count || 0,
+      });
 
-    const completedToday = todayEntries?.filter(e => e.completed).length || 0;
-
-    setStats({
-      totalGoals: goalsCount || 0,
-      totalHabits: habitsCount || 0,
-      todayCompleted: completedToday,
-      todayTotal: habitsCount || 0,
-    });
-
-    setRecentHabits(habits || []);
-    setLoading(false);
+      setRecentHabits(habitsResult.data || []);
+    } catch (err) {
+      console.error('[Dashboard] fetchDashboardData error:', err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const getGreeting = () => {
