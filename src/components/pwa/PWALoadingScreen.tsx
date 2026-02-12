@@ -46,7 +46,7 @@ export default function PWALoadingScreen({
       clearInterval(interval);
       clearTimeout(minTimer);
     };
-  }, [minDuration, onComplete]);
+  }, [minDuration]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div

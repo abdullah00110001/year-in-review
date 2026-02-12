@@ -1,5 +1,5 @@
 import { Component, ErrorInfo, ReactNode } from 'react';
-import { isNative } from '@/lib/capacitor/platform';
+
 
 interface Props {
   children: ReactNode;
@@ -37,24 +37,33 @@ export class ErrorBoundary extends Component<Props, State> {
             <p className="text-sm text-muted-foreground mb-4">
               {this.state.error?.message || 'An unexpected error occurred.'}
             </p>
-            <div className="flex gap-3 justify-center">
+            <div className="flex flex-col gap-3 items-center">
               <button
                 onClick={() => {
                   this.setState({ hasError: false, error: null });
                   window.location.href = '/dashboard';
                 }}
-                className="px-6 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium"
+                className="w-48 px-6 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium"
               >
                 Go to Dashboard
               </button>
               <button
                 onClick={() => {
                   this.setState({ hasError: false, error: null });
+                  window.location.href = '/auth';
+                }}
+                className="w-48 px-6 py-2 bg-muted text-foreground rounded-lg text-sm font-medium"
+              >
+                Back to Login
+              </button>
+              <button
+                onClick={() => {
+                  this.setState({ hasError: false, error: null });
                   window.location.reload();
                 }}
-                className="px-6 py-2 bg-muted text-foreground rounded-lg text-sm font-medium"
+                className="w-48 px-6 py-2 border border-border text-foreground rounded-lg text-sm font-medium"
               >
-                Reload
+                Reload App
               </button>
             </div>
           </div>

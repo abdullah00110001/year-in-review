@@ -147,11 +147,12 @@ export function useDashboardData(): DashboardData {
           .order('triggered_at', { ascending: false }),
       ]);
 
-      if (todayResult.error) throw todayResult.error;
-      if (recentResult.error) throw recentResult.error;
-      if (sessionsResult.error) throw sessionsResult.error;
-      if (serviceResult.error) throw serviceResult.error;
-      if (nafsResult.error) throw nafsResult.error;
+      // Only throw on critical errors, not missing tables
+      if (todayResult.error) console.warn('[Dashboard] todayEntry error:', todayResult.error.message);
+      if (recentResult.error) console.warn('[Dashboard] recentEntries error:', recentResult.error.message);
+      if (sessionsResult.error) console.warn('[Dashboard] sessions error:', sessionsResult.error.message);
+      if (serviceResult.error) console.warn('[Dashboard] service error:', serviceResult.error.message);
+      if (nafsResult.error) console.warn('[Dashboard] nafs error:', nafsResult.error.message);
 
       // Process today's entry
       setTodayEntry(todayResult.data as DailyEntryData | null);

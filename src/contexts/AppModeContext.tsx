@@ -252,13 +252,23 @@ export function AppModeProvider({ children }: { children: ReactNode }) {
         .from('profiles')
         .select('app_mode')
         .eq('user_id', user!.id)
-        .single();
+        .maybeSingle();
 
-      if (data?.app_mode) {
+      if (error) {
+        console.warn('[AppMode] Profile fetch error:', error.message);
+      } else if (data?.app_mode) {
         setModeState(data.app_mode as AppMode);
+      } else if (!data) {
+        // Profile doesn't exist yet — create one
+        console.log('[AppMode] No profile found, creating default');
+        try {
+          await supabase.from('profiles').insert({ user_id: user!.id, app_mode: 'islamic' });
+        } catch (insertErr) {
+          console.warn('[AppMode] Profile auto-create failed:', insertErr);
+        }
       }
     } catch (error) {
-      console.error('Error fetching app mode:', error);
+      console.error('[AppMode] Error fetching app mode:', error);
     } finally {
       setIsLoading(false);
     }
