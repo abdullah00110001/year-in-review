@@ -10,16 +10,14 @@ import { AppModeProvider } from "@/contexts/AppModeContext";
 import { CapacitorProvider } from "@/contexts/CapacitorContext";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import ProtectedRoute from "@/components/ProtectedRoute";
-import UpdatePrompt from "@/components/pwa/UpdatePrompt";
 import ScrollToTop from "@/components/ScrollToTop";
 import SmartNotificationProvider from "@/components/notifications/SmartNotifications";
 import { lazy, Suspense, useState } from "react";
 import { Loader2 } from "lucide-react";
-import PWALoadingScreen from "@/components/pwa/PWALoadingScreen";
 import { isNative } from "@/lib/capacitor/platform";
+import NativeSplash from "@/components/NativeSplash";
 
 // Critical pages loaded eagerly
-import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import NotFound from "./pages/NotFound";
@@ -54,7 +52,6 @@ const UnifiedDashboard = lazy(() => import("./pages/UnifiedDashboard"));
 const Challenges = lazy(() => import("./pages/Challenges"));
 const Reflections = lazy(() => import("./pages/Reflections"));
 const ComparativeAnalytics = lazy(() => import("./pages/ComparativeAnalytics"));
-const Install = lazy(() => import("./pages/Install"));
 const ShieldPage = lazy(() => import("./pages/Shield"));
 const RisePage = lazy(() => import("./pages/Rise"));
 const PDFTools = lazy(() => import("./pages/PDFTools"));
@@ -73,7 +70,6 @@ const AdminCommandCenter = lazy(() => import("./pages/admin/AdminCommandCenter")
 const AdminPDFTools = lazy(() => import("./pages/admin/AdminPDFTools"));
 const AdminPanel = lazy(() => import("./pages/admin/AdminPanel"));
 import AdminProtectedRoute from "./components/admin/AdminProtectedRoute";
-import OfflineIndicator from "./components/OfflineIndicator";
 
 const PageLoader = () => (
   <div className="flex min-h-screen items-center justify-center bg-background">
@@ -103,13 +99,13 @@ const queryClient = new QueryClient({
 });
 
 const App = () => {
-  // Only show splash on native, skip on web entirely
+  // Only show splash on native
   const [splashDone, setSplashDone] = useState(!isNative);
 
   if (!splashDone) {
     return (
       <ThemeProvider>
-        <PWALoadingScreen onComplete={() => setSplashDone(true)} minDuration={1200} />
+        <NativeSplash onComplete={() => setSplashDone(true)} />
       </ThemeProvider>
     );
   }
@@ -125,15 +121,12 @@ const App = () => {
                   <TooltipProvider>
                     <Toaster />
                     <Sonner />
-                    <OfflineIndicator />
-                    <UpdatePrompt />
                     <SmartNotificationProvider />
                     <BrowserRouter>
                       <ScrollToTop />
                       <Suspense fallback={<PageLoader />}>
                         <Routes>
-                          <Route path="/" element={<Index />} />
-                          <Route path="/install" element={<Install />} />
+                          <Route path="/" element={<Auth />} />
                           <Route path="/auth" element={<Auth />} />
                           <Route path="/reset-password" element={<ResetPassword />} />
                           <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />

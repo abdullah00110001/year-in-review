@@ -3,10 +3,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Crown, Check, Zap, Star, Ticket, ArrowLeft } from 'lucide-react';
+import { Crown, Check, Zap, Star, Ticket, ArrowLeft, Clock, Receipt } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '@/hooks/useAuth';
 
 interface Plan {
   id: string;
@@ -15,69 +17,128 @@ interface Plan {
   description: string | null;
   tier: string;
   price_monthly: number | null;
+  price_weekly: number | null;
   price_yearly: number | null;
   price_lifetime: number | null;
+  trial_days: number;
   features: string[];
   region_pricing: Record<string, any> | null;
   stripe_price_id: string | null;
 }
 
+interface Invoice {
+  id: string;
+  invoice_number: string;
+  amount: number;
+  currency: string;
+  total_amount: number;
+  status: string;
+  plan_name: string | null;
+  created_at: string;
+}
+
+type BillingCycle = 'weekly' | 'monthly' | 'yearly';
+
 export default function Premium() {
+  const { user } = useAuth();
   const [plans, setPlans] = useState<Plan[]>([]);
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [couponCode, setCouponCode] = useState('');
   const [couponApplied, setCouponApplied] = useState<{ discount_type: string; discount_value: number } | null>(null);
   const [currentPlan, setCurrentPlan] = useState<string>('free');
+  const [currentSub, setCurrentSub] = useState<any>(null);
+  const [billingCycle, setBillingCycle] = useState<BillingCycle>('monthly');
+  const [subscribing, setSubscribing] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
     fetchPlans();
-    fetchCurrentSubscription();
-  }, []);
+    if (user) {
+      fetchCurrentSubscription();
+      fetchInvoices();
+    }
+  }, [user]);
 
   const fetchPlans = async () => {
-    const { data } = await supabase
-      .from('subscription_plans')
-      .select('*')
-      .eq('is_active', true)
-      .order('price_monthly');
-    setPlans((data || []).map(p => ({ ...p, features: (p.features as string[]) || [] })) as Plan[]);
-    setLoading(false);
+    try {
+      const { data } = await supabase
+        .from('subscription_plans')
+        .select('*')
+        .eq('is_active', true)
+        .order('price_monthly');
+      setPlans((data || []).map(p => ({ ...p, features: (p.features as string[]) || [], trial_days: (p as any).trial_days || 0 })) as Plan[]);
+    } catch (err) {
+      console.warn('Failed to fetch plans:', err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const fetchCurrentSubscription = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
-    const { data } = await supabase
-      .from('user_subscriptions')
-      .select('*, subscription_plans(*)')
-      .eq('user_id', user.id)
-      .eq('status', 'active')
-      .maybeSingle();
-    if (data) {
-      setCurrentPlan((data.subscription_plans as any)?.tier || 'free');
+    try {
+      const { data } = await supabase
+        .from('user_subscriptions')
+        .select('*, subscription_plans(*)')
+        .eq('user_id', user.id)
+        .in('status', ['active', 'trialing'])
+        .maybeSingle();
+      if (data) {
+        setCurrentSub(data);
+        setCurrentPlan((data.subscription_plans as any)?.tier || 'free');
+      }
+    } catch (err) {
+      console.warn('Failed to fetch subscription:', err);
+    }
+  };
+
+  const fetchInvoices = async () => {
+    if (!user) return;
+    try {
+      const { data } = await supabase
+        .from('invoices')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(10);
+      setInvoices((data || []) as Invoice[]);
+    } catch (err) {
+      console.warn('Failed to fetch invoices:', err);
     }
   };
 
   const applyCoupon = async () => {
     if (!couponCode.trim()) return;
-    const { data, error } = await supabase
-      .from('coupons')
-      .select('*')
-      .eq('code', couponCode.toUpperCase())
-      .eq('is_active', true)
-      .maybeSingle();
+    try {
+      const { data, error } = await supabase
+        .from('coupons')
+        .select('*')
+        .eq('code', couponCode.toUpperCase())
+        .eq('is_active', true)
+        .maybeSingle();
 
-    if (error || !data) {
-      toast.error('Invalid or expired coupon');
-      return;
+      if (error || !data) {
+        toast.error('Invalid or expired coupon');
+        return;
+      }
+      if (data.max_uses && (data.uses_count || 0) >= data.max_uses) {
+        toast.error('Coupon usage limit reached');
+        return;
+      }
+      setCouponApplied({ discount_type: data.discount_type || 'percentage', discount_value: data.discount_value });
+      toast.success(`Coupon applied! ${data.discount_type === 'percentage' ? `${data.discount_value}% off` : `$${data.discount_value} off`}`);
+    } catch {
+      toast.error('Failed to apply coupon');
     }
-    if (data.max_uses && data.uses_count >= data.max_uses) {
-      toast.error('Coupon usage limit reached');
-      return;
+  };
+
+  const getPrice = (plan: Plan): number => {
+    switch (billingCycle) {
+      case 'weekly': return plan.price_weekly || 0;
+      case 'yearly': return plan.price_yearly || 0;
+      default: return plan.price_monthly || 0;
     }
-    setCouponApplied({ discount_type: data.discount_type || 'percentage', discount_value: data.discount_value });
-    toast.success(`Coupon applied! ${data.discount_type === 'percentage' ? `${data.discount_value}% off` : `$${data.discount_value} off`}`);
   };
 
   const getDiscountedPrice = (price: number) => {
@@ -89,56 +150,118 @@ export default function Premium() {
   };
 
   const handleSubscribe = async (plan: Plan) => {
-    const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
       toast.error('Please login first');
       navigate('/auth');
       return;
     }
 
-    // Check provider settings
-    const { data: settings } = await supabase
-      .from('app_settings')
-      .select('value')
-      .eq('key', 'payment_providers')
-      .maybeSingle();
+    setSubscribing(true);
+    try {
+      const price = getPrice(plan);
+      const finalPrice = getDiscountedPrice(price);
+      const isTrial = plan.trial_days > 0;
+      const now = new Date();
+      const trialEnd = isTrial ? new Date(now.getTime() + plan.trial_days * 24 * 60 * 60 * 1000) : null;
 
-    const providers = settings?.value as Record<string, any> | null;
-    const stripeEnabled = providers?.stripe?.enabled && providers?.stripe?.secret_key;
-    const bkashEnabled = providers?.bkash?.enabled && providers?.bkash?.secret_key;
-    const nagadEnabled = providers?.nagad?.enabled && providers?.nagad?.secret_key;
+      let expiresAt: Date;
+      if (billingCycle === 'weekly') {
+        expiresAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+      } else if (billingCycle === 'yearly') {
+        expiresAt = new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000);
+      } else {
+        expiresAt = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+      }
 
-    if (!stripeEnabled && !bkashEnabled && !nagadEnabled) {
-      toast.error('Payment system is not configured yet. Please contact admin.');
-      return;
+      // Create subscription
+      const { data: sub, error: subError } = await supabase
+        .from('user_subscriptions')
+        .insert({
+          user_id: user.id,
+          plan_id: plan.id,
+          status: isTrial ? 'trialing' : 'active',
+          platform: 'web',
+          starts_at: now.toISOString(),
+          expires_at: expiresAt.toISOString(),
+          is_trial: isTrial,
+          trial_ends_at: trialEnd?.toISOString() || null,
+        })
+        .select()
+        .single();
+
+      if (subError) throw subError;
+
+      // Create payment transaction
+      const { data: txn, error: txnError } = await supabase
+        .from('payment_transactions')
+        .insert({
+          user_id: user.id,
+          subscription_id: sub.id,
+          amount: isTrial ? 0 : finalPrice,
+          currency: 'USD',
+          payment_provider: 'manual',
+          status: isTrial ? 'completed' : 'pending',
+          metadata: { plan_key: plan.plan_key, billing_cycle: billingCycle, coupon: couponApplied } as any,
+        })
+        .select()
+        .single();
+
+      if (txnError) throw txnError;
+
+      // Generate invoice number
+      const { data: invNum } = await supabase.rpc('generate_invoice_number');
+      const invoiceNumber = invNum || `INV-${new Date().getFullYear()}-${Date.now()}`;
+
+      // Create invoice
+      await supabase.from('invoices').insert({
+        user_id: user.id,
+        transaction_id: txn.id,
+        subscription_id: sub.id,
+        invoice_number: invoiceNumber,
+        amount: isTrial ? 0 : finalPrice,
+        currency: 'USD',
+        tax_amount: 0,
+        total_amount: isTrial ? 0 : finalPrice,
+        status: isTrial ? 'trial' : 'paid',
+        billing_period_start: now.toISOString(),
+        billing_period_end: expiresAt.toISOString(),
+        plan_name: plan.name,
+        user_email: user.email,
+        payment_method: 'manual',
+      });
+
+      if (isTrial) {
+        toast.success(`${plan.trial_days}-day free trial started!`, {
+          description: `Your trial for ${plan.name} ends on ${trialEnd?.toLocaleDateString()}`
+        });
+      } else {
+        toast.success('Subscription activated!', {
+          description: `You're now on the ${plan.name} plan`
+        });
+      }
+
+      fetchCurrentSubscription();
+      fetchInvoices();
+    } catch (err) {
+      console.error('Subscription error:', err);
+      toast.error('Failed to process subscription');
+    } finally {
+      setSubscribing(false);
     }
-
-    // For now, create a pending transaction
-    const price = plan.price_monthly || 0;
-    const finalPrice = getDiscountedPrice(price);
-
-    const { error } = await supabase.from('payment_transactions').insert({
-      user_id: user.id,
-      amount: finalPrice,
-      currency: 'USD',
-      payment_provider: stripeEnabled ? 'stripe' : bkashEnabled ? 'bkash' : 'nagad',
-      status: 'pending',
-      metadata: { plan_id: plan.id, coupon_applied: couponApplied } as any,
-    });
-
-    if (error) {
-      toast.error('Failed to initiate payment');
-      return;
-    }
-
-    toast.success('Payment initiated! Processing...');
-    // In a real implementation, this would redirect to Stripe/bKash checkout
   };
 
   const getPlanIcon = (tier: string) => {
     if (tier === 'free') return <Zap className="h-8 w-8 text-muted-foreground" />;
     if (tier === 'premium') return <Star className="h-8 w-8 text-primary" />;
     return <Crown className="h-8 w-8 text-amber-500" />;
+  };
+
+  const getCycleLabel = () => {
+    switch (billingCycle) {
+      case 'weekly': return '/wk';
+      case 'yearly': return '/yr';
+      default: return '/mo';
+    }
   };
 
   if (loading) {
@@ -156,7 +279,7 @@ export default function Premium() {
           <ArrowLeft className="h-4 w-4 mr-2" /> Back
         </Button>
 
-        <div className="text-center mb-10">
+        <div className="text-center mb-8">
           <div className="flex items-center justify-center gap-2 mb-3">
             <Crown className="h-8 w-8 text-primary" />
             <h1 className="text-3xl font-bold">Upgrade Your Life OS</h1>
@@ -166,11 +289,51 @@ export default function Premium() {
           </p>
         </div>
 
+        {/* Current Subscription Status */}
+        {currentSub && (
+          <Card className="mb-6 border-primary/30 bg-primary/5">
+            <CardContent className="p-4 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Crown className="h-5 w-5 text-primary" />
+                <div>
+                  <p className="font-medium">Current Plan: {(currentSub.subscription_plans as any)?.name}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {currentSub.is_trial ? (
+                      <>Trial ends {new Date(currentSub.trial_ends_at).toLocaleDateString()}</>
+                    ) : (
+                      <>Expires {new Date(currentSub.expires_at).toLocaleDateString()}</>
+                    )}
+                  </p>
+                </div>
+              </div>
+              {currentSub.is_trial && (
+                <Badge variant="secondary" className="flex items-center gap-1">
+                  <Clock className="h-3 w-3" /> Trial
+                </Badge>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Billing Cycle Toggle */}
+        <div className="flex justify-center mb-8">
+          <Tabs value={billingCycle} onValueChange={(v) => setBillingCycle(v as BillingCycle)}>
+            <TabsList>
+              <TabsTrigger value="weekly">Weekly</TabsTrigger>
+              <TabsTrigger value="monthly">Monthly</TabsTrigger>
+              <TabsTrigger value="yearly">
+                Yearly
+                <Badge variant="secondary" className="ml-2 text-xs">Save 33%</Badge>
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </div>
+
         {/* Plans */}
         <div className="grid md:grid-cols-3 gap-6 mb-8">
           {plans.map((plan) => {
             const isCurrentPlan = currentPlan === plan.tier;
-            const price = plan.price_monthly || 0;
+            const price = getPrice(plan);
             const finalPrice = getDiscountedPrice(price);
             const hasDiscount = couponApplied && price > 0;
 
@@ -184,24 +347,24 @@ export default function Premium() {
                 <CardHeader className="text-center pb-2">
                   <div className="flex justify-center mb-3">{getPlanIcon(plan.tier)}</div>
                   <CardTitle className="text-xl">{plan.name}</CardTitle>
-                  {plan.description && <p className="text-sm text-muted-foreground">{plan.description}</p>}
+                  {plan.trial_days > 0 && (
+                    <Badge variant="outline" className="mx-auto mt-1 text-xs">
+                      <Clock className="h-3 w-3 mr-1" />
+                      {plan.trial_days}-day free trial
+                    </Badge>
+                  )}
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="text-center">
                     {price > 0 ? (
                       <>
                         {hasDiscount && (
-                          <p className="text-sm line-through text-muted-foreground">${price}/mo</p>
+                          <p className="text-sm line-through text-muted-foreground">${price}{getCycleLabel()}</p>
                         )}
                         <p className="text-3xl font-bold">
                           ${finalPrice.toFixed(2)}
-                          <span className="text-sm font-normal text-muted-foreground">/mo</span>
+                          <span className="text-sm font-normal text-muted-foreground">{getCycleLabel()}</span>
                         </p>
-                        {(plan.region_pricing as any)?.bdt_monthly > 0 && (
-                          <p className="text-sm text-muted-foreground">
-                            ৳{hasDiscount ? getDiscountedPrice((plan.region_pricing as any).bdt_monthly).toFixed(0) : (plan.region_pricing as any).bdt_monthly}/mo
-                          </p>
-                        )}
                       </>
                     ) : (
                       <p className="text-3xl font-bold">Free</p>
@@ -220,10 +383,11 @@ export default function Premium() {
                   <Button
                     className="w-full"
                     variant={plan.tier === 'premium' ? 'default' : 'outline'}
-                    disabled={isCurrentPlan || plan.tier === 'free'}
+                    disabled={isCurrentPlan || plan.tier === 'free' || subscribing}
                     onClick={() => handleSubscribe(plan)}
                   >
-                    {isCurrentPlan ? 'Current Plan' : plan.tier === 'free' ? 'Free Forever' : 'Subscribe'}
+                    {isCurrentPlan ? 'Current Plan' : plan.tier === 'free' ? 'Free Forever' : 
+                     plan.trial_days > 0 ? `Start ${plan.trial_days}-Day Trial` : 'Subscribe'}
                   </Button>
                 </CardContent>
               </Card>
@@ -232,7 +396,7 @@ export default function Premium() {
         </div>
 
         {/* Coupon */}
-        <Card className="max-w-md mx-auto">
+        <Card className="max-w-md mx-auto mb-8">
           <CardContent className="p-4">
             <div className="flex items-center gap-2">
               <Ticket className="h-5 w-5 text-muted-foreground" />
@@ -252,6 +416,38 @@ export default function Premium() {
             )}
           </CardContent>
         </Card>
+
+        {/* Invoice History */}
+        {invoices.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Receipt className="h-5 w-5" />
+                Invoice History
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {invoices.map((inv) => (
+                  <div key={inv.id} className="flex items-center justify-between p-3 rounded-lg border">
+                    <div>
+                      <p className="font-medium text-sm">{inv.invoice_number}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {inv.plan_name} • {new Date(inv.created_at).toLocaleDateString()}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-medium">${inv.total_amount}</p>
+                      <Badge variant={inv.status === 'paid' ? 'default' : 'secondary'} className="text-xs">
+                        {inv.status}
+                      </Badge>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   );

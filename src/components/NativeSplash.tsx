@@ -2,22 +2,15 @@ import { useEffect, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-interface PWALoadingScreenProps {
+interface NativeSplashProps {
   onComplete?: () => void;
-  minDuration?: number;
 }
 
-export default function PWALoadingScreen({ 
-  onComplete, 
-  minDuration = 800 
-}: PWALoadingScreenProps) {
+export default function NativeSplash({ onComplete }: NativeSplashProps) {
   const [progress, setProgress] = useState(0);
   const [fadeOut, setFadeOut] = useState(false);
 
   useEffect(() => {
-    const startTime = Date.now();
-    
-    // Smooth progress animation
     const interval = setInterval(() => {
       setProgress(prev => {
         if (prev >= 100) {
@@ -28,35 +21,28 @@ export default function PWALoadingScreen({
       });
     }, 100);
 
-    // Ensure minimum duration before completing
-    const minTimer = setTimeout(() => {
-      const elapsed = Date.now() - startTime;
-      const remaining = Math.max(0, minDuration - elapsed);
-      
+    const timer = setTimeout(() => {
+      setProgress(100);
+      setFadeOut(true);
       setTimeout(() => {
-        setProgress(100);
-        setFadeOut(true);
-        setTimeout(() => {
-          onComplete?.();
-        }, 300);
-      }, remaining);
-    }, minDuration);
+        onComplete?.();
+      }, 300);
+    }, 1200);
 
     return () => {
       clearInterval(interval);
-      clearTimeout(minTimer);
+      clearTimeout(timer);
     };
-  }, [minDuration]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div
       className={cn(
         'fixed inset-0 z-[9999] flex flex-col items-center justify-center transition-opacity duration-300',
-        'bg-gradient-to-br from-sky-50 via-cyan-50 to-blue-100 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900',
+        'bg-gradient-to-br from-background via-muted/30 to-background',
         fadeOut && 'opacity-0 pointer-events-none'
       )}
     >
-      {/* App Icon */}
       <div className="relative mb-6 animate-pulse">
         <img
           src="/icons/icon-192x192.png"
@@ -64,21 +50,13 @@ export default function PWALoadingScreen({
           className="h-20 w-20 rounded-2xl shadow-lg"
         />
       </div>
-
-      {/* App Name */}
-      <h1 className="mb-8 text-2xl font-bold text-foreground">
-        Yearly Track
-      </h1>
-
-      {/* Progress Bar */}
+      <h1 className="mb-8 text-2xl font-bold text-foreground">Yearly Track</h1>
       <div className="relative h-1 w-48 overflow-hidden rounded-full bg-muted">
         <div
           className="absolute left-0 top-0 h-full rounded-full bg-primary transition-all duration-200 ease-out"
           style={{ width: `${Math.min(progress, 100)}%` }}
         />
       </div>
-
-      {/* Loading Text */}
       <div className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">
         <Loader2 className="h-4 w-4 animate-spin" />
         <span>Loading...</span>

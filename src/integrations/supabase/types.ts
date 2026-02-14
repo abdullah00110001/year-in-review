@@ -1370,6 +1370,90 @@ export type Database = {
           },
         ]
       }
+      invoices: {
+        Row: {
+          amount: number
+          billing_period_end: string | null
+          billing_period_start: string | null
+          created_at: string
+          currency: string
+          id: string
+          invoice_number: string
+          metadata: Json | null
+          notes: string | null
+          payment_method: string | null
+          plan_name: string | null
+          status: string
+          subscription_id: string | null
+          tax_amount: number | null
+          total_amount: number
+          transaction_id: string | null
+          updated_at: string
+          user_email: string | null
+          user_id: string
+          user_name: string | null
+        }
+        Insert: {
+          amount: number
+          billing_period_end?: string | null
+          billing_period_start?: string | null
+          created_at?: string
+          currency?: string
+          id?: string
+          invoice_number: string
+          metadata?: Json | null
+          notes?: string | null
+          payment_method?: string | null
+          plan_name?: string | null
+          status?: string
+          subscription_id?: string | null
+          tax_amount?: number | null
+          total_amount: number
+          transaction_id?: string | null
+          updated_at?: string
+          user_email?: string | null
+          user_id: string
+          user_name?: string | null
+        }
+        Update: {
+          amount?: number
+          billing_period_end?: string | null
+          billing_period_start?: string | null
+          created_at?: string
+          currency?: string
+          id?: string
+          invoice_number?: string
+          metadata?: Json | null
+          notes?: string | null
+          payment_method?: string | null
+          plan_name?: string | null
+          status?: string
+          subscription_id?: string | null
+          tax_amount?: number | null
+          total_amount?: number
+          transaction_id?: string | null
+          updated_at?: string
+          user_email?: string | null
+          user_id?: string
+          user_name?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoices_subscription_id_fkey"
+            columns: ["subscription_id"]
+            isOneToOne: false
+            referencedRelation: "user_subscriptions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "payment_transactions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       knowledge_items: {
         Row: {
           author: string | null
@@ -2626,6 +2710,7 @@ export type Database = {
       }
       subscription_plans: {
         Row: {
+          billing_period: string | null
           created_at: string | null
           description: string | null
           features: Json | null
@@ -2636,13 +2721,16 @@ export type Database = {
           play_store_product_id: string | null
           price_lifetime: number | null
           price_monthly: number | null
+          price_weekly: number | null
           price_yearly: number | null
           region_pricing: Json | null
           stripe_price_id: string | null
           tier: string
+          trial_days: number | null
           updated_at: string | null
         }
         Insert: {
+          billing_period?: string | null
           created_at?: string | null
           description?: string | null
           features?: Json | null
@@ -2653,13 +2741,16 @@ export type Database = {
           play_store_product_id?: string | null
           price_lifetime?: number | null
           price_monthly?: number | null
+          price_weekly?: number | null
           price_yearly?: number | null
           region_pricing?: Json | null
           stripe_price_id?: string | null
           tier: string
+          trial_days?: number | null
           updated_at?: string | null
         }
         Update: {
+          billing_period?: string | null
           created_at?: string | null
           description?: string | null
           features?: Json | null
@@ -2670,10 +2761,12 @@ export type Database = {
           play_store_product_id?: string | null
           price_lifetime?: number | null
           price_monthly?: number | null
+          price_weekly?: number | null
           price_yearly?: number | null
           region_pricing?: Json | null
           stripe_price_id?: string | null
           tier?: string
+          trial_days?: number | null
           updated_at?: string | null
         }
         Relationships: []
@@ -3257,6 +3350,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      generate_invoice_number: { Args: never; Returns: string }
       get_user_role: {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["app_role"]
