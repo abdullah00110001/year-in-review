@@ -3,7 +3,7 @@
 export { useNativeCamera } from '../useNativeCamera';
 export { useNativeHaptics } from '../useNativeHaptics';
 export { useNativeShare } from '../useNativeShare';
-export { useOfflineSync } from '../useOfflineSync';
+
 export { useNativeAlarm } from '../useNativeAlarm';
 export { useNativeShield } from '../useNativeShield';
 export { useNativeNotifications } from '../useNativeNotifications';
