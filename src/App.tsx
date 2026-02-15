@@ -19,6 +19,7 @@ import NativeSplash from "@/components/NativeSplash";
 
 // All pages imported directly - no lazy loading (fixes Capacitor WebView chunk failures)
 import Auth from "./pages/Auth";
+import LandingPage from "./pages/LandingPage";
 import Dashboard from "./pages/Dashboard";
 import NotFound from "./pages/NotFound";
 import ResetPassword from "./pages/ResetPassword";
@@ -114,7 +115,7 @@ const App = () => {
                     <BrowserRouter>
                       <ScrollToTop />
                       <Routes>
-                        <Route path="/" element={<Auth />} />
+                        <Route path="/" element={<LandingPage />} />
                         <Route path="/auth" element={<Auth />} />
                         <Route path="/reset-password" element={<ResetPassword />} />
                         <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
