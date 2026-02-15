@@ -3053,48 +3053,6 @@ export type Database = {
           },
         ]
       }
-      user_feedback: {
-        Row: {
-          admin_reply: string | null
-          created_at: string
-          feedback_type: string
-          id: string
-          message: string
-          replied_at: string | null
-          replied_by: string | null
-          status: string
-          subject: string
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          admin_reply?: string | null
-          created_at?: string
-          feedback_type?: string
-          id?: string
-          message: string
-          replied_at?: string | null
-          replied_by?: string | null
-          status?: string
-          subject: string
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          admin_reply?: string | null
-          created_at?: string
-          feedback_type?: string
-          id?: string
-          message?: string
-          replied_at?: string | null
-          replied_by?: string | null
-          status?: string
-          subject?: string
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
       user_reflections: {
         Row: {
           created_at: string

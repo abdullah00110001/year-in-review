@@ -60,122 +60,6 @@ const feedbackTypes = [
   { value: 'celebration', label: 'Celebration', icon: Sparkles, color: 'text-green-500' },
 ];
 
-function UserFeedbackInbox() {
-  const { user: adminUser } = useAuth();
-  const [feedbacks, setFeedbacks] = useState<any[]>([]);
-  const [loadingInbox, setLoadingInbox] = useState(true);
-  const [replyingId, setReplyingId] = useState<string | null>(null);
-  const [replyText, setReplyText] = useState('');
-
-  useEffect(() => { fetchUserFeedbacks(); }, []);
-
-  const fetchUserFeedbacks = async () => {
-    const { data } = await supabase
-      .from('user_feedback')
-      .select('*')
-      .order('created_at', { ascending: false });
-    
-    if (data && data.length > 0) {
-      const userIds = [...new Set(data.map((f: any) => f.user_id))];
-      const { data: profiles } = await supabase.from('profiles').select('user_id, full_name').in('user_id', userIds);
-      const nameMap = new Map(profiles?.map(p => [p.user_id, p.full_name]));
-      setFeedbacks(data.map((f: any) => ({ ...f, user_name: nameMap.get(f.user_id) || f.user_id.slice(0, 8) })));
-    } else {
-      setFeedbacks([]);
-    }
-    setLoadingInbox(false);
-  };
-
-  const handleReply = async (id: string) => {
-    if (!replyText.trim() || !adminUser) return;
-    const { error } = await supabase.from('user_feedback').update({
-      admin_reply: replyText, replied_by: adminUser.id, replied_at: new Date().toISOString(), status: 'reviewed'
-    }).eq('id', id);
-    if (error) { toast.error('Failed to reply'); return; }
-    toast.success('Reply sent');
-    setReplyingId(null);
-    setReplyText('');
-    fetchUserFeedbacks();
-  };
-
-  const updateStatus = async (id: string, status: string) => {
-    await supabase.from('user_feedback').update({ status }).eq('id', id);
-    fetchUserFeedbacks();
-  };
-
-  if (loadingInbox) return <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin" /></div>;
-
-  const typeIcons: Record<string, any> = { bug: AlertCircle, suggestion: Lightbulb, complaint: AlertCircle, praise: Heart };
-  const statusColors: Record<string, string> = { pending: 'bg-yellow-100 text-yellow-800', reviewed: 'bg-blue-100 text-blue-800', resolved: 'bg-green-100 text-green-800', dismissed: 'bg-muted text-muted-foreground' };
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>User Feedback Inbox</CardTitle>
-        <CardDescription>Feedback submitted by users from Settings</CardDescription>
-      </CardHeader>
-      <CardContent>
-        {feedbacks.length === 0 ? (
-          <p className="text-center py-8 text-muted-foreground">No user feedback yet</p>
-        ) : (
-          <div className="space-y-3">
-            {feedbacks.map((fb: any) => {
-              const Icon = typeIcons[fb.feedback_type] || MessageSquare;
-              return (
-                <div key={fb.id} className="p-4 rounded-xl border">
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-start gap-3">
-                      <Icon className="h-5 w-5 text-primary mt-0.5" />
-                      <div>
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="font-medium">{fb.user_name}</span>
-                          <Badge variant="outline" className="capitalize">{fb.feedback_type}</Badge>
-                          <span className={`text-xs px-2 py-0.5 rounded-full ${statusColors[fb.status] || ''}`}>{fb.status}</span>
-                        </div>
-                        <p className="font-semibold text-sm">{fb.subject}</p>
-                        <p className="text-sm text-muted-foreground mt-1">{fb.message}</p>
-                        {fb.admin_reply && (
-                          <div className="mt-2 p-2 rounded bg-primary/5 border border-primary/10">
-                            <p className="text-xs font-medium text-primary">Your Reply:</p>
-                            <p className="text-xs">{fb.admin_reply}</p>
-                          </div>
-                        )}
-                        <p className="text-xs text-muted-foreground mt-2">{format(new Date(fb.created_at), 'MMM d, yyyy h:mm a')}</p>
-                      </div>
-                    </div>
-                    <div className="flex gap-1">
-                      <Select value={fb.status} onValueChange={(v) => updateStatus(fb.id, v)}>
-                        <SelectTrigger className="h-7 text-xs w-24"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="pending">Pending</SelectItem>
-                          <SelectItem value="reviewed">Reviewed</SelectItem>
-                          <SelectItem value="resolved">Resolved</SelectItem>
-                          <SelectItem value="dismissed">Dismissed</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                  {replyingId === fb.id ? (
-                    <div className="mt-3 flex gap-2">
-                      <Input value={replyText} onChange={(e) => setReplyText(e.target.value)} placeholder="Write reply..." className="flex-1" />
-                      <Button size="sm" onClick={() => handleReply(fb.id)}>Send</Button>
-                      <Button size="sm" variant="ghost" onClick={() => setReplyingId(null)}>Cancel</Button>
-                    </div>
-                  ) : !fb.admin_reply && (
-                    <Button size="sm" variant="outline" className="mt-2" onClick={() => { setReplyingId(fb.id); setReplyText(''); }}>
-                      Reply
-                    </Button>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
 export default function FeedbackCenter() {
   const { user: adminUser } = useAuth();
   const [searchParams] = useSearchParams();
@@ -362,15 +246,11 @@ export default function FeedbackCenter() {
         </div>
 
         {/* Tabs for different sections */}
-        <Tabs defaultValue="inbox" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-5">
-            <TabsTrigger value="inbox" className="gap-2">
-              <MessageSquare className="h-4 w-4" />
-              <span className="hidden sm:inline">Inbox</span>
-            </TabsTrigger>
+        <Tabs defaultValue="history" className="space-y-6">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="history" className="gap-2">
               <MessageSquare className="h-4 w-4" />
-              <span className="hidden sm:inline">Sent</span>
+              <span className="hidden sm:inline">History</span>
             </TabsTrigger>
             <TabsTrigger value="templates" className="gap-2">
               <BookOpen className="h-4 w-4" />
@@ -385,11 +265,6 @@ export default function FeedbackCenter() {
               <span className="hidden sm:inline">Analytics</span>
             </TabsTrigger>
           </TabsList>
-
-          {/* User Feedback Inbox */}
-          <TabsContent value="inbox" className="space-y-4">
-            <UserFeedbackInbox />
-          </TabsContent>
 
           {/* History Tab */}
           <TabsContent value="history" className="space-y-6">

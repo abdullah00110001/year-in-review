@@ -82,25 +82,19 @@ export default function AdminUserManagement() {
   };
 
   const fetchStats = async () => {
-    try {
-      const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-      const [totalRes, activeRes, riskRes, premiumRes] = await Promise.all([
-        supabase.from('profiles').select('user_id', { count: 'exact', head: true }),
-        supabase.from('daily_entries').select('user_id').gte('date', weekAgo),
-        supabase.from('user_risk_scores').select('user_id', { count: 'exact', head: true }).gte('abuse_risk_score', 70),
-        supabase.from('user_subscriptions').select('user_id', { count: 'exact', head: true }).eq('status', 'active'),
-      ]);
+    const [totalRes, activeRes, riskRes, premiumRes] = await Promise.all([
+      supabase.from('profiles').select('user_id', { count: 'exact', head: true }),
+      supabase.from('daily_entries').select('user_id', { count: 'exact', head: true }).gte('date', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]),
+      supabase.from('user_risk_scores').select('user_id', { count: 'exact', head: true }).gte('abuse_risk_score', 70),
+      supabase.from('user_subscriptions').select('user_id', { count: 'exact', head: true }).eq('status', 'active'),
+    ]);
 
-      const uniqueActive = new Set(activeRes.data?.map((e: any) => e.user_id));
-      setStats({
-        total: totalRes.count || 0,
-        active: uniqueActive.size || 0,
-        atRisk: riskRes.count || 0,
-        premium: premiumRes.count || 0,
-      });
-    } catch (error) {
-      console.error('Error fetching stats:', error);
-    }
+    setStats({
+      total: totalRes.count || 0,
+      active: new Set((activeRes as any).data?.map((e: any) => e.user_id)).size || 0,
+      atRisk: riskRes.count || 0,
+      premium: premiumRes.count || 0,
+    });
   };
 
   const handleSuspendUser = async (userId: string) => {
