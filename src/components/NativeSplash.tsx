@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface NativeSplashProps {
@@ -56,10 +55,6 @@ export default function NativeSplash({ onComplete }: NativeSplashProps) {
           className="absolute left-0 top-0 h-full rounded-full bg-primary transition-all duration-200 ease-out"
           style={{ width: `${Math.min(progress, 100)}%` }}
         />
-      </div>
-      <div className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">
-        <Loader2 className="h-4 w-4 animate-spin" />
-        <span>Loading...</span>
       </div>
     </div>
   );

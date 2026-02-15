@@ -139,8 +139,8 @@ export default function AdminCommand() {
 
       if (error) throw error;
       
-      // Send notification to user (only if not private/motivation type)
-      if (feedbackType === 'motivation') {
+      // Send notification to user for all feedback types
+      {
         const feedbackTypeLabels: Record<string, string> = {
           daily: '📋 Daily Feedback',
           weekly: '📊 Weekly Advice',

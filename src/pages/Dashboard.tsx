@@ -163,7 +163,7 @@ export default function Dashboard() {
       />
       <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto pb-24 lg:pb-8">
         {/* Header */}
-        <div className="mb-4 sm:mb-6">
+        <div className="mb-3 sm:mb-4">
           <h1 className="text-headline font-bold tracking-tight break-words">
             {getGreeting()}, {user?.email?.split('@')[0]}!
           </h1>

@@ -32,18 +32,30 @@ export default function PremiumTab() {
   const [couponApplied, setCouponApplied] = useState<{ discount_type: string; discount_value: number } | null>(null);
   const [currentPlan, setCurrentPlan] = useState<string>('free');
 
+  const fallbackPlans: Plan[] = [
+    { id: 'free', plan_key: 'free', name: language === 'bn' ? 'ফ্রি' : 'Free', description: language === 'bn' ? 'মৌলিক ফিচার' : 'Basic features', tier: 'free', price_monthly: 0, price_yearly: 0, price_lifetime: null, features: ['Basic Alarm', 'Basic Shield', 'Limited Groups', 'Daily Input'], region_pricing: null, stripe_price_id: null },
+    { id: 'premium', plan_key: 'premium', name: 'Premium', description: language === 'bn' ? 'আনলিমিটেড ফিচার' : 'Unlimited features', tier: 'premium', price_monthly: 4.99, price_yearly: 39.99, price_lifetime: null, features: ['Unlimited Alarms', 'Advanced Shield', 'Group Accountability', 'Full Analytics', 'AI Insights'], region_pricing: { bdt_monthly: 500 }, stripe_price_id: null },
+    { id: 'ultimate', plan_key: 'ultimate', name: 'Ultimate', description: language === 'bn' ? 'সব ফিচার + AI কোচিং' : 'All features + AI coaching', tier: 'ultimate', price_monthly: 9.99, price_yearly: 79.99, price_lifetime: null, features: ['All Features', 'AI Coaching', 'Priority Support', 'Family Plan', 'Early Access'], region_pricing: { bdt_monthly: 1000 }, stripe_price_id: null },
+  ];
+
   useEffect(() => {
     fetchPlans();
     fetchCurrentSubscription();
   }, []);
 
   const fetchPlans = async () => {
-    const { data } = await supabase
-      .from('subscription_plans')
-      .select('*')
-      .eq('is_active', true)
-      .order('price_monthly');
-    setPlans((data || []).map(p => ({ ...p, features: (p.features as string[]) || [] })) as Plan[]);
+    try {
+      const { data, error } = await supabase
+        .from('subscription_plans')
+        .select('*')
+        .eq('is_active', true)
+        .order('price_monthly');
+      if (error) throw error;
+      const mapped = (data || []).map(p => ({ ...p, features: (p.features as string[]) || [] })) as Plan[];
+      setPlans(mapped.length > 0 ? mapped : fallbackPlans);
+    } catch {
+      setPlans(fallbackPlans);
+    }
     setLoading(false);
   };
 

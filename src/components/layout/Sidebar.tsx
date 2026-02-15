@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { supabase } from '@/integrations/supabase/client';
+import NotificationCenter from '@/components/notifications/NotificationCenter';
 import { 
   Target, 
   LayoutDashboard, 
@@ -103,14 +104,17 @@ export default function Sidebar() {
   return (
     <div className="flex h-full w-64 flex-col border-r bg-sidebar-background">
       {/* Logo */}
-      <div className="flex h-16 items-center gap-2 border-b px-6">
-        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary">
-          <Target className="h-5 w-5 text-primary-foreground" />
+      <div className="flex h-16 items-center justify-between border-b px-6">
+        <div className="flex items-center gap-2">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary">
+            <Target className="h-5 w-5 text-primary-foreground" />
+          </div>
+          <div className="flex flex-col">
+            <span className="text-lg font-semibold text-sidebar-foreground">{t('app.name')}</span>
+            <span className="text-[10px] text-muted-foreground -mt-1">{t('app.tagline')}</span>
+          </div>
         </div>
-        <div className="flex flex-col">
-          <span className="text-lg font-semibold text-sidebar-foreground">{t('app.name')}</span>
-          <span className="text-[10px] text-muted-foreground -mt-1">{t('app.tagline')}</span>
-        </div>
+        <NotificationCenter />
       </div>
 
       {/* Quick Actions */}

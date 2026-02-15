@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 import { 
   Users, 
   UserCheck, 
@@ -74,69 +75,55 @@ export default function AdminOverview() {
       const today = format(new Date(), 'yyyy-MM-dd');
       const weekAgo = format(subDays(new Date(), 7), 'yyyy-MM-dd');
       const threeAgo = format(subDays(new Date(), 3), 'yyyy-MM-dd');
+      const twoWeeksAgo = format(subDays(new Date(), 14), 'yyyy-MM-dd');
 
-      // Fetch total users
-      const { count: totalUsers } = await supabase
-        .from('profiles')
-        .select('*', { count: 'exact', head: true });
+      // Batch all queries in parallel
+      const [
+        totalRes,
+        todayEntriesRes,
+        weekEntriesRes,
+        scoreDataRes,
+        modeDataRes,
+        allProfilesRes,
+        recentEntriesRes,
+        twoWeekEntriesRes,
+      ] = await Promise.all([
+        supabase.from('profiles').select('*', { count: 'exact', head: true }),
+        supabase.from('daily_entries').select('user_id').eq('date', today),
+        supabase.from('daily_entries').select('user_id').gte('date', weekAgo),
+        supabase.from('daily_entries').select('discipline_level').not('discipline_level', 'is', null).gte('date', weekAgo),
+        supabase.from('profiles').select('app_mode'),
+        supabase.from('profiles').select('user_id, full_name, app_mode'),
+        supabase.from('daily_entries').select('user_id, date').gte('date', threeAgo),
+        supabase.from('daily_entries').select('user_id, date').gte('date', twoWeeksAgo),
+      ]);
 
-      // Fetch active today (users with daily_entries today)
-      const { data: todayEntries } = await supabase
-        .from('daily_entries')
-        .select('user_id')
-        .eq('date', today);
-      const activeToday = new Set(todayEntries?.map(e => e.user_id)).size;
-
-      // Fetch active this week
-      const { data: weekEntries } = await supabase
-        .from('daily_entries')
-        .select('user_id')
-        .gte('date', weekAgo);
-      const activeThisWeek = new Set(weekEntries?.map(e => e.user_id)).size;
-
-      // Fetch average discipline score
-      const { data: scoreData } = await supabase
-        .from('daily_entries')
-        .select('discipline_level')
-        .not('discipline_level', 'is', null)
-        .gte('date', weekAgo);
-      const avgDiscipline = scoreData?.length 
-        ? scoreData.reduce((sum, e) => sum + (e.discipline_level || 0), 0) / scoreData.length 
+      const activeToday = new Set(todayEntriesRes.data?.map(e => e.user_id)).size;
+      const activeThisWeek = new Set(weekEntriesRes.data?.map(e => e.user_id)).size;
+      const avgDiscipline = scoreDataRes.data?.length
+        ? scoreDataRes.data.reduce((sum, e) => sum + (e.discipline_level || 0), 0) / scoreDataRes.data.length
         : 0;
+      const islamicCount = modeDataRes.data?.filter(p => p.app_mode === 'islamic').length || 0;
+      const regularCount = modeDataRes.data?.filter(p => p.app_mode !== 'islamic').length || 0;
 
-      // Fetch mode distribution
-      const { data: modeData } = await supabase
-        .from('profiles')
-        .select('app_mode');
-      const islamicCount = modeData?.filter(p => p.app_mode === 'islamic').length || 0;
-      const regularCount = modeData?.filter(p => p.app_mode !== 'islamic').length || 0;
-
-      // Fetch at-risk users (no entries for 3+ days)
-      const { data: allProfiles } = await supabase
-        .from('profiles')
-        .select('user_id, full_name, app_mode');
-
-      const { data: recentEntries } = await supabase
-        .from('daily_entries')
-        .select('user_id, date')
-        .gte('date', threeAgo);
-
-      const activeUserIds = new Set(recentEntries?.map(e => e.user_id));
+      // Calculate at-risk users without individual queries
+      const activeUserIds = new Set(recentEntriesRes.data?.map(e => e.user_id));
       const atRisk: AtRiskUser[] = [];
+      
+      // Build a map of last entry dates from the two-week data
+      const lastEntryMap = new Map<string, string>();
+      for (const entry of twoWeekEntriesRes.data || []) {
+        const current = lastEntryMap.get(entry.user_id);
+        if (!current || entry.date > current) {
+          lastEntryMap.set(entry.user_id, entry.date);
+        }
+      }
 
-      for (const profile of allProfiles || []) {
+      for (const profile of allProfilesRes.data || []) {
         if (!activeUserIds.has(profile.user_id)) {
-          // Get last entry date
-          const { data: lastEntry } = await supabase
-            .from('daily_entries')
-            .select('date')
-            .eq('user_id', profile.user_id)
-            .order('date', { ascending: false })
-            .limit(1)
-            .single();
-
-          const daysInactive = lastEntry?.date 
-            ? Math.floor((new Date().getTime() - new Date(lastEntry.date).getTime()) / (1000 * 60 * 60 * 24))
+          const lastDate = lastEntryMap.get(profile.user_id);
+          const daysInactive = lastDate
+            ? Math.floor((new Date().getTime() - new Date(lastDate).getTime()) / (1000 * 60 * 60 * 24))
             : 999;
 
           if (daysInactive >= 3) {
@@ -145,29 +132,28 @@ export default function AdminOverview() {
               full_name: profile.full_name,
               email: profile.user_id.slice(0, 8) + '...',
               days_inactive: daysInactive,
-              last_entry_date: lastEntry?.date || null,
+              last_entry_date: lastDate || null,
               app_mode: profile.app_mode || 'regular'
             });
           }
         }
       }
 
-      // Fetch daily active data for chart (last 14 days)
+      // Build daily active chart from batch data (no individual queries)
       const dailyData: DailyActiveData[] = [];
       for (let i = 13; i >= 0; i--) {
         const date = format(subDays(new Date(), i), 'yyyy-MM-dd');
-        const { data: dayEntries } = await supabase
-          .from('daily_entries')
-          .select('user_id')
-          .eq('date', date);
+        const dayUsers = new Set(
+          twoWeekEntriesRes.data?.filter(e => e.date === date).map(e => e.user_id)
+        );
         dailyData.push({
           date: format(subDays(new Date(), i), 'MMM d'),
-          count: new Set(dayEntries?.map(e => e.user_id)).size
+          count: dayUsers.size
         });
       }
 
       setStats({
-        totalUsers: totalUsers || 0,
+        totalUsers: totalRes.count || 0,
         activeToday,
         activeThisWeek,
         avgDisciplineScore: Math.round(avgDiscipline * 10) / 10,
@@ -177,9 +163,10 @@ export default function AdminOverview() {
       });
       setDailyActive(dailyData);
       setAtRiskUsers(atRisk.slice(0, 5));
-      setLoading(false);
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
+      toast.error('Failed to load dashboard data. Check your connection.');
+    } finally {
       setLoading(false);
     }
   };

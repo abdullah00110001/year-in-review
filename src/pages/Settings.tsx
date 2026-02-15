@@ -1,4 +1,4 @@
-import { useState, useEffect, lazy, Suspense } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -10,12 +10,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { supabase } from '@/integrations/supabase/client';
-import { Loader2, User, Mail, Save, Palette, Globe, Key, RefreshCw, Crown } from 'lucide-react';
+import { Loader2, User, Mail, Save, Palette, Globe, Key, RefreshCw, Crown, MessageSquare } from 'lucide-react';
 import { toast } from 'sonner';
 import ModeSwitcher from '@/components/mode/ModeSwitcher';
 import NotificationSettings from '@/components/notifications/NotificationSettings';
 
-const PremiumTab = lazy(() => import('@/components/settings/PremiumTab'));
+import PremiumTab from '@/components/settings/PremiumTab';
+import FeedbackTab from '@/components/settings/FeedbackTab';
 
 export default function Settings() {
   const { user, signOut } = useAuth();
@@ -86,21 +87,25 @@ export default function Settings() {
   return (
     <AppLayout>
       <div className="p-4 sm:p-6 lg:p-8 max-w-2xl mx-auto pb-24 lg:pb-8">
-        <div className="mb-6 sm:mb-8">
+        <div className="mb-4 sm:mb-6">
           <h1 className="text-headline font-bold tracking-tight">{t('settings.title')}</h1>
           <p className="mt-1 text-body text-muted-foreground">{t('settings.subtitle')}</p>
         </div>
 
         <Tabs defaultValue="general" className="w-full">
-          <TabsList className="mb-4">
-            <TabsTrigger value="general">
-              {language === 'bn' ? 'সাধারণ' : 'General'}
-            </TabsTrigger>
-            <TabsTrigger value="premium" className="gap-1.5">
-              <Crown className="h-3.5 w-3.5" />
-              {language === 'bn' ? 'প্রিমিয়াম' : 'Premium'}
-            </TabsTrigger>
-          </TabsList>
+            <TabsList className="mb-4">
+              <TabsTrigger value="general">
+                {language === 'bn' ? 'সাধারণ' : 'General'}
+              </TabsTrigger>
+              <TabsTrigger value="premium" className="gap-1.5">
+                <Crown className="h-3.5 w-3.5" />
+                {language === 'bn' ? 'প্রিমিয়াম' : 'Premium'}
+              </TabsTrigger>
+              <TabsTrigger value="feedback" className="gap-1.5">
+                <MessageSquare className="h-3.5 w-3.5" />
+                {language === 'bn' ? 'ফিডব্যাক' : 'Feedback'}
+              </TabsTrigger>
+            </TabsList>
 
           <TabsContent value="general">
             {loading ? (
@@ -281,9 +286,11 @@ export default function Settings() {
           </TabsContent>
 
           <TabsContent value="premium">
-            <Suspense fallback={<div className="flex items-center justify-center py-12"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>}>
-              <PremiumTab />
-            </Suspense>
+            <PremiumTab />
+          </TabsContent>
+
+          <TabsContent value="feedback">
+            <FeedbackTab />
           </TabsContent>
         </Tabs>
       </div>

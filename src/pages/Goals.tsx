@@ -147,7 +147,7 @@ export default function Goals() {
   return (
     <AppLayout>
       <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto">
-        <div className="mb-6 sm:mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="mb-4 sm:mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h1 className="text-headline font-bold tracking-tight">Goals</h1>
             <p className="mt-1 text-body text-muted-foreground">

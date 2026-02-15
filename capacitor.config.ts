@@ -5,16 +5,11 @@ const config: CapacitorConfig = {
   appName: 'Life OS',
   webDir: 'dist',
   server: {
-    // DEV MODE: uncomment url to load from Lovable preview
-    // PRODUCTION: comment out url so app loads from local dist/
-//    url: 'https://life-os-24.netlify.app',
     cleartext: true,
     androidScheme: 'https',
     allowNavigation: [
       'nxvtoviyldffcqbtgriw.supabase.co',
-      '*.supabase.co',
-      '*.lovableproject.com',
-      '*.lovable.app'
+      '*.supabase.co'
     ]
   },
   plugins: {

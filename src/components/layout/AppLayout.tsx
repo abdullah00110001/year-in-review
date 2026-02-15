@@ -22,7 +22,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
       <MobileNav />
       
       {/* Main content area */}
-      <main className="flex-1 w-full pt-16 lg:pt-0 lg:pl-64">
+      <main className="flex-1 w-full pt-14 lg:pt-0 lg:pl-64">
         <div className={isMobile ? "min-h-[calc(100vh-4rem)] pb-[90px] animate-fade-in" : "min-h-screen pb-8 animate-fade-in"}>
           {children}
         </div>

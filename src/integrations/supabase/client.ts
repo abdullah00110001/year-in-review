@@ -8,10 +8,32 @@ const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiO
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
 
+// Custom fetch with retry logic for Android WebView stability
+const fetchWithRetry = async (url: RequestInfo | URL, options?: RequestInit): Promise<Response> => {
+  const maxRetries = 3;
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
+      const response = await fetch(url, { ...options, signal: controller.signal });
+      clearTimeout(timeoutId);
+      return response;
+    } catch (error: any) {
+      if (attempt === maxRetries - 1) throw error;
+      // Wait before retry (exponential backoff)
+      await new Promise(r => setTimeout(r, Math.pow(2, attempt) * 500));
+    }
+  }
+  throw new Error('Failed to fetch after retries');
+};
+
 export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
   auth: {
     storage: localStorage,
     persistSession: true,
     autoRefreshToken: true,
-  }
+  },
+  global: {
+    fetch: fetchWithRetry,
+  },
 });

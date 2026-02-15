@@ -27,8 +27,9 @@ export default function PushNotificationPrompt({
     if (wasDismissed) setDismissed(true);
   }, []);
 
-  // Don't show if already granted or dismissed
-  if (permissionStatus === 'granted' || dismissed || enabled) {
+  // Don't show if notifications not supported, already granted, or dismissed
+  const notificationsSupported = typeof window !== 'undefined' && 'Notification' in window;
+  if (!notificationsSupported || permissionStatus === 'granted' || dismissed || enabled) {
     return null;
   }
 

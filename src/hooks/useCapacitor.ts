@@ -29,7 +29,6 @@ export function useCapacitor() {
 
   const handleBackButton = useCallback((): boolean => {
     try {
-      // Close dialogs first
       const dialogs = document.querySelectorAll('[role="dialog"][data-state="open"]');
       if (dialogs.length > 0) {
         const closeButton = dialogs[dialogs.length - 1].querySelector('[aria-label="Close"]');
@@ -38,7 +37,6 @@ export function useCapacitor() {
           return true;
         }
       }
-      // Close drawers
       const drawers = document.querySelectorAll('[data-vaul-drawer][data-state="open"]');
       if (drawers.length > 0) {
         document.body.click();
@@ -87,23 +85,18 @@ export function useCapacitor() {
         console.error('[Capacitor] Device info error:', error);
       }
 
-      // Step 2: Request notification permission early (Android 13+)
+      // Step 2: Android-specific setup (all wrapped individually)
       if (isAndroid) {
+        // Permissions
         try {
           const { requestNotificationPermission, checkExactAlarmPermission } = await import('@/lib/capacitor/permissions');
-          const permStatus = await requestNotificationPermission();
-          console.log('[Capacitor] Notification permission:', permStatus);
-          
-          // Also check exact alarm permission for Rise
-          const alarmPerm = await checkExactAlarmPermission();
-          console.log('[Capacitor] Exact alarm permission:', alarmPerm);
+          await requestNotificationPermission();
+          await checkExactAlarmPermission();
         } catch (error) {
           console.error('[Capacitor] Permission error:', error);
         }
-      }
 
-      // Step 3: Notification channels (each wrapped separately)
-      if (isAndroid) {
+        // Notification channels - each in its own try/catch
         try {
           const { initializeNotificationChannels } = await import('@/lib/capacitor/nativeNotifications');
           await initializeNotificationChannels();
@@ -127,58 +120,8 @@ export function useCapacitor() {
         }
       }
 
-      // Step 4: Set up listeners
-      try {
-        const { setupAlarmListeners } = await import('@/lib/capacitor/nativeAlarm');
-        setupAlarmListeners(
-          (alarmId, extra) => {
-            console.log('[Capacitor] Alarm triggered:', alarmId);
-            window.dispatchEvent(new CustomEvent('rise:alarmTriggered', { detail: { alarmId, ...extra } }));
-            toast('⏰ Alarm!', {
-              description: extra?.intention || 'Time to wake up!',
-              duration: 10000,
-            });
-          },
-          (alarmId, action) => {
-            console.log('[Capacitor] Alarm action:', alarmId, action);
-            window.dispatchEvent(new CustomEvent('rise:alarmAction', { detail: { alarmId, action } }));
-          }
-        );
-      } catch (error) {
-        console.error('[Capacitor] Alarm listeners error:', error);
-      }
-
-      try {
-        const { setupShieldListeners, extendSession } = await import('@/lib/capacitor/nativeShield');
-        setupShieldListeners(
-          () => { try { window.location.href = '/shield'; } catch {} },
-          () => {
-            try {
-              extendSession(15);
-              window.dispatchEvent(new CustomEvent('shield:extendSession'));
-            } catch {}
-          }
-        );
-      } catch (error) {
-        console.error('[Capacitor] Shield listeners error:', error);
-      }
-
-      try {
-        const { setupPushListeners } = await import('@/lib/capacitor/nativeNotifications');
-        setupPushListeners(
-          (signal) => {
-            toast.error('🚨 Wake Up Call!', { description: `${signal.fromUserName}: ${signal.message}`, duration: 15000 });
-          },
-          (feedback) => {
-            toast.success('📝 New Feedback', { description: feedback.message });
-          },
-          (title, body) => {
-            toast(title, { description: body });
-          }
-        );
-      } catch (error) {
-        console.error('[Capacitor] Push listeners error:', error);
-      }
+      // Step 3: Set up listeners (non-blocking)
+      setupListeners();
 
       // Mark as initialized
       setState({
@@ -192,6 +135,39 @@ export function useCapacitor() {
       console.log('[Capacitor] Initialization complete');
     };
 
+    // Non-critical listener setup - won't block init
+    const setupListeners = () => {
+      // Alarm listeners
+      import('@/lib/capacitor/nativeAlarm').then(({ setupAlarmListeners }) => {
+        setupAlarmListeners(
+          (alarmId, extra) => {
+            window.dispatchEvent(new CustomEvent('rise:alarmTriggered', { detail: { alarmId, ...extra } }));
+            toast('⏰ Alarm!', { description: extra?.intention || 'Time to wake up!', duration: 10000 });
+          },
+          (alarmId, action) => {
+            window.dispatchEvent(new CustomEvent('rise:alarmAction', { detail: { alarmId, action } }));
+          }
+        );
+      }).catch(e => console.error('[Capacitor] Alarm listeners error:', e));
+
+      // Shield listeners
+      import('@/lib/capacitor/nativeShield').then(({ setupShieldListeners, extendSession }) => {
+        setupShieldListeners(
+          () => { try { window.location.href = '/shield'; } catch {} },
+          () => { try { extendSession(15); window.dispatchEvent(new CustomEvent('shield:extendSession')); } catch {} }
+        );
+      }).catch(e => console.error('[Capacitor] Shield listeners error:', e));
+
+      // Push listeners
+      import('@/lib/capacitor/nativeNotifications').then(({ setupPushListeners }) => {
+        setupPushListeners(
+          (signal) => { toast.error('🚨 Wake Up Call!', { description: `${signal.fromUserName}: ${signal.message}`, duration: 15000 }); },
+          (feedback) => { toast.success('📝 New Feedback', { description: feedback.message }); },
+          (title, body) => { toast(title, { description: body }); }
+        );
+      }).catch(e => console.error('[Capacitor] Push listeners error:', e));
+    };
+
     init();
   }, []);
 
@@ -199,20 +175,18 @@ export function useCapacitor() {
   useEffect(() => {
     if (!user || !isNative || !state.isInitialized) return;
 
-    const registerPush = async () => {
+    const timer = setTimeout(async () => {
       try {
         const { registerPushNotifications } = await import('@/lib/capacitor/nativeNotifications');
         const token = await registerPushNotifications(user.id);
         if (token) {
-          console.log('[Capacitor] Push registered for user');
           setState(prev => ({ ...prev, pushToken: token }));
         }
       } catch (error) {
         console.error('[Capacitor] Push registration error:', error);
       }
-    };
+    }, 3000);
 
-    const timer = setTimeout(registerPush, 3000);
     return () => clearTimeout(timer);
   }, [user?.id, state.isInitialized]);
 

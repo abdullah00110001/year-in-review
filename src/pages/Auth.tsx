@@ -198,7 +198,8 @@ export default function Auth() {
     }
   };
 
-  if (loading) {
+  // Show nothing while checking auth - prevents auth page flicker for logged-in users
+  if (loading || user) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
