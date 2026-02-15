@@ -10,12 +10,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { supabase } from '@/integrations/supabase/client';
-import { Loader2, User, Mail, Save, Palette, Globe, Key, RefreshCw, Crown } from 'lucide-react';
+import { Loader2, User, Mail, Save, Palette, Globe, Key, RefreshCw, Crown, MessageSquare } from 'lucide-react';
 import { toast } from 'sonner';
 import ModeSwitcher from '@/components/mode/ModeSwitcher';
 import NotificationSettings from '@/components/notifications/NotificationSettings';
 
 import PremiumTab from '@/components/settings/PremiumTab';
+import FeedbackWidget from '@/components/settings/FeedbackWidget';
 
 export default function Settings() {
   const { user, signOut } = useAuth();
@@ -95,6 +96,10 @@ export default function Settings() {
           <TabsList className="mb-4">
             <TabsTrigger value="general">
               {language === 'bn' ? 'সাধারণ' : 'General'}
+            </TabsTrigger>
+            <TabsTrigger value="feedback" className="gap-1.5">
+              <MessageSquare className="h-3.5 w-3.5" />
+              {language === 'bn' ? 'ফিডব্যাক' : 'Feedback'}
             </TabsTrigger>
             <TabsTrigger value="premium" className="gap-1.5">
               <Crown className="h-3.5 w-3.5" />
@@ -278,6 +283,10 @@ export default function Settings() {
                 </Card>
               </div>
             )}
+          </TabsContent>
+
+          <TabsContent value="feedback">
+            <FeedbackWidget />
           </TabsContent>
 
           <TabsContent value="premium">
