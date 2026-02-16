@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
+import { cn } from '@/lib/utils';
 import { 
   Users, 
   UserCheck, 
@@ -13,8 +14,7 @@ import {
   Moon,
   Sun,
   Loader2,
-  ArrowUpRight,
-  ArrowDownRight
+  ArrowUpRight
 } from 'lucide-react';
 import { format, subDays } from 'date-fns';
 import { Link } from 'react-router-dom';
@@ -28,9 +28,7 @@ import {
   ResponsiveContainer,
   PieChart,
   Pie,
-  Cell,
-  BarChart,
-  Bar
+  Cell
 } from 'recharts';
 
 interface DashboardStats {
@@ -204,68 +202,40 @@ export default function AdminOverview() {
       <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-6">
-          <h1 className="text-headline font-bold tracking-tight">Admin Overview</h1>
-          <p className="text-body text-muted-foreground">
-            Monitor all users and system health
-          </p>
+          <div className="flex items-center gap-3 mb-1">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/15 border border-primary/20">
+              <Activity className="h-5 w-5 text-primary" />
+            </div>
+            <div>
+              <h1 className="text-xl lg:text-2xl font-bold tracking-tight">Admin Overview</h1>
+              <p className="text-xs text-muted-foreground">Monitor users and system health</p>
+            </div>
+          </div>
         </div>
 
-        {/* Stats Grid */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between p-4 pb-2">
-              <CardTitle className="text-caption font-medium text-muted-foreground">
-                Total Users
-              </CardTitle>
-              <Users className="h-4 w-4 text-primary" />
-            </CardHeader>
-            <CardContent className="p-4 pt-0">
-              <div className="text-title font-bold">{stats?.totalUsers}</div>
-              <p className="text-caption text-muted-foreground">registered accounts</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between p-4 pb-2">
-              <CardTitle className="text-caption font-medium text-muted-foreground">
-                Active Today
-              </CardTitle>
-              <UserCheck className="h-4 w-4 text-green-500" />
-            </CardHeader>
-            <CardContent className="p-4 pt-0">
-              <div className="text-title font-bold">{stats?.activeToday}</div>
-              <div className="flex items-center gap-1 text-caption text-green-600">
-                <ArrowUpRight className="h-3 w-3" />
-                {stats?.totalUsers ? Math.round((stats.activeToday / stats.totalUsers) * 100) : 0}% of total
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between p-4 pb-2">
-              <CardTitle className="text-caption font-medium text-muted-foreground">
-                Avg Discipline
-              </CardTitle>
-              <TrendingUp className="h-4 w-4 text-secondary" />
-            </CardHeader>
-            <CardContent className="p-4 pt-0">
-              <div className="text-title font-bold">{stats?.avgDisciplineScore}/10</div>
-              <p className="text-caption text-muted-foreground">this week</p>
-            </CardContent>
-          </Card>
-
-          <Card className={stats?.atRiskCount ? 'border-destructive/50' : ''}>
-            <CardHeader className="flex flex-row items-center justify-between p-4 pb-2">
-              <CardTitle className="text-caption font-medium text-muted-foreground">
-                At-Risk Users
-              </CardTitle>
-              <AlertTriangle className={`h-4 w-4 ${stats?.atRiskCount ? 'text-destructive' : 'text-muted-foreground'}`} />
-            </CardHeader>
-            <CardContent className="p-4 pt-0">
-              <div className="text-title font-bold">{stats?.atRiskCount}</div>
-              <p className="text-caption text-muted-foreground">inactive 3+ days</p>
-            </CardContent>
-          </Card>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+          {[
+            { label: 'Total Users', value: stats?.totalUsers, sub: 'registered accounts', icon: Users, color: 'text-primary', bg: 'bg-primary/10 border-primary/20' },
+            { label: 'Active Today', value: stats?.activeToday, sub: `${stats?.totalUsers ? Math.round(((stats?.activeToday || 0) / stats.totalUsers) * 100) : 0}% of total`, icon: UserCheck, color: 'text-accent', bg: 'bg-accent/10 border-accent/20', trend: true },
+            { label: 'Avg Discipline', value: `${stats?.avgDisciplineScore}/10`, sub: 'this week', icon: TrendingUp, color: 'text-secondary', bg: 'bg-secondary/10 border-secondary/20' },
+            { label: 'At-Risk Users', value: stats?.atRiskCount, sub: 'inactive 3+ days', icon: AlertTriangle, color: stats?.atRiskCount ? 'text-destructive' : 'text-muted-foreground', bg: stats?.atRiskCount ? 'bg-destructive/10 border-destructive/20' : 'bg-muted/50 border-border/50' },
+          ].map((stat) => (
+            <Card key={stat.label} className="border-border/50 bg-card/80 backdrop-blur-sm overflow-hidden">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">{stat.label}</span>
+                  <div className={cn('flex h-8 w-8 items-center justify-center rounded-lg border', stat.bg)}>
+                    <stat.icon className={cn('h-4 w-4', stat.color)} />
+                  </div>
+                </div>
+                <div className="text-2xl font-bold">{stat.value}</div>
+                <p className="text-[11px] text-muted-foreground mt-0.5 flex items-center gap-1">
+                  {stat.trend && <ArrowUpRight className="h-3 w-3 text-accent" />}
+                  {stat.sub}
+                </p>
+              </CardContent>
+            </Card>
+          ))}
         </div>
 
         {/* Charts Row */}
@@ -363,7 +333,7 @@ export default function AdminOverview() {
           <CardContent className="p-4 sm:p-6 pt-0">
             {atRiskUsers.length === 0 ? (
               <div className="text-center py-8">
-                <UserCheck className="h-12 w-12 text-green-500 mx-auto mb-3" />
+                <UserCheck className="h-12 w-12 text-accent mx-auto mb-3" />
                 <p className="text-body font-medium">All users are active!</p>
                 <p className="text-caption text-muted-foreground">No users have been inactive for 3+ days</p>
               </div>

@@ -61,11 +61,15 @@ export default function AdminPanel() {
     <AdminLayout>
       <div className="p-4 lg:p-6 max-w-[1800px] mx-auto">
         <div className="mb-6">
-          <h1 className="text-2xl lg:text-3xl font-bold flex items-center gap-3">
-            <Lock className="h-7 w-7 text-primary" />
-            Control Center
-          </h1>
-          <p className="text-muted-foreground">Comprehensive system governance & management</p>
+          <div className="flex items-center gap-3 mb-1">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/15 border border-primary/20">
+              <Lock className="h-5 w-5 text-primary" />
+            </div>
+            <div>
+              <h1 className="text-xl lg:text-2xl font-bold">Control Center</h1>
+              <p className="text-xs text-muted-foreground">System governance & management</p>
+            </div>
+          </div>
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
