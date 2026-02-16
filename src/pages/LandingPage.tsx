@@ -4,12 +4,19 @@ import { Target, CheckCircle2, BarChart3, Calendar, ArrowRight, Sparkles, Zap, S
 import { useAuth } from '@/hooks/useAuth';
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { isNative } from '@/lib/capacitor/platform';
 
 export default function LandingPage() {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
+    // Native app: skip landing page entirely
+    if (isNative) {
+      navigate(user ? '/dashboard' : '/auth', { replace: true });
+      return;
+    }
+    
     if (!loading && user) {
       navigate('/dashboard', { replace: true });
     }
