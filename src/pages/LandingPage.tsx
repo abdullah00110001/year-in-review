@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Target, CheckCircle2, BarChart3, Calendar, ArrowRight, Sparkles, Zap, Shield, TrendingUp, Star, ChevronRight, Crown, Check, Clock, Brain, BookHeart, Flame } from 'lucide-react';
+import { Target, CheckCircle2, BarChart3, Calendar, ArrowRight, Sparkles, Zap, Shield, TrendingUp, Star, ChevronRight, Crown, Check, Clock, Brain, BookHeart, Flame, Download } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -125,6 +125,11 @@ export default function LandingPage() {
             </Button>
             <Button asChild variant="outline" size="lg" className="h-14 px-8 text-base border-border/50 hover:bg-muted/50 hover:scale-105 transition-all duration-300">
               <Link to="/auth">Sign In</Link>
+            </Button>
+            <Button asChild variant="outline" size="lg" className="h-14 px-8 text-base border-primary/30 hover:bg-primary/10 hover:scale-105 transition-all duration-300">
+              <a href="https://play.google.com/store" target="_blank" rel="noopener noreferrer" className="gap-2">
+                <Download className="h-5 w-5" /> Download App
+              </a>
             </Button>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6 max-w-3xl mx-auto animate-fade-in">

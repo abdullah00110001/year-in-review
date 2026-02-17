@@ -22,11 +22,12 @@ import AdminLifeIntelligence from '@/components/admin/panel/AdminLifeIntelligenc
 import AdminProductivityEngine from '@/components/admin/panel/AdminProductivityEngine';
 import AdminChallenges from '@/components/admin/panel/AdminChallenges';
 import AdminSafetyEthics from '@/components/admin/panel/AdminSafetyEthics';
+import AdminAppUpdates from '@/components/admin/panel/AdminAppUpdates';
 import { 
   Users, Shield, Bell, Brain, CreditCard, BarChart3, 
   Smartphone, FileText, Activity, Scale, Settings, Zap,
   Lock, UserCog, Key, DollarSign, Receipt, UsersRound,
-  Heart, Calculator, Trophy, ShieldCheck
+  Heart, Calculator, Trophy, ShieldCheck, Rocket
 } from 'lucide-react';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 
@@ -52,6 +53,7 @@ const tabs = [
   { id: 'health', label: 'Health', icon: Activity },
   { id: 'governance', label: 'Policy', icon: Scale },
   { id: 'compliance', label: 'Compliance', icon: Receipt },
+  { id: 'updates', label: 'Updates', icon: Rocket },
 ];
 
 export default function AdminPanel() {
@@ -110,6 +112,7 @@ export default function AdminPanel() {
           <TabsContent value="health" className="mt-6"><AdminSystemHealth /></TabsContent>
           <TabsContent value="governance" className="mt-6"><AdminGovernance /></TabsContent>
           <TabsContent value="compliance" className="mt-6"><AdminCompliance /></TabsContent>
+          <TabsContent value="updates" className="mt-6"><AdminAppUpdates /></TabsContent>
         </Tabs>
       </div>
     </AdminLayout>
