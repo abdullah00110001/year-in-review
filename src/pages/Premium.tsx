@@ -6,9 +6,11 @@ import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Crown, Check, Zap, Star, Ticket, ArrowLeft, Clock, Receipt } from 'lucide-react';
+import { Crown, Check, Zap, Star, Ticket, ArrowLeft, Clock, Receipt, Smartphone } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
+import { useLanguage } from '@/contexts/LanguageContext';
+import ManualPaymentForm from '@/components/payment/ManualPaymentForm';
 
 interface Plan {
   id: string;
@@ -41,6 +43,7 @@ type BillingCycle = 'weekly' | 'monthly' | 'yearly';
 
 export default function Premium() {
   const { user } = useAuth();
+  const { language } = useLanguage();
   const [plans, setPlans] = useState<Plan[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
@@ -50,6 +53,7 @@ export default function Premium() {
   const [currentSub, setCurrentSub] = useState<any>(null);
   const [billingCycle, setBillingCycle] = useState<BillingCycle>('monthly');
   const [subscribing, setSubscribing] = useState(false);
+  const [manualPaymentPlan, setManualPaymentPlan] = useState<{ plan: Plan; price: number } | null>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -151,11 +155,31 @@ export default function Premium() {
 
   const handleSubscribe = async (plan: Plan) => {
     if (!user) {
-      toast.error('Please login first');
+      toast.error(language === 'bn' ? 'প্রথমে লগইন করুন' : 'Please login first');
       navigate('/auth');
       return;
     }
 
+    // Check if manual payment is available
+    const { data: paymentInfoData } = await supabase
+      .from('app_settings')
+      .select('value')
+      .eq('key', 'manual_payment_info')
+      .maybeSingle();
+
+    const paymentInfo = paymentInfoData?.value as any;
+    const hasManualPayment = paymentInfo?.bkash_number || paymentInfo?.nagad_number || paymentInfo?.rocket_number;
+
+    if (hasManualPayment) {
+      const price = getPrice(plan);
+      const finalPrice = getDiscountedPrice(price);
+      // Get BDT price if available
+      const bdtPrice = (plan.region_pricing as any)?.bdt_monthly || finalPrice;
+      setManualPaymentPlan({ plan, price: bdtPrice });
+      return;
+    }
+
+    // Fallback to existing flow
     setSubscribing(true);
     try {
       const price = getPrice(plan);
@@ -173,7 +197,6 @@ export default function Premium() {
         expiresAt = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
       }
 
-      // Create subscription
       const { data: sub, error: subError } = await supabase
         .from('user_subscriptions')
         .insert({
@@ -191,7 +214,6 @@ export default function Premium() {
 
       if (subError) throw subError;
 
-      // Create payment transaction
       const { data: txn, error: txnError } = await supabase
         .from('payment_transactions')
         .insert({
@@ -208,11 +230,9 @@ export default function Premium() {
 
       if (txnError) throw txnError;
 
-      // Generate invoice number
       const { data: invNum } = await supabase.rpc('generate_invoice_number');
       const invoiceNumber = invNum || `INV-${new Date().getFullYear()}-${Date.now()}`;
 
-      // Create invoice
       await supabase.from('invoices').insert({
         user_id: user.id,
         transaction_id: txn.id,
@@ -231,20 +251,16 @@ export default function Premium() {
       });
 
       if (isTrial) {
-        toast.success(`${plan.trial_days}-day free trial started!`, {
-          description: `Your trial for ${plan.name} ends on ${trialEnd?.toLocaleDateString()}`
-        });
+        toast.success(`${plan.trial_days}-day free trial started!`);
       } else {
-        toast.success('Subscription activated!', {
-          description: `You're now on the ${plan.name} plan`
-        });
+        toast.success('Subscription activated!');
       }
 
       fetchCurrentSubscription();
       fetchInvoices();
     } catch (err) {
       console.error('Subscription error:', err);
-      toast.error('Failed to process subscription');
+      toast.error(language === 'bn' ? 'সাবস্ক্রিপশন ব্যর্থ' : 'Failed to process subscription');
     } finally {
       setSubscribing(false);
     }
@@ -386,8 +402,9 @@ export default function Premium() {
                     disabled={isCurrentPlan || plan.tier === 'free' || subscribing}
                     onClick={() => handleSubscribe(plan)}
                   >
-                    {isCurrentPlan ? 'Current Plan' : plan.tier === 'free' ? 'Free Forever' : 
-                     plan.trial_days > 0 ? `Start ${plan.trial_days}-Day Trial` : 'Subscribe'}
+                    <Smartphone className="h-4 w-4 mr-1" />
+                    {isCurrentPlan ? (language === 'bn' ? 'বর্তমান প্ল্যান' : 'Current Plan') : plan.tier === 'free' ? (language === 'bn' ? 'চিরকাল বিনামূল্যে' : 'Free Forever') : 
+                     plan.trial_days > 0 ? `Start ${plan.trial_days}-Day Trial` : (language === 'bn' ? 'পেমেন্ট করুন' : 'Pay Now')}
                   </Button>
                 </CardContent>
               </Card>
@@ -401,15 +418,17 @@ export default function Premium() {
             <div className="flex items-center gap-2">
               <Ticket className="h-5 w-5 text-muted-foreground" />
               <Input
-                placeholder="Enter coupon code"
+                placeholder={language === 'bn' ? 'কুপন কোড লিখুন' : 'Enter coupon code'}
                 value={couponCode}
                 onChange={(e) => setCouponCode(e.target.value)}
                 className="flex-1"
               />
-              <Button onClick={applyCoupon} variant="outline" size="sm">Apply</Button>
+              <Button onClick={applyCoupon} variant="outline" size="sm">
+                {language === 'bn' ? 'প্রয়োগ' : 'Apply'}
+              </Button>
             </div>
             {couponApplied && (
-              <p className="text-sm text-green-600 mt-2 flex items-center gap-1">
+              <p className="text-sm text-primary mt-2 flex items-center gap-1">
                 <Check className="h-3 w-3" />
                 {couponApplied.discount_type === 'percentage' ? `${couponApplied.discount_value}% discount applied` : `$${couponApplied.discount_value} discount applied`}
               </p>
@@ -423,7 +442,7 @@ export default function Premium() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Receipt className="h-5 w-5" />
-                Invoice History
+                {language === 'bn' ? 'ইনভয়েস ইতিহাস' : 'Invoice History'}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -447,6 +466,22 @@ export default function Premium() {
               </div>
             </CardContent>
           </Card>
+        )}
+
+        {/* Manual Payment Dialog */}
+        {manualPaymentPlan && (
+          <ManualPaymentForm
+            planId={manualPaymentPlan.plan.id}
+            planName={manualPaymentPlan.plan.name}
+            amount={manualPaymentPlan.price}
+            currency="BDT"
+            billingCycle={billingCycle}
+            onClose={() => setManualPaymentPlan(null)}
+            onSuccess={() => {
+              setManualPaymentPlan(null);
+              fetchCurrentSubscription();
+            }}
+          />
         )}
       </div>
     </div>

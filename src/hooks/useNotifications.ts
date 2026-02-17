@@ -62,7 +62,7 @@ export function useNotifications() {
     if (!user) return;
 
     const channel = supabase
-      .channel('notifications-realtime')
+      .channel(`notifications-${user.id}`)
       .on(
         'postgres_changes',
         {
@@ -76,16 +76,23 @@ export function useNotifications() {
           setNotifications((prev) => [newNotification, ...prev].slice(0, 20));
           setUnreadCount((prev) => prev + 1);
           
-          // Show browser notification if permitted
-          showBrowserNotification(newNotification.title, newNotification.message);
+          // Show browser notification if permitted (only when tab is not visible)
+          if (document.visibilityState !== 'visible') {
+            showBrowserNotification(newNotification.title, newNotification.message);
+          }
           
-          // Also show in-app toast
+          // Always show in-app toast
           toast(newNotification.title, {
             description: newNotification.message.slice(0, 100),
+            duration: 6000,
           });
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        if (status === 'CHANNEL_ERROR') {
+          console.warn('[Notifications] Realtime channel error, will retry...');
+        }
+      });
 
     return () => {
       supabase.removeChannel(channel);
@@ -127,7 +134,7 @@ export function useNotifications() {
   // Show browser notification
   const showBrowserNotification = (title: string, body: string, icon?: string) => {
     if (permissionStatus !== 'granted') return;
-    if (document.visibilityState === 'visible') return; // Don't show if app is focused
+    if (!('Notification' in window)) return;
 
     try {
       const notification = new Notification(title, {

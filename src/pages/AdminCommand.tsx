@@ -139,29 +139,64 @@ export default function AdminCommand() {
 
       if (error) throw error;
       
-      // Send notification to user for all feedback types
-      {
-        const feedbackTypeLabels: Record<string, string> = {
-          daily: '📋 Daily Feedback',
-          weekly: '📊 Weekly Advice',
-          motivation: '💪 Motivation',
-          advice: '💡 Advice'
-        };
-        
-        await supabase.from('notifications').insert({
-          user_id: selectedUser,
-          title: feedbackTypeLabels[feedbackType] || 'Admin Feedback',
-          message: feedbackMessage,
-          type: 'admin_feedback',
-          metadata: { feedback_type: feedbackType }
-        });
-      }
+      // Send notification to user
+      const feedbackTypeLabels: Record<string, string> = {
+        daily: '📋 Daily Feedback',
+        weekly: '📊 Weekly Advice',
+        motivation: '💪 Motivation',
+        advice: '💡 Advice'
+      };
+      
+      await supabase.from('notifications').insert({
+        user_id: selectedUser,
+        title: feedbackTypeLabels[feedbackType] || 'Admin Feedback',
+        message: feedbackMessage,
+        type: 'admin_feedback',
+        metadata: { feedback_type: feedbackType },
+      });
       
       toast.success('Feedback sent successfully!');
       setFeedbackMessage('');
     } catch (error) {
       console.error('Error sending feedback:', error);
       toast.error('Failed to send feedback');
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const sendNotificationToAll = async () => {
+    if (!feedbackMessage.trim()) {
+      toast.error('Please enter a message');
+      return;
+    }
+
+    setSending(true);
+    try {
+      const feedbackTypeLabels: Record<string, string> = {
+        daily: '📋 ঘোষণা',
+        weekly: '📊 সাপ্তাহিক আপডেট',
+        motivation: '💪 অনুপ্রেরণা',
+        advice: '💡 পরামর্শ'
+      };
+
+      // Insert notification for all users
+      const notifications = users.map(u => ({
+        user_id: u.user_id,
+        title: feedbackTypeLabels[feedbackType] || 'Notification',
+        message: feedbackMessage,
+        type: 'admin_broadcast',
+        metadata: { feedback_type: feedbackType },
+      }));
+
+      const { error } = await supabase.from('notifications').insert(notifications);
+      if (error) throw error;
+
+      toast.success(`সব ${users.length} জন ইউজারকে নোটিফিকেশন পাঠানো হয়েছে!`);
+      setFeedbackMessage('');
+    } catch (error) {
+      console.error('Error sending broadcast:', error);
+      toast.error('Failed to send broadcast');
     } finally {
       setSending(false);
     }
@@ -442,14 +477,24 @@ export default function AdminCommand() {
                   placeholder="Write your message here..."
                   rows={4}
                 />
-                <Button onClick={sendFeedback} disabled={sending}>
-                  {sending ? 'Sending...' : (
-                    <>
-                      <Send className="h-4 w-4 mr-2" />
-                      Send Feedback
-                    </>
-                  )}
-                </Button>
+                <div className="flex gap-2">
+                  <Button onClick={sendFeedback} disabled={sending || !selectedUser}>
+                    {sending ? 'Sending...' : (
+                      <>
+                        <Send className="h-4 w-4 mr-2" />
+                        Send to User
+                      </>
+                    )}
+                  </Button>
+                  <Button onClick={sendNotificationToAll} disabled={sending} variant="secondary">
+                    {sending ? 'Sending...' : (
+                      <>
+                        <Send className="h-4 w-4 mr-2" />
+                        Send to All ({users.length})
+                      </>
+                    )}
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           </TabsContent>

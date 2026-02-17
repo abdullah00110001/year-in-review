@@ -10,10 +10,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { CreditCard, DollarSign, TrendingUp, Users, Plus, Edit, Ticket, Gift, AlertTriangle, Search, Download, Key } from 'lucide-react';
+import { CreditCard, DollarSign, TrendingUp, Users, Plus, Edit, Ticket, Gift, AlertTriangle, Search, Download, Key, Smartphone } from 'lucide-react';
 import { format } from 'date-fns';
 import AdminPaymentProviders from './AdminPaymentProviders';
 import AdminPlanManager from './AdminPlanManager';
+import AdminManualPayments from './AdminManualPayments';
 
 interface SubscriptionPlan {
   id: string;
@@ -193,8 +194,12 @@ export default function AdminPayments() {
         </Card>
       </div>
 
-      <Tabs defaultValue="providers" className="space-y-6">
+      <Tabs defaultValue="manual" className="space-y-6">
         <TabsList>
+          <TabsTrigger value="manual">
+            <Smartphone className="h-4 w-4 mr-1" />
+            ম্যানুয়াল পেমেন্ট
+          </TabsTrigger>
           <TabsTrigger value="providers">
             <Key className="h-4 w-4 mr-1" />
             Providers
@@ -204,6 +209,10 @@ export default function AdminPayments() {
           <TabsTrigger value="transactions">Transactions</TabsTrigger>
           <TabsTrigger value="fraud">Fraud Detection</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="manual">
+          <AdminManualPayments />
+        </TabsContent>
 
         <TabsContent value="providers">
           <AdminPaymentProviders />

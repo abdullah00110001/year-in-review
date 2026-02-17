@@ -1616,6 +1616,68 @@ export type Database = {
         }
         Relationships: []
       }
+      manual_payments: {
+        Row: {
+          admin_note: string | null
+          amount: number
+          billing_cycle: string
+          created_at: string
+          currency: string
+          id: string
+          payment_method: string
+          phone_number: string
+          plan_id: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+          trx_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          admin_note?: string | null
+          amount: number
+          billing_cycle?: string
+          created_at?: string
+          currency?: string
+          id?: string
+          payment_method?: string
+          phone_number: string
+          plan_id?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          trx_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          admin_note?: string | null
+          amount?: number
+          billing_cycle?: string
+          created_at?: string
+          currency?: string
+          id?: string
+          payment_method?: string
+          phone_number?: string
+          plan_id?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          trx_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "manual_payments_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "subscription_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       monthly_highlights: {
         Row: {
           created_at: string
