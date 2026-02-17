@@ -5,9 +5,10 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Crown, Check, Zap, Star, Ticket } from 'lucide-react';
+import { Crown, Check, Zap, Star, Ticket, Smartphone } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/contexts/LanguageContext';
+import ManualPaymentForm from '@/components/payment/ManualPaymentForm';
 
 interface Plan {
   id: string;
@@ -16,12 +17,16 @@ interface Plan {
   description: string | null;
   tier: string;
   price_monthly: number | null;
+  price_weekly: number | null;
   price_yearly: number | null;
   price_lifetime: number | null;
+  trial_days: number;
   features: string[];
   region_pricing: Record<string, any> | null;
   stripe_price_id: string | null;
 }
+
+type BillingCycle = 'weekly' | 'monthly' | 'yearly';
 
 export default function PremiumTab() {
   const { user } = useAuth();
@@ -31,6 +36,8 @@ export default function PremiumTab() {
   const [couponCode, setCouponCode] = useState('');
   const [couponApplied, setCouponApplied] = useState<{ discount_type: string; discount_value: number } | null>(null);
   const [currentPlan, setCurrentPlan] = useState<string>('free');
+  const [billingCycle] = useState<BillingCycle>('monthly');
+  const [manualPaymentPlan, setManualPaymentPlan] = useState<{ plan: Plan; price: number } | null>(null);
 
   useEffect(() => {
     fetchPlans();
@@ -43,7 +50,7 @@ export default function PremiumTab() {
       .select('*')
       .eq('is_active', true)
       .order('price_monthly');
-    setPlans((data || []).map(p => ({ ...p, features: (p.features as string[]) || [] })) as Plan[]);
+    setPlans((data || []).map(p => ({ ...p, features: (p.features as string[]) || [], trial_days: (p as any).trial_days || 0 })) as Plan[]);
     setLoading(false);
   };
 
@@ -95,6 +102,25 @@ export default function PremiumTab() {
       return;
     }
 
+    // Check manual payment info first
+    const { data: paymentInfoData } = await supabase
+      .from('app_settings')
+      .select('value')
+      .eq('key', 'manual_payment_info')
+      .maybeSingle();
+
+    const paymentInfo = paymentInfoData?.value as any;
+    const hasManualPayment = paymentInfo?.bkash_number || paymentInfo?.nagad_number || paymentInfo?.rocket_number;
+
+    if (hasManualPayment) {
+      const price = plan.price_monthly || 0;
+      const finalPrice = getDiscountedPrice(price);
+      const bdtPrice = (plan.region_pricing as any)?.bdt_monthly || finalPrice;
+      setManualPaymentPlan({ plan, price: bdtPrice });
+      return;
+    }
+
+    // Check payment providers as fallback
     const { data: settings } = await supabase
       .from('app_settings')
       .select('value')
@@ -103,10 +129,8 @@ export default function PremiumTab() {
 
     const providers = settings?.value as Record<string, any> | null;
     const stripeEnabled = providers?.stripe?.enabled && providers?.stripe?.secret_key;
-    const bkashEnabled = providers?.bkash?.enabled && providers?.bkash?.secret_key;
-    const nagadEnabled = providers?.nagad?.enabled && providers?.nagad?.secret_key;
 
-    if (!stripeEnabled && !bkashEnabled && !nagadEnabled) {
+    if (!stripeEnabled) {
       toast.error(language === 'bn' ? 'পেমেন্ট সিস্টেম এখনও কনফিগার করা হয়নি' : 'Payment system is not configured yet. Please contact admin.');
       return;
     }
@@ -118,7 +142,7 @@ export default function PremiumTab() {
       user_id: user.id,
       amount: finalPrice,
       currency: 'USD',
-      payment_provider: stripeEnabled ? 'stripe' : bkashEnabled ? 'bkash' : 'nagad',
+      payment_provider: 'stripe',
       status: 'pending',
       metadata: { plan_id: plan.id, coupon_applied: couponApplied } as any,
     });
@@ -242,6 +266,22 @@ export default function PremiumTab() {
           )}
         </CardContent>
       </Card>
+
+      {/* Manual Payment Dialog */}
+      {manualPaymentPlan && (
+        <ManualPaymentForm
+          planId={manualPaymentPlan.plan.id}
+          planName={manualPaymentPlan.plan.name}
+          amount={manualPaymentPlan.price}
+          currency="BDT"
+          billingCycle={billingCycle}
+          onClose={() => setManualPaymentPlan(null)}
+          onSuccess={() => {
+            setManualPaymentPlan(null);
+            fetchCurrentSubscription();
+          }}
+        />
+      )}
     </div>
   );
 }
