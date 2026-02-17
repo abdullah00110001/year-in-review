@@ -27,7 +27,12 @@ import {
   Calendar,
   BookOpen,
   BarChart3,
-  Sparkles
+  Sparkles,
+  Inbox,
+  Reply,
+  CheckCircle2,
+  Clock,
+  X
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
@@ -52,6 +57,18 @@ interface FeedbackItem {
   read_at?: string | null;
 }
 
+interface UserFeedbackItem {
+  id: string;
+  user_id: string;
+  user_name: string | null;
+  feedback_type: string;
+  subject: string;
+  message: string;
+  status: string;
+  admin_reply: string | null;
+  created_at: string;
+}
+
 const feedbackTypes = [
   { value: 'encouragement', label: 'Encouragement', icon: Heart, color: 'text-pink-500' },
   { value: 'concern', label: 'Concern', icon: AlertCircle, color: 'text-orange-500' },
@@ -71,6 +88,10 @@ export default function FeedbackCenter() {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [showComposer, setShowComposer] = useState(false);
+  const [userFeedbacks, setUserFeedbacks] = useState<UserFeedbackItem[]>([]);
+  const [replyingTo, setReplyingTo] = useState<string | null>(null);
+  const [replyText, setReplyText] = useState('');
+  const [replyingSending, setReplyingSending] = useState(false);
 
   const [newFeedback, setNewFeedback] = useState({
     message: '',
@@ -82,6 +103,7 @@ export default function FeedbackCenter() {
   useEffect(() => {
     fetchUsers();
     fetchAllFeedback();
+    fetchUserFeedbacks();
   }, []);
 
   useEffect(() => {
@@ -139,6 +161,67 @@ export default function FeedbackCenter() {
     }
 
     setLoading(false);
+  };
+
+  const fetchUserFeedbacks = async () => {
+    const { data } = await supabase
+      .from('user_feedback')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(50);
+
+    if (data) {
+      const userIds = [...new Set(data.map(f => f.user_id))];
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('user_id, full_name')
+        .in('user_id', userIds);
+
+      const profileMap = new Map(profiles?.map(p => [p.user_id, p.full_name]));
+
+      setUserFeedbacks(data.map(f => ({
+        ...f,
+        user_name: profileMap.get(f.user_id) || `User ${f.user_id.slice(0, 8)}`
+      })));
+    }
+  };
+
+  const replyToFeedback = async (feedbackId: string) => {
+    if (!replyText.trim() || !adminUser) return;
+    setReplyingSending(true);
+    try {
+      const { error } = await supabase
+        .from('user_feedback')
+        .update({ 
+          admin_reply: replyText.trim(), 
+          status: 'resolved',
+          replied_by: adminUser.id,
+          replied_at: new Date().toISOString()
+        })
+        .eq('id', feedbackId);
+
+      if (error) throw error;
+
+      // Find the feedback to get user_id for notification
+      const fb = userFeedbacks.find(f => f.id === feedbackId);
+      if (fb) {
+        await supabase.from('notifications').insert({
+          user_id: fb.user_id,
+          title: 'Feedback Reply',
+          message: replyText.trim(),
+          type: 'admin_feedback',
+          metadata: { feedback_id: feedbackId }
+        });
+      }
+
+      toast.success('Reply sent!');
+      setReplyingTo(null);
+      setReplyText('');
+      fetchUserFeedbacks();
+    } catch (error: any) {
+      toast.error('Failed to reply: ' + (error?.message || 'Unknown'));
+    }
+    setReplyingSending(false);
   };
 
   const sendFeedback = async () => {
@@ -246,11 +329,15 @@ export default function FeedbackCenter() {
         </div>
 
         {/* Tabs for different sections */}
-        <Tabs defaultValue="history" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4">
+        <Tabs defaultValue="user_feedback" className="space-y-6">
+          <TabsList className="grid w-full grid-cols-5">
+            <TabsTrigger value="user_feedback" className="gap-2">
+              <Inbox className="h-4 w-4" />
+              <span className="hidden sm:inline">User Feedback</span>
+            </TabsTrigger>
             <TabsTrigger value="history" className="gap-2">
               <MessageSquare className="h-4 w-4" />
-              <span className="hidden sm:inline">History</span>
+              <span className="hidden sm:inline">Sent</span>
             </TabsTrigger>
             <TabsTrigger value="templates" className="gap-2">
               <BookOpen className="h-4 w-4" />
@@ -265,6 +352,108 @@ export default function FeedbackCenter() {
               <span className="hidden sm:inline">Analytics</span>
             </TabsTrigger>
           </TabsList>
+
+          {/* User Feedback Tab */}
+          <TabsContent value="user_feedback" className="space-y-6">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              {['bug', 'suggestion', 'complaint', 'praise'].map(type => {
+                const count = userFeedbacks.filter(f => f.feedback_type === type).length;
+                const icons: Record<string, any> = { bug: AlertCircle, suggestion: Lightbulb, complaint: Bell, praise: Heart };
+                const colors: Record<string, string> = { bug: 'text-red-500', suggestion: 'text-yellow-500', complaint: 'text-orange-500', praise: 'text-green-500' };
+                const Icon = icons[type] || MessageSquare;
+                return (
+                  <Card key={type}>
+                    <CardContent className="p-4 text-center">
+                      <Icon className={cn('h-6 w-6 mx-auto mb-2', colors[type])} />
+                      <p className="text-title font-bold">{count}</p>
+                      <p className="text-caption text-muted-foreground capitalize">{type}</p>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+
+            <Card>
+              <CardHeader className="p-4 sm:p-6">
+                <CardTitle className="text-subtitle">User Submitted Feedback</CardTitle>
+                <CardDescription className="text-caption">
+                  Feedback, bug reports, and suggestions from users
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="p-4 sm:p-6 pt-0">
+                {userFeedbacks.length === 0 ? (
+                  <div className="text-center py-12">
+                    <Inbox className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                    <h3 className="text-subtitle font-semibold mb-2">No User Feedback Yet</h3>
+                    <p className="text-body text-muted-foreground">
+                      Users haven't submitted any feedback yet
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {userFeedbacks.map((fb) => (
+                      <div key={fb.id} className="p-4 rounded-xl border bg-card space-y-2">
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1 flex-wrap">
+                              <span className="font-medium text-body">{fb.user_name}</span>
+                              <Badge variant="outline" className="capitalize">{fb.feedback_type}</Badge>
+                              <Badge variant={fb.status === 'resolved' ? 'default' : 'secondary'} className="text-xs">
+                                {fb.status === 'resolved' ? <><CheckCircle2 className="h-3 w-3 mr-1" />Resolved</> : <><Clock className="h-3 w-3 mr-1" />{fb.status}</>}
+                              </Badge>
+                            </div>
+                            <p className="text-sm font-semibold">{fb.subject}</p>
+                            <p className="text-body text-muted-foreground">{fb.message}</p>
+                            <p className="text-caption text-muted-foreground mt-2 flex items-center gap-1">
+                              <Calendar className="h-3 w-3" />
+                              {format(new Date(fb.created_at), 'MMM d, yyyy h:mm a')}
+                            </p>
+                          </div>
+                        </div>
+
+                        {fb.admin_reply && (
+                          <div className="p-3 rounded-lg bg-primary/5 border border-primary/20">
+                            <p className="text-xs font-medium text-primary flex items-center gap-1 mb-1">
+                              <Reply className="h-3 w-3" /> Admin Reply
+                            </p>
+                            <p className="text-sm text-muted-foreground">{fb.admin_reply}</p>
+                          </div>
+                        )}
+
+                        {!fb.admin_reply && (
+                          <>
+                            {replyingTo === fb.id ? (
+                              <div className="flex gap-2 mt-2">
+                                <Textarea
+                                  placeholder="Write a reply..."
+                                  value={replyText}
+                                  onChange={(e) => setReplyText(e.target.value)}
+                                  rows={2}
+                                  className="flex-1"
+                                />
+                                <div className="flex flex-col gap-1">
+                                  <Button size="sm" onClick={() => replyToFeedback(fb.id)} disabled={replyingSending}>
+                                    {replyingSending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3" />}
+                                  </Button>
+                                  <Button size="sm" variant="ghost" onClick={() => { setReplyingTo(null); setReplyText(''); }}>
+                                    <X className="h-3 w-3" />
+                                  </Button>
+                                </div>
+                              </div>
+                            ) : (
+                              <Button size="sm" variant="outline" onClick={() => setReplyingTo(fb.id)} className="gap-1">
+                                <Reply className="h-3 w-3" /> Reply
+                              </Button>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
 
           {/* History Tab */}
           <TabsContent value="history" className="space-y-6">
