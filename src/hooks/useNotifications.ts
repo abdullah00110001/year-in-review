@@ -76,10 +76,8 @@ export function useNotifications() {
           setNotifications((prev) => [newNotification, ...prev].slice(0, 20));
           setUnreadCount((prev) => prev + 1);
           
-          // Show browser notification if permitted (only when tab is not visible)
-          if (document.visibilityState !== 'visible') {
-            showBrowserNotification(newNotification.title, newNotification.message);
-          }
+          // Always show browser/system notification
+          showBrowserNotification(newNotification.title, newNotification.message);
           
           // Always show in-app toast
           toast(newNotification.title, {
@@ -131,18 +129,57 @@ export function useNotifications() {
     }
   };
 
-  // Show browser notification
+  // Show browser/system notification bar notification
   const showBrowserNotification = (title: string, body: string, icon?: string) => {
-    if (permissionStatus !== 'granted') return;
     if (!('Notification' in window)) return;
+    
+    // If permission not yet granted, request it first
+    if (Notification.permission === 'default') {
+      Notification.requestPermission().then(permission => {
+        setPermissionStatus(permission);
+        if (permission === 'granted') {
+          createSystemNotification(title, body, icon);
+        }
+      });
+      return;
+    }
+    
+    if (Notification.permission !== 'granted') return;
+    createSystemNotification(title, body, icon);
+  };
 
+  // Create the actual system notification (shows in phone/browser notification bar)
+  const createSystemNotification = (title: string, body: string, icon?: string) => {
+    try {
+      // Try Service Worker registration for persistent notifications (works even when tab is in background)
+      if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+        navigator.serviceWorker.ready.then(registration => {
+          registration.showNotification(title, {
+            body,
+            icon: icon || '/icons/icon-192x192.png',
+            tag: `oporajeyo-${Date.now()}`,
+            requireInteraction: true,
+          } as NotificationOptions);
+        }).catch(() => {
+          // Fallback to regular Notification API
+          fallbackNotification(title, body, icon);
+        });
+      } else {
+        fallbackNotification(title, body, icon);
+      }
+    } catch (error) {
+      console.error('Error showing system notification:', error);
+    }
+  };
+
+  const fallbackNotification = (title: string, body: string, icon?: string) => {
     try {
       const notification = new Notification(title, {
         body,
-        icon: icon || '/favicon.svg',
-        badge: '/favicon.svg',
-        tag: 'oporajeyo-notification',
-        requireInteraction: false,
+        icon: icon || '/icons/icon-192x192.png',
+        badge: '/icons/icon-96x96.png',
+        tag: `oporajeyo-${Date.now()}`,
+        requireInteraction: true,
         silent: false,
       });
 
@@ -150,11 +187,8 @@ export function useNotifications() {
         window.focus();
         notification.close();
       };
-
-      // Auto close after 5 seconds
-      setTimeout(() => notification.close(), 5000);
     } catch (error) {
-      console.error('Error showing browser notification:', error);
+      console.error('Fallback notification error:', error);
     }
   };
 

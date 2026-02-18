@@ -6,10 +6,11 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Plus, Edit, Crown, Star, Zap } from 'lucide-react';
+import { Plus, Edit, Crown, Star, Zap, Lock, Unlock } from 'lucide-react';
 
 interface Plan {
   id: string;
@@ -26,11 +27,40 @@ interface Plan {
   is_active: boolean;
 }
 
+const ALL_FEATURES = [
+  { key: 'daily_input', label: 'Daily Life Input', category: 'Core' },
+  { key: 'basic_analytics', label: 'Basic Analytics', category: 'Core' },
+  { key: 'habit_tracking', label: 'Habit Tracking (up to 5)', category: 'Core' },
+  { key: 'goal_setting', label: 'Goal Setting', category: 'Core' },
+  { key: 'journal', label: 'Journal', category: 'Core' },
+  { key: 'unlimited_habits', label: 'Unlimited Habits', category: 'Premium' },
+  { key: 'advanced_analytics', label: 'Advanced Analytics & Insights', category: 'Premium' },
+  { key: 'mood_correlation', label: 'Mood-Productivity Correlation', category: 'Premium' },
+  { key: 'burnout_detection', label: 'Burnout Detection', category: 'Premium' },
+  { key: 'life_balance_score', label: 'Life Balance Score', category: 'Premium' },
+  { key: 'weekly_review', label: 'Weekly Review', category: 'Premium' },
+  { key: 'monthly_review', label: 'Monthly Review', category: 'Premium' },
+  { key: 'shield_basic', label: 'Shield (Basic)', category: 'Premium' },
+  { key: 'rise_alarm', label: 'Rise Alarm', category: 'Premium' },
+  { key: 'data_export', label: 'Data Export (CSV)', category: 'Premium' },
+  { key: 'predictive_analytics', label: 'Predictive Analytics', category: 'Ultimate' },
+  { key: 'ai_coaching', label: 'AI Coaching & Suggestions', category: 'Ultimate' },
+  { key: 'shield_advanced', label: 'Shield Advanced (Absolute Mode)', category: 'Ultimate' },
+  { key: 'community_challenges', label: 'Community Challenges', category: 'Ultimate' },
+  { key: 'leaderboard', label: 'Leaderboard Access', category: 'Ultimate' },
+  { key: 'accountability_groups', label: 'Accountability Groups', category: 'Ultimate' },
+  { key: 'pdf_tools', label: 'PDF Tools', category: 'Ultimate' },
+  { key: 'priority_support', label: 'Priority Support', category: 'Ultimate' },
+  { key: 'year_end_wrapped', label: 'Year-End Wrapped', category: 'Ultimate' },
+  { key: 'life_calendar', label: 'Life Calendar', category: 'Ultimate' },
+];
+
 export default function AdminPlanManager() {
   const [plans, setPlans] = useState<Plan[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingPlan, setEditingPlan] = useState<Plan | null>(null);
+  const [selectedFeatures, setSelectedFeatures] = useState<string[]>([]);
   const [form, setForm] = useState({
     plan_key: '', name: '', description: '', tier: 'free',
     price_monthly: 0, price_yearly: 0, price_lifetime: 0,
@@ -52,12 +82,18 @@ export default function AdminPlanManager() {
 
   const openCreate = () => {
     setEditingPlan(null);
+    setSelectedFeatures([]);
     setForm({ plan_key: '', name: '', description: '', tier: 'free', price_monthly: 0, price_yearly: 0, price_lifetime: 0, features: '', is_active: true, stripe_price_id: '', price_bdt_monthly: 0 });
     setDialogOpen(true);
   };
 
   const openEdit = (plan: Plan) => {
     setEditingPlan(plan);
+    // Try to match existing features to our feature keys
+    const matched = ALL_FEATURES
+      .filter(f => plan.features.some(pf => pf.toLowerCase().includes(f.label.toLowerCase()) || pf.toLowerCase().includes(f.key.replace(/_/g, ' '))))
+      .map(f => f.key);
+    setSelectedFeatures(matched.length > 0 ? matched : []);
     setForm({
       plan_key: plan.plan_key, name: plan.name, description: plan.description || '',
       tier: plan.tier, price_monthly: plan.price_monthly || 0, price_yearly: plan.price_yearly || 0,
@@ -68,15 +104,38 @@ export default function AdminPlanManager() {
     setDialogOpen(true);
   };
 
+  const toggleFeature = (key: string) => {
+    setSelectedFeatures(prev => 
+      prev.includes(key) ? prev.filter(f => f !== key) : [...prev, key]
+    );
+  };
+
+  const selectTierDefaults = (tier: string) => {
+    const coreKeys = ALL_FEATURES.filter(f => f.category === 'Core').map(f => f.key);
+    const premiumKeys = ALL_FEATURES.filter(f => f.category === 'Premium').map(f => f.key);
+    const ultimateKeys = ALL_FEATURES.filter(f => f.category === 'Ultimate').map(f => f.key);
+
+    if (tier === 'free') setSelectedFeatures(coreKeys);
+    else if (tier === 'premium') setSelectedFeatures([...coreKeys, ...premiumKeys]);
+    else setSelectedFeatures([...coreKeys, ...premiumKeys, ...ultimateKeys]);
+    setForm(p => ({ ...p, tier }));
+  };
+
   const handleSave = async () => {
-    const featuresArr = form.features.split('\n').filter(f => f.trim());
+    // Combine selected feature labels with any custom features from textarea
+    const featureLabels = ALL_FEATURES
+      .filter(f => selectedFeatures.includes(f.key))
+      .map(f => f.label);
+    const customFeatures = form.features.split('\n').filter(f => f.trim() && !featureLabels.some(fl => fl.toLowerCase() === f.trim().toLowerCase()));
+    const allFeatures = [...featureLabels, ...customFeatures];
+
     const payload = {
       plan_key: form.plan_key.toLowerCase().replace(/\s+/g, '_'),
       name: form.name, description: form.description || null, tier: form.tier,
       price_monthly: form.price_monthly, price_yearly: form.price_yearly,
-      price_lifetime: form.price_lifetime, features: featuresArr as any,
+      price_lifetime: form.price_lifetime, features: allFeatures as any,
       is_active: form.is_active, stripe_price_id: form.stripe_price_id || null,
-      region_pricing: { bdt_monthly: form.price_bdt_monthly } as any,
+      region_pricing: { bdt_monthly: form.price_bdt_monthly, feature_keys: selectedFeatures } as any,
     };
 
     try {
@@ -102,18 +161,20 @@ export default function AdminPlanManager() {
     return <Crown className="h-5 w-5 text-amber-500" />;
   };
 
+  const categories = ['Core', 'Premium', 'Ultimate'];
+
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
         <div>
           <CardTitle>Subscription Plans</CardTitle>
-          <CardDescription>Manage pricing tiers and features</CardDescription>
+          <CardDescription>Manage pricing tiers, features access (free vs paid)</CardDescription>
         </div>
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
             <Button onClick={openCreate}><Plus className="h-4 w-4 mr-2" />Add Plan</Button>
           </DialogTrigger>
-          <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>{editingPlan ? 'Edit Plan' : 'Create Plan'}</DialogTitle>
             </DialogHeader>
@@ -133,13 +194,57 @@ export default function AdminPlanManager() {
                 <Input value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} placeholder="Best for serious users" />
               </div>
               <div className="space-y-2">
-                <Label>Tier</Label>
+                <Label>Tier (click to auto-select features)</Label>
                 <div className="flex gap-2">
                   {['free', 'premium', 'ultimate'].map(t => (
-                    <Button key={t} size="sm" variant={form.tier === t ? 'default' : 'outline'} onClick={() => setForm(p => ({ ...p, tier: t }))} className="capitalize">{t}</Button>
+                    <Button key={t} size="sm" variant={form.tier === t ? 'default' : 'outline'} onClick={() => selectTierDefaults(t)} className="capitalize">{t}</Button>
                   ))}
                 </div>
               </div>
+
+              {/* Feature Selection */}
+              <div className="space-y-3">
+                <Label className="flex items-center gap-2">
+                  <Lock className="h-4 w-4" />
+                  Feature Access (select what this plan includes)
+                </Label>
+                <div className="border rounded-lg p-3 space-y-4 max-h-60 overflow-y-auto">
+                  {categories.map(category => (
+                    <div key={category}>
+                      <div className="flex items-center gap-2 mb-2">
+                        <Badge variant={category === 'Core' ? 'secondary' : category === 'Premium' ? 'default' : 'destructive'} className="text-xs">
+                          {category}
+                        </Badge>
+                        {category === 'Core' && <span className="text-xs text-muted-foreground">(Free tier)</span>}
+                        {category === 'Premium' && <span className="text-xs text-muted-foreground">(Paid)</span>}
+                        {category === 'Ultimate' && <span className="text-xs text-muted-foreground">(Top tier)</span>}
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        {ALL_FEATURES.filter(f => f.category === category).map(feature => (
+                          <label key={feature.key} className="flex items-center gap-2 text-sm cursor-pointer hover:bg-muted/50 p-1.5 rounded">
+                            <Checkbox
+                              checked={selectedFeatures.includes(feature.key)}
+                              onCheckedChange={() => toggleFeature(feature.key)}
+                            />
+                            <span className="flex items-center gap-1">
+                              {selectedFeatures.includes(feature.key) ? (
+                                <Unlock className="h-3 w-3 text-green-500" />
+                              ) : (
+                                <Lock className="h-3 w-3 text-muted-foreground" />
+                              )}
+                              {feature.label}
+                            </span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Selected: {selectedFeatures.length}/{ALL_FEATURES.length} features
+                </p>
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Monthly (USD)</Label>
@@ -165,8 +270,8 @@ export default function AdminPlanManager() {
                 <Input value={form.stripe_price_id} onChange={e => setForm(p => ({ ...p, stripe_price_id: e.target.value }))} placeholder="price_..." />
               </div>
               <div className="space-y-2">
-                <Label>Features (one per line)</Label>
-                <Textarea rows={5} value={form.features} onChange={e => setForm(p => ({ ...p, features: e.target.value }))} placeholder="Unlimited analytics&#10;Priority support&#10;Advanced insights" />
+                <Label>Additional Custom Features (one per line)</Label>
+                <Textarea rows={3} value={form.features} onChange={e => setForm(p => ({ ...p, features: e.target.value }))} placeholder="Custom feature 1&#10;Custom feature 2" />
               </div>
               <div className="flex items-center gap-3">
                 <Switch checked={form.is_active} onCheckedChange={v => setForm(p => ({ ...p, is_active: v }))} />
@@ -212,11 +317,21 @@ export default function AdminPlanManager() {
                     <p className="text-sm text-muted-foreground">৳{(plan.region_pricing as any).bdt_monthly}/mo</p>
                   )}
                 </div>
-                <div className="space-y-1 mb-4">
+                <div className="space-y-1 mb-2">
                   {plan.features.slice(0, 5).map((f, j) => (
-                    <p key={j} className="text-xs text-muted-foreground">✓ {f}</p>
+                    <p key={j} className="text-xs text-muted-foreground flex items-center gap-1">
+                      <Unlock className="h-3 w-3 text-green-500" /> {f}
+                    </p>
                   ))}
+                  {plan.features.length > 5 && (
+                    <p className="text-xs text-muted-foreground">+{plan.features.length - 5} more</p>
+                  )}
                 </div>
+                {(plan.region_pricing as any)?.feature_keys && (
+                  <p className="text-xs text-muted-foreground mb-3">
+                    {(plan.region_pricing as any).feature_keys.length} gated features
+                  </p>
+                )}
                 <Button variant="outline" size="sm" className="w-full" onClick={() => openEdit(plan)}>
                   <Edit className="h-3 w-3 mr-1" /> Edit
                 </Button>
