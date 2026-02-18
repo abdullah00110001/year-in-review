@@ -127,9 +127,9 @@ export default function LandingPage() {
               <Link to="/auth">Sign In</Link>
             </Button>
             <Button asChild variant="outline" size="lg" className="h-14 px-8 text-base border-primary/30 hover:bg-primary/10 hover:scale-105 transition-all duration-300">
-              <a href="https://play.google.com/store" target="_blank" rel="noopener noreferrer" className="gap-2">
+              <Link to="/download" className="gap-2">
                 <Download className="h-5 w-5" /> Download App
-              </a>
+              </Link>
             </Button>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6 max-w-3xl mx-auto animate-fade-in">

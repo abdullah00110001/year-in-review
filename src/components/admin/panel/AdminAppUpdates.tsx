@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
-import { Rocket, Send, Clock, CheckCircle2, AlertTriangle, Loader2 } from 'lucide-react';
+import { Rocket, Send, Clock, CheckCircle2, Loader2, Upload } from 'lucide-react';
 import { format } from 'date-fns';
 
 interface AppUpdate {
@@ -30,6 +30,9 @@ export default function AdminAppUpdates() {
   const [updates, setUpdates] = useState<AppUpdate[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [uploadingApk, setUploadingApk] = useState(false);
+  const [currentApkName, setCurrentApkName] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [newUpdate, setNewUpdate] = useState({
     version: '',
@@ -54,6 +57,18 @@ export default function AdminAppUpdates() {
     if (data?.value) {
       setUpdates((data.value as any).updates || []);
     }
+
+    // Check current APK in storage
+    try {
+      const { data: files } = await supabase.storage.from('app-releases').list('', {
+        limit: 1,
+        sortBy: { column: 'created_at', order: 'desc' },
+      });
+      if (files && files.length > 0) {
+        setCurrentApkName(files[0].name);
+      }
+    } catch {}
+
     setLoading(false);
   };
 
@@ -135,6 +150,60 @@ export default function AdminAppUpdates() {
 
   return (
     <div className="space-y-6">
+      {/* Upload APK */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-subtitle flex items-center gap-2">
+            <Upload className="h-5 w-5 text-primary" />
+            Upload APK File
+          </CardTitle>
+          <CardDescription className="text-caption">
+            Upload the latest APK for users to download
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {currentApkName && (
+            <div className="flex items-center gap-2 p-3 rounded-xl border bg-card">
+              <CheckCircle2 className="h-4 w-4 text-primary" />
+              <span className="text-sm text-muted-foreground">Current: {currentApkName}</span>
+            </div>
+          )}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".apk"
+            className="hidden"
+            onChange={async (e) => {
+              const file = e.target.files?.[0];
+              if (!file) return;
+              if (!file.name.endsWith('.apk')) {
+                toast.error('Please select an APK file');
+                return;
+              }
+              setUploadingApk(true);
+              const fileName = `yearly-track-v${newUpdate.version || 'latest'}.apk`;
+              const { error } = await supabase.storage.from('app-releases').upload(fileName, file, { upsert: true });
+              if (error) {
+                toast.error('Upload failed: ' + error.message);
+              } else {
+                setCurrentApkName(fileName);
+                toast.success('APK uploaded successfully!');
+              }
+              setUploadingApk(false);
+            }}
+          />
+          <Button
+            variant="outline"
+            className="w-full gap-2"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploadingApk}
+          >
+            {uploadingApk ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+            {uploadingApk ? 'Uploading...' : 'Select & Upload APK'}
+          </Button>
+        </CardContent>
+      </Card>
+
       {/* Push New Update */}
       <Card>
         <CardHeader>

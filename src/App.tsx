@@ -66,6 +66,7 @@ import AdminNotifications from "./pages/admin/AdminNotifications";
 import AdminCommandCenter from "./pages/admin/AdminCommandCenter";
 import AdminPDFTools from "./pages/admin/AdminPDFTools";
 import AdminPanel from "./pages/admin/AdminPanel";
+import DownloadApp from "./pages/DownloadApp";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -117,6 +118,7 @@ const App = () => {
                       <Routes>
                         <Route path="/" element={<LandingPage />} />
                         <Route path="/auth" element={<Auth />} />
+                        <Route path="/download" element={<DownloadApp />} />
                         <Route path="/reset-password" element={<ResetPassword />} />
                         <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
                         <Route path="/goals" element={<ProtectedRoute><Goals /></ProtectedRoute>} />
