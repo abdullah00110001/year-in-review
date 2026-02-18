@@ -87,14 +87,28 @@ export function useCapacitor() {
 
       // Step 2: Android-specific setup (all wrapped individually)
       if (isAndroid) {
-        // Permissions
-        try {
-          const { requestNotificationPermission, checkExactAlarmPermission } = await import('@/lib/capacitor/permissions');
-          await requestNotificationPermission();
-          await checkExactAlarmPermission();
-        } catch (error) {
-          console.error('[Capacitor] Permission error:', error);
-        }
+        // Request permissions with a small delay so WebView is fully ready
+        setTimeout(async () => {
+          try {
+            const { LocalNotifications } = await import('@capacitor/local-notifications');
+            const permCheck = await LocalNotifications.checkPermissions();
+            if (permCheck.display !== 'granted') {
+              await LocalNotifications.requestPermissions();
+            }
+          } catch (error) {
+            console.error('[Capacitor] Notification permission error:', error);
+          }
+
+          try {
+            const { PushNotifications } = await import('@capacitor/push-notifications');
+            const pushCheck = await PushNotifications.checkPermissions();
+            if (pushCheck.receive !== 'granted') {
+              await PushNotifications.requestPermissions();
+            }
+          } catch (error) {
+            console.error('[Capacitor] Push permission error:', error);
+          }
+        }, 1500);
 
         // Notification channels - each in its own try/catch
         try {
