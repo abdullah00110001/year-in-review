@@ -36,6 +36,7 @@ export default function AdminAppUpdates() {
 
   const [newUpdate, setNewUpdate] = useState({
     version: '',
+    version_code: '',
     title: '',
     description: '',
     update_type: 'feature',
@@ -73,11 +74,18 @@ export default function AdminAppUpdates() {
   };
 
   const pushUpdate = async () => {
-    if (!newUpdate.version || !newUpdate.title || !newUpdate.description) {
-      toast.error('Please fill version, title, and description');
+    if (!newUpdate.version || !newUpdate.title || !newUpdate.description || !newUpdate.version_code) {
+      toast.error('Please fill version, version code, title, and description');
       return;
     }
     setSaving(true);
+
+    const versionCode = parseInt(newUpdate.version_code, 10);
+    if (isNaN(versionCode) || versionCode < 1) {
+      toast.error('Version code must be a positive integer');
+      setSaving(false);
+      return;
+    }
 
     const update: AppUpdate = {
       id: crypto.randomUUID(),
@@ -89,6 +97,7 @@ export default function AdminAppUpdates() {
 
     const updatedList = [update, ...updates];
 
+    // 1. Save to app_settings (update history)
     const { error } = await supabase
       .from('app_settings')
       .upsert({
@@ -99,31 +108,60 @@ export default function AdminAppUpdates() {
 
     if (error) {
       toast.error('Failed to push update');
-    } else {
-      // Send notification to all users about the update
-      const { data: allUsers } = await supabase
-        .from('profiles')
-        .select('user_id');
-
-      if (allUsers) {
-        const notifications = allUsers.map(u => ({
-          user_id: u.user_id,
-          title: `🚀 App Update v${newUpdate.version}`,
-          message: `${newUpdate.title}: ${newUpdate.description.slice(0, 100)}`,
-          type: 'app_update',
-          metadata: { version: newUpdate.version, mandatory: newUpdate.is_mandatory },
-        }));
-
-        // Insert in batches of 50
-        for (let i = 0; i < notifications.length; i += 50) {
-          await supabase.from('notifications').insert(notifications.slice(i, i + 50));
-        }
-      }
-
-      toast.success(`Update v${newUpdate.version} pushed to all users!`);
-      setUpdates(updatedList);
-      setNewUpdate({ version: '', title: '', description: '', update_type: 'feature', is_mandatory: false, download_url: '' });
+      setSaving(false);
+      return;
     }
+
+    // 2. Sync app_metadata table (used by useAppUpdate hook for version checking)
+    // Get the latest APK URL from storage as fallback
+    let apkDownloadUrl = newUpdate.download_url || '';
+    if (!apkDownloadUrl) {
+      try {
+        const { data: files } = await supabase.storage.from('app-releases').list('', {
+          limit: 10,
+          sortBy: { column: 'created_at', order: 'desc' },
+        });
+        const apkFile = files?.find(f => f.name.endsWith('.apk'));
+        if (apkFile) {
+          const { data: urlData } = supabase.storage.from('app-releases').getPublicUrl(apkFile.name);
+          apkDownloadUrl = urlData.publicUrl;
+        }
+      } catch {}
+    }
+
+    await supabase
+      .from('app_metadata')
+      .upsert({
+        id: 'singleton',
+        latest_version_code: versionCode,
+        download_url: apkDownloadUrl || '/download',
+        is_force_update: newUpdate.is_mandatory,
+        release_notes: `${newUpdate.title}: ${newUpdate.description}`,
+        updated_by: user?.id,
+      }, { onConflict: 'id' });
+
+    // 3. Send notification to all users
+    const { data: allUsers } = await supabase
+      .from('profiles')
+      .select('user_id');
+
+    if (allUsers) {
+      const notifications = allUsers.map(u => ({
+        user_id: u.user_id,
+        title: `🚀 App Update v${newUpdate.version}`,
+        message: `${newUpdate.title}: ${newUpdate.description.slice(0, 100)}`,
+        type: 'app_update',
+        metadata: { version: newUpdate.version, version_code: versionCode, mandatory: newUpdate.is_mandatory },
+      }));
+
+      for (let i = 0; i < notifications.length; i += 50) {
+        await supabase.from('notifications').insert(notifications.slice(i, i + 50));
+      }
+    }
+
+    toast.success(`Update v${newUpdate.version} (code: ${versionCode}) pushed!`);
+    setUpdates(updatedList);
+    setNewUpdate({ version: '', version_code: '', title: '', description: '', update_type: 'feature', is_mandatory: false, download_url: '' });
     setSaving(false);
   };
 
@@ -216,10 +254,14 @@ export default function AdminAppUpdates() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="space-y-2">
-              <Label>Version</Label>
+              <Label>Version Name</Label>
               <Input placeholder="e.g. 2.1.0" value={newUpdate.version} onChange={e => setNewUpdate(p => ({ ...p, version: e.target.value }))} />
+            </div>
+            <div className="space-y-2">
+              <Label>Version Code (integer)</Label>
+              <Input placeholder="e.g. 2 (increment each release)" type="number" value={newUpdate.version_code} onChange={e => setNewUpdate(p => ({ ...p, version_code: e.target.value }))} />
             </div>
             <div className="space-y-2">
               <Label>Update Type</Label>
