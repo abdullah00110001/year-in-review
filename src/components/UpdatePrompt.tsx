@@ -1,8 +1,8 @@
-import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Download, AlertTriangle, Clock } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { useNavigate } from 'react-router-dom';
 
 interface UpdatePromptProps {
   open: boolean;
@@ -21,17 +21,10 @@ export default function UpdatePrompt({
   releaseNotes,
   latestVersion,
 }: UpdatePromptProps) {
-  const [downloading, setDownloading] = useState(false);
-
-  const handleUpdate = async () => {
-    setDownloading(true);
-    try {
-      const { Browser } = await import('@capacitor/browser');
-      await Browser.open({ url: downloadUrl });
-    } catch {
-      window.open(downloadUrl, '_blank');
-    }
-    setDownloading(false);
+  // We need to handle navigation - but since this component is rendered
+  // outside BrowserRouter in App.tsx, we'll use window.location
+  const handleUpdate = () => {
+    window.location.href = '/download';
   };
 
   const handleRemindLater = () => {
@@ -74,9 +67,9 @@ export default function UpdatePrompt({
         </div>
 
         <DialogFooter className="flex-col gap-2 sm:flex-col">
-          <Button onClick={handleUpdate} disabled={downloading} className="w-full gap-2">
+          <Button onClick={handleUpdate} className="w-full gap-2">
             <Download className="h-4 w-4" />
-            {downloading ? 'Opening...' : 'Update Now'}
+            Update Now
           </Button>
           {!isForceUpdate && (
             <Button variant="ghost" onClick={handleRemindLater} className="w-full gap-2">

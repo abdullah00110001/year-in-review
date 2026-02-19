@@ -17,6 +17,9 @@ export default function DownloadApp() {
   }, []);
 
   const fetchDownloadInfo = async () => {
+    let apkUrl: string | null = null;
+    let update: any = null;
+
     // Get latest update info
     const { data: updateData } = await supabase
       .from('app_settings')
@@ -28,30 +31,49 @@ export default function DownloadApp() {
       const val = updateData.value as any;
       const activeUpdates = (val.updates || []).filter((u: any) => u.is_active);
       if (activeUpdates.length > 0) {
-        setLatestUpdate(activeUpdates[0]);
+        update = activeUpdates[0];
+        setLatestUpdate(update);
       }
     }
 
-    // Get APK download URL from storage
+    // Get APK download URL from storage (latest uploaded file)
     try {
       const { data: files } = await supabase.storage.from('app-releases').list('', {
-        limit: 1,
+        limit: 10,
         sortBy: { column: 'created_at', order: 'desc' },
       });
 
-      if (files && files.length > 0) {
-        const { data: urlData } = supabase.storage.from('app-releases').getPublicUrl(files[0].name);
-        setDownloadUrl(urlData.publicUrl);
+      // Find the first .apk file
+      const apkFile = files?.find(f => f.name.endsWith('.apk'));
+      if (apkFile) {
+        const { data: urlData } = supabase.storage.from('app-releases').getPublicUrl(apkFile.name);
+        apkUrl = urlData.publicUrl;
       }
     } catch {
       // Storage bucket may not exist yet
     }
 
-    // Fallback: check if admin set a manual download URL
-    if (!downloadUrl && latestUpdate?.download_url) {
-      setDownloadUrl(latestUpdate.download_url);
+    // Fallback: use admin-set download URL
+    if (!apkUrl && update?.download_url) {
+      apkUrl = update.download_url;
     }
 
+    // Also check app_metadata table
+    if (!apkUrl) {
+      const { data: metaData } = await supabase
+        .from('app_metadata')
+        .select('download_url, latest_version_code, release_notes')
+        .limit(1)
+        .maybeSingle();
+      if (metaData?.download_url) {
+        apkUrl = metaData.download_url;
+        if (!update && metaData.release_notes) {
+          setLatestUpdate({ version: metaData.latest_version_code, description: metaData.release_notes });
+        }
+      }
+    }
+
+    setDownloadUrl(apkUrl);
     setLoading(false);
   };
 
