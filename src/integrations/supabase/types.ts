@@ -333,6 +333,36 @@ export type Database = {
         }
         Relationships: []
       }
+      app_metadata: {
+        Row: {
+          download_url: string
+          id: string
+          is_force_update: boolean
+          latest_version_code: number
+          release_notes: string | null
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          download_url?: string
+          id?: string
+          is_force_update?: boolean
+          latest_version_code?: number
+          release_notes?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          download_url?: string
+          id?: string
+          is_force_update?: boolean
+          latest_version_code?: number
+          release_notes?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       app_settings: {
         Row: {
           created_at: string

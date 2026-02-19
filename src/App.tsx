@@ -16,6 +16,8 @@ import SmartNotificationProvider from "@/components/notifications/SmartNotificat
 import { useState } from "react";
 import { isNative } from "@/lib/capacitor/platform";
 import NativeSplash from "@/components/NativeSplash";
+import UpdatePrompt from "@/components/UpdatePrompt";
+import { useAppUpdate } from "@/hooks/useAppUpdate";
 
 // All pages imported directly - no lazy loading (fixes Capacitor WebView chunk failures)
 import Auth from "./pages/Auth";
@@ -89,8 +91,86 @@ const queryClient = new QueryClient({
   },
 });
 
+const AppContent = () => {
+  const appUpdate = useAppUpdate();
+
+  return (
+    <>
+      <Toaster />
+      <Sonner />
+      <SmartNotificationProvider />
+      <UpdatePrompt
+        open={appUpdate.showPrompt}
+        onDismiss={appUpdate.dismiss}
+        downloadUrl={appUpdate.downloadUrl}
+        isForceUpdate={appUpdate.isForceUpdate}
+        releaseNotes={appUpdate.releaseNotes}
+        latestVersion={appUpdate.latestVersion}
+      />
+      <BrowserRouter>
+        <ScrollToTop />
+        <Routes>
+          <Route path="/" element={<LandingPage />} />
+          <Route path="/auth" element={<Auth />} />
+          <Route path="/download" element={<DownloadApp />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
+          <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+          <Route path="/goals" element={<ProtectedRoute><Goals /></ProtectedRoute>} />
+          <Route path="/goals/new" element={<ProtectedRoute><Goals /></ProtectedRoute>} />
+          <Route path="/habits" element={<ProtectedRoute><Habits /></ProtectedRoute>} />
+          <Route path="/habits/new" element={<ProtectedRoute><Habits /></ProtectedRoute>} />
+          <Route path="/calendar" element={<ProtectedRoute><Calendar /></ProtectedRoute>} />
+          <Route path="/journal" element={<ProtectedRoute><Journal /></ProtectedRoute>} />
+          <Route path="/journey" element={<ProtectedRoute><Journey /></ProtectedRoute>} />
+          <Route path="/leaderboard" element={<ProtectedRoute><Leaderboard /></ProtectedRoute>} />
+          <Route path="/life-distribution" element={<ProtectedRoute><LifeDistribution /></ProtectedRoute>} />
+          <Route path="/knowledge-shelf" element={<ProtectedRoute><KnowledgeShelf /></ProtectedRoute>} />
+          <Route path="/quarterly-goals" element={<ProtectedRoute><QuarterlyGoals /></ProtectedRoute>} />
+          <Route path="/monthly-highlights" element={<ProtectedRoute><MonthlyHighlights /></ProtectedRoute>} />
+          <Route path="/future-letter" element={<ProtectedRoute><FutureLetter /></ProtectedRoute>} />
+          <Route path="/analytics" element={<ProtectedRoute><Analytics /></ProtectedRoute>} />
+          <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+          <Route path="/wrapped" element={<ProtectedRoute><YearEndWrapped /></ProtectedRoute>} />
+          <Route path="/export" element={<ProtectedRoute><DataExport /></ProtectedRoute>} />
+          <Route path="/daily-input" element={<ProtectedRoute><DailyInput /></ProtectedRoute>} />
+          <Route path="/night-muhasaba" element={<ProtectedRoute><NightMuhasaba /></ProtectedRoute>} />
+          <Route path="/monthly-review" element={<ProtectedRoute><MonthlyReview /></ProtectedRoute>} />
+          <Route path="/intelligence" element={<ProtectedRoute><IntelligenceEngine /></ProtectedRoute>} />
+          <Route path="/weekly-review" element={<ProtectedRoute><WeeklyReview /></ProtectedRoute>} />
+          <Route path="/admin-command" element={<ProtectedRoute><AdminCommand /></ProtectedRoute>} />
+          <Route path="/gamification" element={<ProtectedRoute><Gamification /></ProtectedRoute>} />
+          <Route path="/insights" element={<ProtectedRoute><Insights /></ProtectedRoute>} />
+          <Route path="/islamic-dashboard" element={<ProtectedRoute><IslamicDashboard /></ProtectedRoute>} />
+          <Route path="/unified-dashboard" element={<ProtectedRoute><UnifiedDashboard /></ProtectedRoute>} />
+          <Route path="/challenges" element={<ProtectedRoute><Challenges /></ProtectedRoute>} />
+          <Route path="/reflections" element={<ProtectedRoute><Reflections /></ProtectedRoute>} />
+          <Route path="/comparative-analytics" element={<ProtectedRoute><ComparativeAnalytics /></ProtectedRoute>} />
+          <Route path="/shield" element={<ProtectedRoute><ShieldPage /></ProtectedRoute>} />
+          <Route path="/rise" element={<ProtectedRoute><RisePage /></ProtectedRoute>} />
+          <Route path="/time-tracking" element={<ProtectedRoute><TimeTracking /></ProtectedRoute>} />
+          <Route path="/life-calendar" element={<ProtectedRoute><LifeCalendar /></ProtectedRoute>} />
+          <Route path="/pdf-tools" element={<PDFTools />} />
+          <Route path="/premium" element={<ProtectedRoute><Premium /></ProtectedRoute>} />
+          
+          {/* Admin routes */}
+          <Route path="/admin" element={<AdminProtectedRoute><AdminOverview /></AdminProtectedRoute>} />
+          <Route path="/admin/users" element={<AdminProtectedRoute><UserInspector /></AdminProtectedRoute>} />
+          <Route path="/admin/at-risk" element={<AdminProtectedRoute><AtRiskUsers /></AdminProtectedRoute>} />
+          <Route path="/admin/feedback" element={<AdminProtectedRoute><FeedbackCenter /></AdminProtectedRoute>} />
+          <Route path="/admin/analytics" element={<AdminProtectedRoute><AdminAnalytics /></AdminProtectedRoute>} />
+          <Route path="/admin/notifications" element={<AdminProtectedRoute><AdminNotifications /></AdminProtectedRoute>} />
+          <Route path="/admin/panel" element={<AdminProtectedRoute><AdminPanel /></AdminProtectedRoute>} />
+          <Route path="/admin/command" element={<AdminProtectedRoute><AdminCommandCenter /></AdminProtectedRoute>} />
+          <Route path="/admin/pdf-tools" element={<AdminProtectedRoute><AdminPDFTools /></AdminProtectedRoute>} />
+          
+          <Route path="*" element={<NotFound />} />
+        </Routes>
+      </BrowserRouter>
+    </>
+  );
+};
+
 const App = () => {
-  // Only show splash on native
   const [splashDone, setSplashDone] = useState(!isNative);
 
   if (!splashDone) {
@@ -110,68 +190,7 @@ const App = () => {
               <LanguageProvider>
                 <AppModeProvider>
                   <TooltipProvider>
-                    <Toaster />
-                    <Sonner />
-                    <SmartNotificationProvider />
-                    <BrowserRouter>
-                      <ScrollToTop />
-                      <Routes>
-                        <Route path="/" element={<LandingPage />} />
-                        <Route path="/auth" element={<Auth />} />
-                        <Route path="/download" element={<DownloadApp />} />
-                        <Route path="/reset-password" element={<ResetPassword />} />
-                        <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-                        <Route path="/goals" element={<ProtectedRoute><Goals /></ProtectedRoute>} />
-                        <Route path="/goals/new" element={<ProtectedRoute><Goals /></ProtectedRoute>} />
-                        <Route path="/habits" element={<ProtectedRoute><Habits /></ProtectedRoute>} />
-                        <Route path="/habits/new" element={<ProtectedRoute><Habits /></ProtectedRoute>} />
-                        <Route path="/calendar" element={<ProtectedRoute><Calendar /></ProtectedRoute>} />
-                        <Route path="/journal" element={<ProtectedRoute><Journal /></ProtectedRoute>} />
-                        <Route path="/journey" element={<ProtectedRoute><Journey /></ProtectedRoute>} />
-                        <Route path="/leaderboard" element={<ProtectedRoute><Leaderboard /></ProtectedRoute>} />
-                        <Route path="/life-distribution" element={<ProtectedRoute><LifeDistribution /></ProtectedRoute>} />
-                        <Route path="/knowledge-shelf" element={<ProtectedRoute><KnowledgeShelf /></ProtectedRoute>} />
-                        <Route path="/quarterly-goals" element={<ProtectedRoute><QuarterlyGoals /></ProtectedRoute>} />
-                        <Route path="/monthly-highlights" element={<ProtectedRoute><MonthlyHighlights /></ProtectedRoute>} />
-                        <Route path="/future-letter" element={<ProtectedRoute><FutureLetter /></ProtectedRoute>} />
-                        <Route path="/analytics" element={<ProtectedRoute><Analytics /></ProtectedRoute>} />
-                        <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
-                        <Route path="/wrapped" element={<ProtectedRoute><YearEndWrapped /></ProtectedRoute>} />
-                        <Route path="/export" element={<ProtectedRoute><DataExport /></ProtectedRoute>} />
-                        <Route path="/daily-input" element={<ProtectedRoute><DailyInput /></ProtectedRoute>} />
-                        <Route path="/night-muhasaba" element={<ProtectedRoute><NightMuhasaba /></ProtectedRoute>} />
-                        <Route path="/monthly-review" element={<ProtectedRoute><MonthlyReview /></ProtectedRoute>} />
-                        <Route path="/intelligence" element={<ProtectedRoute><IntelligenceEngine /></ProtectedRoute>} />
-                        <Route path="/weekly-review" element={<ProtectedRoute><WeeklyReview /></ProtectedRoute>} />
-                        <Route path="/admin-command" element={<ProtectedRoute><AdminCommand /></ProtectedRoute>} />
-                        <Route path="/gamification" element={<ProtectedRoute><Gamification /></ProtectedRoute>} />
-                        <Route path="/insights" element={<ProtectedRoute><Insights /></ProtectedRoute>} />
-                        <Route path="/islamic-dashboard" element={<ProtectedRoute><IslamicDashboard /></ProtectedRoute>} />
-                        <Route path="/unified-dashboard" element={<ProtectedRoute><UnifiedDashboard /></ProtectedRoute>} />
-                        <Route path="/challenges" element={<ProtectedRoute><Challenges /></ProtectedRoute>} />
-                        <Route path="/reflections" element={<ProtectedRoute><Reflections /></ProtectedRoute>} />
-                        <Route path="/comparative-analytics" element={<ProtectedRoute><ComparativeAnalytics /></ProtectedRoute>} />
-                        <Route path="/shield" element={<ProtectedRoute><ShieldPage /></ProtectedRoute>} />
-                        <Route path="/rise" element={<ProtectedRoute><RisePage /></ProtectedRoute>} />
-                        <Route path="/time-tracking" element={<ProtectedRoute><TimeTracking /></ProtectedRoute>} />
-                        <Route path="/life-calendar" element={<ProtectedRoute><LifeCalendar /></ProtectedRoute>} />
-                        <Route path="/pdf-tools" element={<PDFTools />} />
-                        <Route path="/premium" element={<ProtectedRoute><Premium /></ProtectedRoute>} />
-                        
-                        {/* Admin routes */}
-                        <Route path="/admin" element={<AdminProtectedRoute><AdminOverview /></AdminProtectedRoute>} />
-                        <Route path="/admin/users" element={<AdminProtectedRoute><UserInspector /></AdminProtectedRoute>} />
-                        <Route path="/admin/at-risk" element={<AdminProtectedRoute><AtRiskUsers /></AdminProtectedRoute>} />
-                        <Route path="/admin/feedback" element={<AdminProtectedRoute><FeedbackCenter /></AdminProtectedRoute>} />
-                        <Route path="/admin/analytics" element={<AdminProtectedRoute><AdminAnalytics /></AdminProtectedRoute>} />
-                        <Route path="/admin/notifications" element={<AdminProtectedRoute><AdminNotifications /></AdminProtectedRoute>} />
-                        <Route path="/admin/panel" element={<AdminProtectedRoute><AdminPanel /></AdminProtectedRoute>} />
-                        <Route path="/admin/command" element={<AdminProtectedRoute><AdminCommandCenter /></AdminProtectedRoute>} />
-                        <Route path="/admin/pdf-tools" element={<AdminProtectedRoute><AdminPDFTools /></AdminProtectedRoute>} />
-                        
-                        <Route path="*" element={<NotFound />} />
-                      </Routes>
-                    </BrowserRouter>
+                    <AppContent />
                   </TooltipProvider>
                 </AppModeProvider>
               </LanguageProvider>
