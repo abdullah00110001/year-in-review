@@ -26,6 +26,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     isMounted.current = true;
     console.log('[Auth] Setting up auth listener');
 
+    // Safety timeout - if auth takes too long, stop loading to unblock UI
+    const safetyTimeout = setTimeout(() => {
+      if (isMounted.current && loading) {
+        console.warn('[Auth] Safety timeout reached - unblocking UI');
+        setLoading(false);
+      }
+    }, 5000);
+
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, currentSession) => {
@@ -39,22 +47,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     );
 
     // THEN check for existing session
-    supabase.auth.getSession().then(({ data: { session: currentSession } }) => {
-      if (!isMounted.current) return;
-      if (!initialSessionChecked.current) {
-        initialSessionChecked.current = true;
-        console.log('[Auth] Initial session:', currentSession?.user?.email ?? 'none');
-        setSession(currentSession);
-        setUser(currentSession?.user ?? null);
-        setLoading(false);
+    const initAuth = async () => {
+      try {
+        const { data: { session: currentSession } } = await supabase.auth.getSession();
+        if (!isMounted.current) return;
+        if (!initialSessionChecked.current) {
+          initialSessionChecked.current = true;
+          console.log('[Auth] Initial session:', currentSession?.user?.email ?? 'none');
+          setSession(currentSession);
+          setUser(currentSession?.user ?? null);
+          setLoading(false);
+        }
+      } catch (err) {
+        console.error('[Auth] getSession error:', err);
+        if (isMounted.current) setLoading(false);
       }
-    }).catch((err) => {
-      console.error('[Auth] getSession error:', err);
-      if (isMounted.current) setLoading(false);
-    });
+    };
+
+    initAuth();
 
     return () => {
       isMounted.current = false;
+      clearTimeout(safetyTimeout);
       subscription.unsubscribe();
     };
   }, []);

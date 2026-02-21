@@ -13,12 +13,13 @@ import {
   Bell,
   ChevronDown,
   Settings,
-  CreditCard,
   Activity,
   FileType,
   Zap,
   Menu,
-  X
+  X,
+  Inbox,
+  Rocket
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -41,15 +42,16 @@ const adminNavCategories = [
     items: [
       { title: 'User Inspector', href: '/admin/users', icon: Search },
       { title: 'At-Risk Users', href: '/admin/at-risk', icon: AlertTriangle },
+      { title: 'User Feedback', href: '/admin/feedback', icon: Inbox },
       { title: 'Notifications', href: '/admin/notifications', icon: Bell },
-      { title: 'Feedback Center', href: '/admin/feedback', icon: MessageSquare },
     ]
   },
   {
-    title: 'System',
+    title: 'System Controls',
     items: [
       { title: 'Control Center', href: '/admin/panel', icon: Settings },
       { title: 'Command Center', href: '/admin/command', icon: Zap },
+      { title: 'App Updates', href: '/admin/panel?tab=updates', icon: Rocket },
       { title: 'PDF Admin', href: '/admin/pdf-tools', icon: FileType },
     ]
   },
