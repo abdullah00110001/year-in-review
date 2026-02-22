@@ -87,7 +87,7 @@ export function useCapacitor() {
 
       // Step 2: Android-specific setup (all wrapped individually)
       if (isAndroid) {
-        // Request permissions with a small delay so WebView is fully ready
+        // Request local notification permissions with a small delay so WebView is fully ready
         setTimeout(async () => {
           try {
             const { LocalNotifications } = await import('@capacitor/local-notifications');
@@ -98,16 +98,7 @@ export function useCapacitor() {
           } catch (error) {
             console.error('[Capacitor] Notification permission error:', error);
           }
-
-          try {
-            const { PushNotifications } = await import('@capacitor/push-notifications');
-            const pushCheck = await PushNotifications.checkPermissions();
-            if (pushCheck.receive !== 'granted') {
-              await PushNotifications.requestPermissions();
-            }
-          } catch (error) {
-            console.error('[Capacitor] Push permission error:', error);
-          }
+          // Push permission is now handled by usePushNotifications hook
         }, 1500);
 
         // Notification channels - each in its own try/catch
@@ -185,24 +176,7 @@ export function useCapacitor() {
     init();
   }, []);
 
-  // Register push notifications when user logs in
-  useEffect(() => {
-    if (!user || !isNative || !state.isInitialized) return;
-
-    const timer = setTimeout(async () => {
-      try {
-        const { registerPushNotifications } = await import('@/lib/capacitor/nativeNotifications');
-        const token = await registerPushNotifications(user.id);
-        if (token) {
-          setState(prev => ({ ...prev, pushToken: token }));
-        }
-      } catch (error) {
-        console.error('[Capacitor] Push registration error:', error);
-      }
-    }, 3000);
-
-    return () => clearTimeout(timer);
-  }, [user?.id, state.isInitialized]);
+  // Push registration is now handled by usePushNotifications hook
 
   return state;
 }

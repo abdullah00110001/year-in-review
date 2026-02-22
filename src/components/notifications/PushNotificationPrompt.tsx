@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { useNotifications } from '@/hooks/useNotifications';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Bell, BellRing, X, Check } from 'lucide-react';
@@ -16,20 +16,18 @@ export default function PushNotificationPrompt({
   variant = 'card' 
 }: PushNotificationPromptProps) {
   const { language } = useLanguage();
-  const { permissionStatus, requestPermission } = useNotifications();
+  const { permissionStatus, registerPush } = usePushNotifications();
   const [dismissed, setDismissed] = useState(false);
   const [loading, setLoading] = useState(false);
   const [enabled, setEnabled] = useState(false);
 
-  // Check localStorage to see if user dismissed the prompt
   useEffect(() => {
     const wasDismissed = localStorage.getItem('notification_prompt_dismissed');
     if (wasDismissed) setDismissed(true);
   }, []);
 
-  // Don't show if notifications not supported, already granted, or dismissed
-  const notificationsSupported = typeof window !== 'undefined' && 'Notification' in window;
-  if (!notificationsSupported || permissionStatus === 'granted' || dismissed || enabled) {
+  // Don't show if already granted or dismissed
+  if (permissionStatus === 'granted' || dismissed || enabled) {
     return null;
   }
 
@@ -41,10 +39,8 @@ export default function PushNotificationPrompt({
   const handleEnable = async () => {
     setLoading(true);
     try {
-      const success = await requestPermission();
-      if (success) {
-        setEnabled(true);
-      }
+      await registerPush();
+      setEnabled(true);
     } finally {
       setLoading(false);
     }

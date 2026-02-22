@@ -18,6 +18,7 @@ import { isNative } from "@/lib/capacitor/platform";
 import NativeSplash from "@/components/NativeSplash";
 import UpdatePrompt from "@/components/UpdatePrompt";
 import { useAppUpdate } from "@/hooks/useAppUpdate";
+import { usePushNotifications } from "@/hooks/usePushNotifications";
 
 // All pages imported directly - no lazy loading (fixes Capacitor WebView chunk failures)
 import Auth from "./pages/Auth";
@@ -93,6 +94,7 @@ const queryClient = new QueryClient({
 
 const AppContent = () => {
   const appUpdate = useAppUpdate();
+  usePushNotifications(); // Auto-registers FCM on login
 
   return (
     <>

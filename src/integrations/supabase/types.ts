@@ -2133,6 +2133,8 @@ export type Database = {
           notifications_enabled: boolean | null
           phone: string | null
           push_subscription: Json | null
+          push_token: string | null
+          push_token_updated_at: string | null
           updated_at: string
           user_id: string
         }
@@ -2148,6 +2150,8 @@ export type Database = {
           notifications_enabled?: boolean | null
           phone?: string | null
           push_subscription?: Json | null
+          push_token?: string | null
+          push_token_updated_at?: string | null
           updated_at?: string
           user_id: string
         }
@@ -2163,6 +2167,8 @@ export type Database = {
           notifications_enabled?: boolean | null
           phone?: string | null
           push_subscription?: Json | null
+          push_token?: string | null
+          push_token_updated_at?: string | null
           updated_at?: string
           user_id?: string
         }
