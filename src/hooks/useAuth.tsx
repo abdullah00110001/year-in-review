@@ -20,13 +20,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const isMounted = useRef(true);
-  const initialSessionChecked = useRef(false);
 
   useEffect(() => {
     isMounted.current = true;
     console.log('[Auth] Setting up auth listener');
 
-    // Safety timeout - if auth takes too long, stop loading to unblock UI
+    // Safety timeout - unblock UI if auth takes too long
     const safetyTimeout = setTimeout(() => {
       if (isMounted.current && loading) {
         console.warn('[Auth] Safety timeout reached - unblocking UI');
@@ -34,37 +33,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     }, 5000);
 
-    // Set up auth state listener FIRST
+    // Listener for ONGOING auth changes — does NOT control loading
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, currentSession) => {
         if (!isMounted.current) return;
         console.log('[Auth] State change:', event, currentSession?.user?.email ?? 'no user');
         
-        setSession(currentSession);
-        setUser(currentSession?.user ?? null);
-        setLoading(false);
+        // Use setTimeout to avoid deadlocks when Supabase internal locks are held
+        setTimeout(() => {
+          if (!isMounted.current) return;
+          setSession(currentSession);
+          setUser(currentSession?.user ?? null);
+        }, 0);
       }
     );
 
-    // THEN check for existing session
-    const initAuth = async () => {
+    // INITIAL load — this controls loading state
+    const initializeAuth = async () => {
       try {
         const { data: { session: currentSession } } = await supabase.auth.getSession();
         if (!isMounted.current) return;
-        if (!initialSessionChecked.current) {
-          initialSessionChecked.current = true;
-          console.log('[Auth] Initial session:', currentSession?.user?.email ?? 'none');
-          setSession(currentSession);
-          setUser(currentSession?.user ?? null);
-          setLoading(false);
-        }
+        
+        console.log('[Auth] Initial session:', currentSession?.user?.email ?? 'none');
+        setSession(currentSession);
+        setUser(currentSession?.user ?? null);
       } catch (err) {
         console.error('[Auth] getSession error:', err);
-        if (isMounted.current) setLoading(false);
+      } finally {
+        if (isMounted.current) {
+          setLoading(false);
+        }
       }
     };
 
-    initAuth();
+    initializeAuth();
 
     return () => {
       isMounted.current = false;
@@ -88,16 +90,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signIn = async (email: string, password: string) => {
     try {
       console.log('[Auth] Signing in:', email);
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
       if (error) {
         console.error('[Auth] Sign in error:', error.message);
-      } else {
-        console.log('[Auth] Sign in success');
+        return { error: error as Error | null };
       }
-      return { error: error as Error | null };
+      
+      // Immediately update state on successful login
+      console.log('[Auth] Sign in success, updating state');
+      if (data.session) {
+        setSession(data.session);
+        setUser(data.session.user);
+      }
+      return { error: null };
     } catch (err) {
       console.error('[Auth] Sign in crash:', err);
       return { error: err as Error };
@@ -105,7 +113,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signInWithGoogle = async () => {
-    // For native apps, use deep link scheme for OAuth redirect
     const redirectUrl = isNative
       ? 'app.lifeos.com://callback'
       : `${window.location.origin}/dashboard`;
@@ -121,6 +128,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = async () => {
     try {
+      setUser(null);
+      setSession(null);
       await supabase.auth.signOut();
       console.log('[Auth] Signed out');
     } catch (err) {

@@ -18,13 +18,17 @@ export function useNotifications() {
   const { user } = useAuth();
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
-  const [permissionStatus, setPermissionStatus] = useState<NotificationPermission>('default');
+  const [permissionStatus, setPermissionStatus] = useState<string>('default');
   const [loading, setLoading] = useState(true);
 
-  // Check browser notification permission
+  // Check browser notification permission (web only)
   useEffect(() => {
-    if ('Notification' in window) {
-      setPermissionStatus(Notification.permission);
+    try {
+      if (typeof window !== 'undefined' && 'Notification' in window) {
+        setPermissionStatus(Notification.permission);
+      }
+    } catch {
+      // Notification API not available (e.g., Capacitor WebView)
     }
   }, []);
 
@@ -54,6 +58,8 @@ export function useNotifications() {
   useEffect(() => {
     if (user) {
       fetchNotifications();
+    } else {
+      setLoading(false);
     }
   }, [user, fetchNotifications]);
 
@@ -61,66 +67,78 @@ export function useNotifications() {
   useEffect(() => {
     if (!user) return;
 
-    const channel = supabase
-      .channel(`notifications-${user.id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'notifications',
-          filter: `user_id=eq.${user.id}`,
-        },
-        (payload) => {
-          const newNotification = payload.new as AppNotification;
-          setNotifications((prev) => [newNotification, ...prev].slice(0, 20));
-          setUnreadCount((prev) => prev + 1);
-          
-          // Always show browser/system notification
-          showBrowserNotification(newNotification.title, newNotification.message);
-          
-          // Always show in-app toast
-          toast(newNotification.title, {
-            description: newNotification.message.slice(0, 100),
-            duration: 6000,
-          });
-        }
-      )
-      .subscribe((status) => {
-        if (status === 'CHANNEL_ERROR') {
-          console.warn('[Notifications] Realtime channel error, will retry...');
-        }
-      });
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+
+    try {
+      channel = supabase
+        .channel(`notifications-${user.id}`)
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'notifications',
+            filter: `user_id=eq.${user.id}`,
+          },
+          (payload) => {
+            try {
+              const newNotification = payload.new as AppNotification;
+              setNotifications((prev) => [newNotification, ...prev].slice(0, 20));
+              setUnreadCount((prev) => prev + 1);
+              
+              // Show browser notification (web only, safe)
+              showBrowserNotification(newNotification.title, newNotification.message);
+              
+              // Always show in-app toast
+              toast(newNotification.title, {
+                description: newNotification.message?.slice(0, 100),
+                duration: 6000,
+              });
+            } catch (e) {
+              console.error('[Notifications] Realtime handler error:', e);
+            }
+          }
+        )
+        .subscribe((status) => {
+          if (status === 'CHANNEL_ERROR') {
+            console.warn('[Notifications] Realtime channel error, will retry...');
+          }
+        });
+    } catch (e) {
+      console.error('[Notifications] Channel setup error:', e);
+    }
 
     return () => {
-      supabase.removeChannel(channel);
+      if (channel) {
+        try { supabase.removeChannel(channel); } catch {}
+      }
     };
   }, [user]);
 
   // Request browser notification permission
   const requestPermission = async (): Promise<boolean> => {
-    if (!('Notification' in window)) {
-      toast.error('This browser does not support notifications');
-      return false;
-    }
-
     try {
+      if (!('Notification' in window)) {
+        toast.error('This browser does not support notifications');
+        return false;
+      }
+
       const permission = await Notification.requestPermission();
       setPermissionStatus(permission);
       
       if (permission === 'granted') {
-        // Update profile to enable notifications
         if (user) {
-          await supabase
-            .from('profiles')
-            .update({ notifications_enabled: true })
-            .eq('user_id', user.id);
+          try {
+            await supabase
+              .from('profiles')
+              .update({ notifications_enabled: true } as any)
+              .eq('user_id', user.id);
+          } catch {}
         }
         toast.success('Notifications enabled!');
         return true;
       } else if (permission === 'denied') {
         toast.error('Notification permission denied');
-        return false;
       }
       return false;
     } catch (error) {
@@ -129,46 +147,28 @@ export function useNotifications() {
     }
   };
 
-  // Show browser/system notification bar notification
+  // Show browser notification (safe for all environments)
   const showBrowserNotification = (title: string, body: string, icon?: string) => {
-    if (!('Notification' in window)) return;
-    
-    // If permission not yet granted, request it first
-    if (Notification.permission === 'default') {
-      Notification.requestPermission().then(permission => {
-        setPermissionStatus(permission);
-        if (permission === 'granted') {
-          createSystemNotification(title, body, icon);
-        }
-      });
-      return;
-    }
-    
-    if (Notification.permission !== 'granted') return;
-    createSystemNotification(title, body, icon);
-  };
-
-  // Create the actual system notification (shows in phone/browser notification bar)
-  const createSystemNotification = (title: string, body: string, icon?: string) => {
     try {
-      // Try Service Worker registration for persistent notifications (works even when tab is in background)
+      if (typeof window === 'undefined' || !('Notification' in window)) return;
+      if (Notification.permission !== 'granted') return;
+      
+      // Try service worker first (works in background tabs)
       if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
         navigator.serviceWorker.ready.then(registration => {
           registration.showNotification(title, {
             body,
             icon: icon || '/icons/icon-192x192.png',
             tag: `oporajeyo-${Date.now()}`,
-            requireInteraction: true,
-          } as NotificationOptions);
+          });
         }).catch(() => {
-          // Fallback to regular Notification API
           fallbackNotification(title, body, icon);
         });
       } else {
         fallbackNotification(title, body, icon);
       }
-    } catch (error) {
-      console.error('Error showing system notification:', error);
+    } catch {
+      // Silently fail - notification display is not critical
     }
   };
 
@@ -177,18 +177,15 @@ export function useNotifications() {
       const notification = new Notification(title, {
         body,
         icon: icon || '/icons/icon-192x192.png',
-        badge: '/icons/icon-96x96.png',
         tag: `oporajeyo-${Date.now()}`,
-        requireInteraction: true,
-        silent: false,
       });
 
       notification.onclick = () => {
         window.focus();
         notification.close();
       };
-    } catch (error) {
-      console.error('Fallback notification error:', error);
+    } catch {
+      // Silently fail
     }
   };
 
@@ -214,7 +211,6 @@ export function useNotifications() {
   // Mark all as read
   const markAllAsRead = async () => {
     if (!user) return;
-    
     try {
       await supabase
         .from('notifications')
@@ -248,7 +244,6 @@ export function useNotifications() {
   // Clear all notifications
   const clearAll = async () => {
     if (!user) return;
-    
     try {
       await supabase
         .from('notifications')
@@ -265,10 +260,12 @@ export function useNotifications() {
   // Disable notifications
   const disableNotifications = async () => {
     if (user) {
-      await supabase
-        .from('profiles')
-        .update({ notifications_enabled: false })
-        .eq('user_id', user.id);
+      try {
+        await supabase
+          .from('profiles')
+          .update({ notifications_enabled: false } as any)
+          .eq('user_id', user.id);
+      } catch {}
     }
     toast.success('Notifications disabled');
   };

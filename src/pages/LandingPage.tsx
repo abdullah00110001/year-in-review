@@ -13,11 +13,15 @@ export default function LandingPage() {
   const navigate = useNavigate();
 
   useEffect(() => {
+    // Wait for auth to finish loading before deciding where to go
+    if (loading) return;
+    
     if (isNative) {
+      // On native, skip landing page entirely
       navigate(user ? '/dashboard' : '/auth', { replace: true });
       return;
     }
-    if (!loading && user) {
+    if (user) {
       navigate('/dashboard', { replace: true });
     }
   }, [user, loading, navigate]);

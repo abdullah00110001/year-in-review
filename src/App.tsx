@@ -93,8 +93,19 @@ const queryClient = new QueryClient({
 });
 
 const AppContent = () => {
-  const appUpdate = useAppUpdate();
-  usePushNotifications(); // Auto-registers FCM on login
+  // Wrap hooks in try-catch to prevent crashes during startup
+  let appUpdate = { showPrompt: false, dismiss: () => {}, downloadUrl: '', isForceUpdate: false, releaseNotes: null as string | null, latestVersion: 0 };
+  try {
+    appUpdate = useAppUpdate();
+  } catch (e) {
+    console.error('[App] useAppUpdate error:', e);
+  }
+  
+  try {
+    usePushNotifications();
+  } catch (e) {
+    console.error('[App] usePushNotifications error:', e);
+  }
 
   return (
     <>
@@ -175,14 +186,6 @@ const AppContent = () => {
 const App = () => {
   const [splashDone, setSplashDone] = useState(!isNative);
 
-  if (!splashDone) {
-    return (
-      <ThemeProvider>
-        <NativeSplash onComplete={() => setSplashDone(true)} />
-      </ThemeProvider>
-    );
-  }
-
   return (
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
@@ -192,7 +195,11 @@ const App = () => {
               <LanguageProvider>
                 <AppModeProvider>
                   <TooltipProvider>
-                    <AppContent />
+                    {/* Show splash as OVERLAY so providers init during splash */}
+                    {!splashDone && (
+                      <NativeSplash onComplete={() => setSplashDone(true)} />
+                    )}
+                    {splashDone && <AppContent />}
                   </TooltipProvider>
                 </AppModeProvider>
               </LanguageProvider>

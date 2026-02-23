@@ -25,37 +25,18 @@ export class ErrorBoundary extends Component<Props, State> {
     console.error('[ErrorBoundary] Caught error:', error, errorInfo);
   }
 
-  componentDidMount() {
-    // Auto-recover from dynamic import errors by reloading once
-    window.addEventListener('unhandledrejection', this.handlePromiseRejection);
-  }
-
-  componentWillUnmount() {
-    window.removeEventListener('unhandledrejection', this.handlePromiseRejection);
-  }
-
-  private handlePromiseRejection = (event: PromiseRejectionEvent) => {
-    const msg = String(event.reason?.message || event.reason || '');
-    if (msg.includes('dynamically imported module') || msg.includes('Failed to fetch')) {
-      event.preventDefault();
-      // Reload once to recover from stale chunks
-      const reloadKey = 'error_reload_attempted';
-      if (!sessionStorage.getItem(reloadKey)) {
-        sessionStorage.setItem(reloadKey, '1');
-        window.location.reload();
-      }
-    }
-  };
+  // NOTE: No unhandledrejection listener here — main.tsx handles ALL unhandled rejections globally.
+  // Having it in both places caused conflicts and double-handling.
 
   render() {
     if (this.state.hasError) {
       if (this.props.fallback) return this.props.fallback;
 
       const errorMsg = this.state.error?.message || '';
-      const isDynamicImportError = errorMsg.includes('dynamically imported module') || errorMsg.includes('Failed to fetch');
+      // Only auto-reload for actual chunk/module loading errors
+      const isChunkError = errorMsg.includes('dynamically imported module') || errorMsg.includes('Loading chunk');
 
-      // Auto-reload for chunk errors
-      if (isDynamicImportError) {
+      if (isChunkError) {
         const reloadKey = 'error_reload_attempted';
         if (!sessionStorage.getItem(reloadKey)) {
           sessionStorage.setItem(reloadKey, '1');
@@ -70,9 +51,9 @@ export class ErrorBoundary extends Component<Props, State> {
             <div className="mb-4 text-4xl">⚠️</div>
             <h1 className="text-xl font-bold text-foreground mb-2">Something went wrong</h1>
             <p className="text-sm text-muted-foreground mb-4">
-              {isDynamicImportError 
+              {isChunkError 
                 ? 'The app needs to reload. Please tap the button below.'
-                : (errorMsg || 'An unexpected error occurred.')}
+                : 'Something went wrong. Please try again.'}
             </p>
             <div className="flex flex-col gap-3 items-center">
               <button
