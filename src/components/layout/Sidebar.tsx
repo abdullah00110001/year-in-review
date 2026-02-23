@@ -96,7 +96,6 @@ export default function Sidebar() {
     ...(isAdmin ? [
       { name: t('nav.admin'), href: '/admin', icon: Shield },
       { name: t('nav.adminCommand'), href: '/admin-command', icon: Shield },
-      { name: 'PDF Admin', href: '/admin/pdf-tools', icon: FileType },
     ] : []),
     { name: t('nav.settings'), href: '/settings', icon: Settings },
   ];

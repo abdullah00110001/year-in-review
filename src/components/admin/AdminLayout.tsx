@@ -87,7 +87,6 @@ const adminNavCategories = [
     title: 'System',
     items: [
       { title: 'Command Center', href: '/admin/command', icon: Zap },
-      { title: 'PDF Admin', href: '/admin/pdf-tools', icon: FileType },
     ]
   },
 ];

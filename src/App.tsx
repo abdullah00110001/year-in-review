@@ -70,7 +70,7 @@ const FeedbackCenter = lazy(() => import("./pages/admin/FeedbackCenter"));
 const AdminAnalytics = lazy(() => import("./pages/admin/AdminAnalytics"));
 const AdminNotifications = lazy(() => import("./pages/admin/AdminNotifications"));
 const AdminCommandCenter = lazy(() => import("./pages/admin/AdminCommandCenter"));
-const AdminPDFTools = lazy(() => import("./pages/admin/AdminPDFTools"));
+
 const AdminPanel = lazy(() => import("./pages/admin/AdminPanel"));
 
 // Minimal loading fallback
@@ -183,7 +183,7 @@ const AppContent = () => {
             <Route path="/admin/notifications" element={<AdminProtectedRoute><AdminNotifications /></AdminProtectedRoute>} />
             <Route path="/admin/panel" element={<AdminProtectedRoute><AdminPanel /></AdminProtectedRoute>} />
             <Route path="/admin/command" element={<AdminProtectedRoute><AdminCommandCenter /></AdminProtectedRoute>} />
-            <Route path="/admin/pdf-tools" element={<AdminProtectedRoute><AdminPDFTools /></AdminProtectedRoute>} />
+            
             
             <Route path="*" element={<NotFound />} />
           </Routes>
