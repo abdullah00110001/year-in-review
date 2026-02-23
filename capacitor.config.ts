@@ -1,7 +1,7 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'app.lifeos.com',
+  appId: 'com.sukoonos.app',
   appName: 'Sukoon OS',
   webDir: 'dist',
   server: {

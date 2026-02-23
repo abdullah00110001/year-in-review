@@ -1,4 +1,4 @@
-package app.lifeos.com;
+package com.sukoonos.app;
 
 import android.os.Bundle;
 import android.util.Log;
