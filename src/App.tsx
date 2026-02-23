@@ -13,7 +13,7 @@ import ProtectedRoute from "@/components/ProtectedRoute";
 import AdminProtectedRoute from "./components/admin/AdminProtectedRoute";
 import ScrollToTop from "@/components/ScrollToTop";
 import SmartNotificationProvider from "@/components/notifications/SmartNotifications";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { isNative } from "@/lib/capacitor/platform";
 import NativeSplash from "@/components/NativeSplash";
 import UpdatePrompt from "@/components/UpdatePrompt";
@@ -185,6 +185,16 @@ const AppContent = () => {
 
 const App = () => {
   const [splashDone, setSplashDone] = useState(!isNative);
+
+  // Safety: if splash never completes (e.g. render error), force it after 5s
+  useEffect(() => {
+    if (splashDone) return;
+    const timer = setTimeout(() => {
+      console.warn('[App] Splash safety timeout - forcing completion');
+      setSplashDone(true);
+    }, 5000);
+    return () => clearTimeout(timer);
+  }, [splashDone]);
 
   return (
     <ErrorBoundary>

@@ -5,7 +5,6 @@ import {
   initializeCapacitor, 
   getDeviceInfo 
 } from '@/lib/capacitor/platform';
-import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 
 interface CapacitorState {
@@ -17,7 +16,6 @@ interface CapacitorState {
 }
 
 export function useCapacitor() {
-  const { user } = useAuth();
   const initRef = useRef(false);
   const [state, setState] = useState<CapacitorState>({
     isNative,
@@ -71,7 +69,7 @@ export function useCapacitor() {
     initRef.current = true;
 
     const init = async () => {
-      // Step 1: Core platform init
+      // Step 1: Core platform init - wrapped to never crash
       try {
         await initializeCapacitor(handleBackButton, handleDeepLink);
       } catch (error) {
@@ -85,9 +83,9 @@ export function useCapacitor() {
         console.error('[Capacitor] Device info error:', error);
       }
 
-      // Step 2: Android-specific setup (all wrapped individually)
+      // Step 2: Android-specific setup - EACH step isolated
       if (isAndroid) {
-        // Request local notification permissions with a small delay so WebView is fully ready
+        // Request local notification permissions with delay
         setTimeout(async () => {
           try {
             const { LocalNotifications } = await import('@capacitor/local-notifications');
@@ -96,17 +94,16 @@ export function useCapacitor() {
               await LocalNotifications.requestPermissions();
             }
           } catch (error) {
-            console.error('[Capacitor] Notification permission error:', error);
+            console.warn('[Capacitor] Notification permission error (non-fatal):', error);
           }
-          // Push permission is now handled by usePushNotifications hook
         }, 1500);
 
-        // Notification channels - each in its own try/catch
+        // Notification channels
         try {
           const { initializeNotificationChannels } = await import('@/lib/capacitor/nativeNotifications');
           await initializeNotificationChannels();
         } catch (error) {
-          console.error('[Capacitor] Notification channels error:', error);
+          console.warn('[Capacitor] Notification channels error (non-fatal):', error);
         }
 
         try {
@@ -114,21 +111,21 @@ export function useCapacitor() {
           await initializeAlarmChannel();
           await registerAlarmActions();
         } catch (error) {
-          console.error('[Capacitor] Alarm channel error:', error);
+          console.warn('[Capacitor] Alarm channel error (non-fatal):', error);
         }
 
         try {
           const { initializeShieldChannel } = await import('@/lib/capacitor/nativeShield');
           await initializeShieldChannel();
         } catch (error) {
-          console.error('[Capacitor] Shield channel error:', error);
+          console.warn('[Capacitor] Shield channel error (non-fatal):', error);
         }
       }
 
       // Step 3: Set up listeners (non-blocking)
       setupListeners();
 
-      // Mark as initialized
+      // Mark as initialized - ALWAYS reach this point
       setState({
         isNative: true,
         isAndroid,
@@ -140,7 +137,7 @@ export function useCapacitor() {
       console.log('[Capacitor] Initialization complete');
     };
 
-    // Non-critical listener setup - won't block init
+    // Non-critical listener setup
     const setupListeners = () => {
       // Alarm listeners
       import('@/lib/capacitor/nativeAlarm').then(({ setupAlarmListeners }) => {
@@ -153,7 +150,7 @@ export function useCapacitor() {
             window.dispatchEvent(new CustomEvent('rise:alarmAction', { detail: { alarmId, action } }));
           }
         );
-      }).catch(e => console.error('[Capacitor] Alarm listeners error:', e));
+      }).catch(e => console.warn('[Capacitor] Alarm listeners (non-fatal):', e));
 
       // Shield listeners
       import('@/lib/capacitor/nativeShield').then(({ setupShieldListeners, extendSession }) => {
@@ -161,7 +158,7 @@ export function useCapacitor() {
           () => { try { window.location.href = '/shield'; } catch {} },
           () => { try { extendSession(15); window.dispatchEvent(new CustomEvent('shield:extendSession')); } catch {} }
         );
-      }).catch(e => console.error('[Capacitor] Shield listeners error:', e));
+      }).catch(e => console.warn('[Capacitor] Shield listeners (non-fatal):', e));
 
       // Push listeners
       import('@/lib/capacitor/nativeNotifications').then(({ setupPushListeners }) => {
@@ -170,13 +167,16 @@ export function useCapacitor() {
           (feedback) => { toast.success('📝 New Feedback', { description: feedback.message }); },
           (title, body) => { toast(title, { description: body }); }
         );
-      }).catch(e => console.error('[Capacitor] Push listeners error:', e));
+      }).catch(e => console.warn('[Capacitor] Push listeners (non-fatal):', e));
     };
 
-    init();
-  }, []);
-
-  // Push registration is now handled by usePushNotifications hook
+    // Wrap entire init in safety net
+    init().catch(e => {
+      console.error('[Capacitor] Fatal init error (recovered):', e);
+      // STILL mark as initialized so app doesn't hang
+      setState(prev => ({ ...prev, isInitialized: true }));
+    });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   return state;
 }
