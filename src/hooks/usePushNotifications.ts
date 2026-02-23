@@ -8,17 +8,35 @@ type PushPermissionStatus = 'granted' | 'denied' | 'prompt' | 'unknown';
 export function usePushNotifications() {
   const { user } = useAuth();
   const registeredRef = useRef(false);
+  const listenersRef = useRef<Array<{ remove: () => void }>>([]);
   const [permissionStatus, setPermissionStatus] = useState<PushPermissionStatus>('unknown');
   const [token, setToken] = useState<string | null>(null);
 
-  // Request permission and register for push
+  // Cleanup listeners on unmount
+  useEffect(() => {
+    return () => {
+      listenersRef.current.forEach(l => {
+        try { l.remove(); } catch {}
+      });
+      listenersRef.current = [];
+    };
+  }, []);
+
   const registerPush = useCallback(async () => {
     if (!isNative || !user || registeredRef.current) return;
 
     try {
-      const { PushNotifications } = await import('@capacitor/push-notifications');
+      // Dynamic import wrapped - fails gracefully on devices without Play Services
+      let PushNotifications: any;
+      try {
+        const mod = await import('@capacitor/push-notifications');
+        PushNotifications = mod.PushNotifications;
+      } catch (e) {
+        console.warn('[Push] Plugin not available:', e);
+        return;
+      }
 
-      // Check current status
+      // Check current status - wrapped individually
       let permResult;
       try {
         permResult = await PushNotifications.checkPermissions();
@@ -43,16 +61,18 @@ export function usePushNotifications() {
         }
       }
 
-      // Don't remove all listeners - other hooks may have set them up
-      // Just add our own listeners
+      // Clean up any previous listeners before adding new ones
+      listenersRef.current.forEach(l => {
+        try { l.remove(); } catch {}
+      });
+      listenersRef.current = [];
 
       // Listen for token
-      PushNotifications.addListener('registration', async (tokenData) => {
+      const regListener = await PushNotifications.addListener('registration', async (tokenData: any) => {
         console.log('[Push] FCM token received');
         setToken(tokenData.value);
         registeredRef.current = true;
 
-        // Store token in profiles table (safe - column may not exist yet)
         try {
           await supabase
             .from('profiles')
@@ -62,22 +82,21 @@ export function usePushNotifications() {
             } as any)
             .eq('user_id', user.id);
         } catch (err) {
-          // Column may not exist, that's OK
           console.warn('[Push] Token save skipped:', err);
         }
       });
+      listenersRef.current.push(regListener);
 
-      PushNotifications.addListener('registrationError', (error) => {
+      const errListener = await PushNotifications.addListener('registrationError', (error: any) => {
         console.error('[Push] Registration error:', error);
       });
+      listenersRef.current.push(errListener);
 
-      // Foreground notification - show as in-app toast only
-      PushNotifications.addListener('pushNotificationReceived', async (notification) => {
+      // Foreground notification
+      const fgListener = await PushNotifications.addListener('pushNotificationReceived', async (notification: any) => {
         console.log('[Push] Foreground notification:', notification);
-
         const { title, body, data } = notification;
 
-        // Show as local notification if possible
         if (isNative) {
           try {
             const { LocalNotifications } = await import('@capacitor/local-notifications');
@@ -87,20 +106,18 @@ export function usePushNotifications() {
                 title: title || 'Life OS',
                 body: body || '',
                 channelId: data?.channelId || 'general',
-                extra: {
-                  ...data,
-                  route: data?.route || '/',
-                },
+                extra: { ...data, route: data?.route || '/' },
               }],
             });
           } catch {
-            // Silently fail - notification is still received
+            // Silently fail
           }
         }
       });
+      listenersRef.current.push(fgListener);
 
-      // Notification tapped (background/killed)
-      PushNotifications.addListener('pushNotificationActionPerformed', (action) => {
+      // Notification tapped
+      const tapListener = await PushNotifications.addListener('pushNotificationActionPerformed', (action: any) => {
         console.log('[Push] Notification tapped:', action);
         const data = action.notification.data;
         const route = data?.route || data?.url;
@@ -122,25 +139,31 @@ export function usePushNotifications() {
           setTimeout(() => { window.location.href = targetRoute; }, 500);
         }
       });
+      listenersRef.current.push(tapListener);
 
-      // Register with FCM
-      await PushNotifications.register();
-      console.log('[Push] Registration initiated');
+      // Register with FCM - this is where devices without Play Services crash
+      try {
+        await PushNotifications.register();
+        console.log('[Push] Registration initiated');
+      } catch (regError) {
+        console.error('[Push] FCM register failed (no Play Services?):', regError);
+        // Don't crash the app - just skip push
+      }
     } catch (error) {
       console.error('[Push] Setup failed:', error);
     }
   }, [user]);
 
-  // Auto-register when user logs in (delayed for WebView stability)
+  // Auto-register when user logs in
   useEffect(() => {
     if (!user || !isNative) return;
 
     const timer = setTimeout(() => {
       registerPush();
-    }, 3000); // Increased delay to let WebView fully initialize
+    }, 3000);
 
     return () => clearTimeout(timer);
-  }, [user?.id]);
+  }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return { permissionStatus, token, registerPush };
 }

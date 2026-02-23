@@ -11,7 +11,19 @@ window.addEventListener("unhandledrejection", (event) => {
 });
 
 window.addEventListener("error", (event) => {
-  console.error("[App] Uncaught error:", event.error?.message || event.message);
+  const msg = event.error?.message || event.message || '';
+  console.error("[App] Uncaught error:", msg);
+  
+  // Check if it's a Capacitor/native bridge error - these should NOT kill the app
+  if (msg.includes('Capacitor') || msg.includes('cap_') || msg.includes('plugin') || 
+      msg.includes('PushNotifications') || msg.includes('LocalNotifications') ||
+      msg.includes('StatusBar') || msg.includes('SplashScreen') ||
+      msg.includes('not implemented') || msg.includes('not available')) {
+    console.warn("[App] Native plugin error suppressed:", msg);
+    event.preventDefault();
+    return;
+  }
+  
   // Prevent error from propagating and killing the app
   event.preventDefault();
 });
