@@ -69,7 +69,7 @@ export async function shareAchievement(achievement: {
   description: string;
   appUrl?: string;
 }): Promise<ShareResult | null> {
-  const text = `🏆 ${achievement.title}\n\n${achievement.description}\n\nTracking my progress with Life OS!`;
+  const text = `🏆 ${achievement.title}\n\n${achievement.description}\n\nTracking my progress with Sukoon OS!`;
   
   return share({
     title: achievement.title,
@@ -85,7 +85,7 @@ export async function shareProgress(progress: {
   metric: string;
   appUrl?: string;
 }): Promise<ShareResult | null> {
-  const text = `🔥 ${progress.days} day streak!\n\nI've been consistent with ${progress.metric} for ${progress.days} days straight! 💪\n\nTracking my journey with Life OS.`;
+  const text = `🔥 ${progress.days} day streak!\n\nI've been consistent with ${progress.metric} for ${progress.days} days straight! 💪\n\nTracking my journey with Sukoon OS.`;
   
   return share({
     title: `${progress.days} Day Streak`,

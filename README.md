@@ -1,4 +1,4 @@
-# 🕌 Yearly Track — Life OS
+# 🕌 Sukoon OS
 
 **A comprehensive Islamic productivity & life management platform built for Muslims who want to optimize both Dunya and Akhirah.**
 
@@ -11,7 +11,7 @@
 
 ## 📖 Overview
 
-Yearly Track is an all-in-one Islamic life operating system that helps users track daily habits, monitor spiritual progress, manage goals, and build discipline — all through an Islamic lens. Available as a web app and native Android application.
+Sukoon OS is an all-in-one Islamic life operating system that helps users track daily habits, monitor spiritual progress, manage goals, and build discipline — all through an Islamic lens. Available as a web app and native Android application.
 
 ---
 

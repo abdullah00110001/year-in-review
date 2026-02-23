@@ -45,11 +45,11 @@ export default function NativeSplash({ onComplete }: NativeSplashProps) {
       <div className="relative mb-6 animate-pulse">
         <img
           src="/icons/icon-192x192.png"
-          alt="Yearly Track"
+          alt="Sukoon OS"
           className="h-20 w-20 rounded-2xl shadow-lg"
         />
       </div>
-      <h1 className="mb-8 text-2xl font-bold text-foreground">Yearly Track</h1>
+      <h1 className="mb-8 text-2xl font-bold text-foreground">Sukoon OS</h1>
       <div className="relative h-1 w-48 overflow-hidden rounded-full bg-muted">
         <div
           className="absolute left-0 top-0 h-full rounded-full bg-primary transition-all duration-200 ease-out"

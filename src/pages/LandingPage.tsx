@@ -89,8 +89,8 @@ export default function LandingPage() {
       <nav className="border-b border-border/50 bg-background/80 backdrop-blur-xl fixed top-0 left-0 right-0 z-50">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4">
           <div className="flex items-center gap-3">
-            <img src="/icons/app-icon.png" alt="Yearly Track" className="h-10 w-10 rounded-xl shadow-lg shadow-primary/25" />
-            <span className="text-xl font-bold bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">Yearly Track</span>
+            <img src="/icons/app-icon.png" alt="Sukoon OS" className="h-10 w-10 rounded-xl shadow-lg shadow-primary/25" />
+            <span className="text-xl font-bold bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">Sukoon OS</span>
           </div>
           <div className="hidden md:flex items-center gap-6 text-sm text-muted-foreground">
             <a href="#features" className="hover:text-foreground transition-colors">Features</a>
@@ -325,11 +325,11 @@ export default function LandingPage() {
         <div className="mx-auto max-w-6xl">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <img src="/icons/app-icon.png" alt="Yearly Track" className="h-9 w-9 rounded-xl" />
-              <span className="font-semibold text-foreground">Yearly Track</span>
+              <img src="/icons/app-icon.png" alt="Sukoon OS" className="h-9 w-9 rounded-xl" />
+              <span className="font-semibold text-foreground">Sukoon OS</span>
             </div>
             <p className="text-xs text-muted-foreground">
-              © {new Date().getFullYear()} Yearly Track. Build better habits, transform your life.
+              © {new Date().getFullYear()} Sukoon OS. Build better habits, transform your life.
             </p>
           </div>
         </div>
