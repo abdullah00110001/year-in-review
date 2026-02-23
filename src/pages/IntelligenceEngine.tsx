@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { format, subDays, startOfWeek, endOfWeek } from 'date-fns';
+import { format, subDays } from 'date-fns';
 import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/contexts/LanguageContext';
 import AppLayout from '@/components/layout/AppLayout';
@@ -9,9 +9,9 @@ import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
 import { 
-  Brain, TrendingUp, TrendingDown, Target, Zap, 
-  AlertTriangle, CheckCircle2, Clock, BookOpen,
-  Smartphone, Moon, Activity, Sparkles
+  Brain, TrendingUp, TrendingDown, Zap, 
+  AlertTriangle, CheckCircle2,
+  Activity, Sparkles
 } from 'lucide-react';
 import { RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 
@@ -51,7 +51,6 @@ export default function IntelligenceEngine() {
     setLoading(true);
 
     const last30Days = format(subDays(new Date(), 30), 'yyyy-MM-dd');
-    const last7Days = format(subDays(new Date(), 7), 'yyyy-MM-dd');
 
     // Fetch recent entries
     const { data: entries } = await supabase
@@ -59,14 +58,6 @@ export default function IntelligenceEngine() {
       .select('*')
       .eq('user_id', user.id)
       .gte('date', last30Days)
-      .order('date', { ascending: false });
-
-    // Fetch user scores
-    const { data: scores } = await supabase
-      .from('user_scores')
-      .select('*')
-      .eq('user_id', user.id)
-      .gte('date', last7Days)
       .order('date', { ascending: false });
 
     if (!entries || entries.length === 0) {

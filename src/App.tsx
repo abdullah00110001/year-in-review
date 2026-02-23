@@ -64,7 +64,7 @@ const TimeTracking = lazy(() => import("./pages/TimeTracking"));
 const LifeCalendar = lazy(() => import("./pages/LifeCalendar"));
 const Premium = lazy(() => import("./pages/Premium"));
 const AdminOverview = lazy(() => import("./pages/admin/AdminOverview"));
-const UserInspector = lazy(() => import("./pages/admin/UserInspector"));
+
 const AtRiskUsers = lazy(() => import("./pages/admin/AtRiskUsers"));
 const FeedbackCenter = lazy(() => import("./pages/admin/FeedbackCenter"));
 const AdminAnalytics = lazy(() => import("./pages/admin/AdminAnalytics"));
@@ -176,7 +176,7 @@ const AppContent = () => {
             
             {/* Admin routes */}
             <Route path="/admin" element={<AdminProtectedRoute><AdminOverview /></AdminProtectedRoute>} />
-            <Route path="/admin/users" element={<AdminProtectedRoute><UserInspector /></AdminProtectedRoute>} />
+            
             <Route path="/admin/at-risk" element={<AdminProtectedRoute><AtRiskUsers /></AdminProtectedRoute>} />
             <Route path="/admin/feedback" element={<AdminProtectedRoute><FeedbackCenter /></AdminProtectedRoute>} />
             <Route path="/admin/analytics" element={<AdminProtectedRoute><AdminAnalytics /></AdminProtectedRoute>} />

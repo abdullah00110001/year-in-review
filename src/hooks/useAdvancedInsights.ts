@@ -124,17 +124,30 @@ export function useAdvancedInsights(): AdvancedInsights {
     if (!user) return;
 
     const last30Days = format(subDays(new Date(), 30), 'yyyy-MM-dd');
-    const last7Days = format(subDays(new Date(), 7), 'yyyy-MM-dd');
     const today = format(new Date(), 'yyyy-MM-dd');
-    const yesterday = format(subDays(new Date(), 1), 'yyyy-MM-dd');
 
-    // Fetch daily entries
-    const { data: entries } = await supabase
-      .from('daily_entries')
-      .select('*')
-      .eq('user_id', user.id)
-      .gte('date', last30Days)
-      .order('date', { ascending: false });
+    // Fetch all data in parallel
+    const [entriesResult, goalsResult, habitEntriesResult] = await Promise.all([
+      supabase
+        .from('daily_entries')
+        .select('*')
+        .eq('user_id', user.id)
+        .gte('date', last30Days)
+        .order('date', { ascending: false }),
+      supabase
+        .from('goals')
+        .select('*')
+        .eq('user_id', user.id),
+      supabase
+        .from('habit_entries')
+        .select('*')
+        .eq('user_id', user.id)
+        .gte('date', last30Days),
+    ]);
+
+    const entries = entriesResult.data;
+    const goals = goalsResult.data;
+    const habitEntries = habitEntriesResult.data;
 
     if (!entries || entries.length === 0) {
       setInsights(prev => ({ ...prev, loading: false }));
@@ -144,40 +157,15 @@ export function useAdvancedInsights(): AdvancedInsights {
     const recentEntries = entries.slice(0, 7) as DailyEntryData[];
     const allEntries = entries as DailyEntryData[];
 
-    // 2️⃣ MOOD ↔ PRODUCTIVITY CORRELATION
+    // Analyze all insights
     const moodCorrelation = analyzeMoodProductivity(allEntries);
-
-    // 3️⃣ COGNITIVE LOAD METER
     const todayEntry = allEntries.find(e => e.date === today) || allEntries[0];
     const cognitiveLoad = calculateCognitiveLoad(todayEntry);
-
-    // 4️⃣ SALAH QUALITY TRACKER
     const salahQuality = analyzeSalahQuality(allEntries);
-
-    // 8️⃣ LIFE BALANCE SCORE
     const lifeBalance = calculateLifeBalance(allEntries);
-
-    // 9️⃣ BURNOUT PREDICTION
     const burnoutPrediction = detectBurnout(recentEntries);
-
-    // 7️⃣ MISSED DAY RECOVERY MODE
     const recoveryMode = checkRecoveryMode(allEntries, today);
-
-    // 6️⃣ AUTO GOAL ADJUSTMENT - Fetch goals and analyze
-    const { data: goals } = await supabase
-      .from('goals')
-      .select('*')
-      .eq('user_id', user.id);
-
-    const { data: habitEntries } = await supabase
-      .from('habit_entries')
-      .select('*')
-      .eq('user_id', user.id)
-      .gte('date', last30Days);
-
     const goalAdjustments = analyzeGoalAdjustments(goals || [], habitEntries || []);
-
-    // 🔟 MIRROR MODE
     const mirrorMode = generateMirrorMode(allEntries, user.id);
 
     setInsights({
