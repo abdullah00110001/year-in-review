@@ -252,7 +252,7 @@ export function ShieldDashboard({
         <Card>
           <CardContent className="p-4 text-center">
             <Ban className="h-6 w-6 mx-auto mb-1 text-rose-500" />
-            <p className="text-2xl font-bold">{profiles.reduce((acc, p) => acc + p.blocked_apps?.length, 0) || 0}</p>
+            <p className="text-2xl font-bold">{profiles.reduce((acc, p) => acc + (p.blocked_apps?.length ?? 0), 0)}</p>
             <p className="text-xs text-muted-foreground">Apps Blocked</p>
           </CardContent>
         </Card>
