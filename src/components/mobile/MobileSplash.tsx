@@ -57,12 +57,12 @@ export function MobileSplash({
         {/* App Icon */}
         <div className="h-24 w-24 mb-6 rounded-3xl bg-primary/10 flex items-center justify-center shadow-glacier">
           <div className="h-16 w-16 rounded-2xl bg-gradient-to-br from-primary to-accent flex items-center justify-center">
-            <span className="text-3xl font-bold text-primary-foreground">L</span>
+            <span className="text-3xl font-bold text-primary-foreground">S</span>
           </div>
         </div>
 
         {/* App Name */}
-        <h1 className="text-2xl font-bold text-foreground mb-2">Life OS</h1>
+        <h1 className="text-2xl font-bold text-foreground mb-2">Sukoon OS</h1>
         <p className="text-sm text-muted-foreground">Your Personal Operating System</p>
 
         {/* Loading indicator */}

@@ -5,7 +5,7 @@ import android.util.Log;
 import com.getcapacitor.BridgeActivity;
 
 public class MainActivity extends BridgeActivity {
-    private static final String TAG = "LifeOS";
+    private static final String TAG = "SukoonOS";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {

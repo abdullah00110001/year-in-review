@@ -2,7 +2,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
   appId: 'app.lifeos.com',
-  appName: 'Life OS',
+  appName: 'Sukoon OS',
   webDir: 'dist',
   server: {
     cleartext: true,
@@ -58,7 +58,7 @@ const config: CapacitorConfig = {
   ios: {
     contentInset: 'automatic',
     backgroundColor: '#0f172a',
-    scheme: 'Life OS'
+    scheme: 'Sukoon OS'
   }
 };
 

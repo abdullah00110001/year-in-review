@@ -106,7 +106,7 @@ export default function DownloadApp() {
           </Link>
           <div className="flex items-center gap-3">
             <img src="/icons/app-icon.png" alt="App" className="h-8 w-8 rounded-xl" />
-            <span className="font-bold text-foreground">Yearly Track</span>
+            <span className="font-bold text-foreground">Sukoon OS</span>
           </div>
           <div className="w-16" />
         </div>
@@ -118,7 +118,7 @@ export default function DownloadApp() {
           <div className="mx-auto mb-6 h-24 w-24 rounded-3xl bg-primary/10 border border-primary/20 flex items-center justify-center shadow-xl shadow-primary/10">
             <img src="/icons/app-icon.png" alt="App" className="h-16 w-16 rounded-2xl" />
           </div>
-          <h1 className="text-3xl font-bold text-foreground mb-2">Yearly Track</h1>
+          <h1 className="text-3xl font-bold text-foreground mb-2">Sukoon OS</h1>
           <p className="text-muted-foreground">Your complete life tracking companion</p>
           {latestUpdate && (
             <Badge variant="outline" className="mt-3">v{latestUpdate.version}</Badge>
