@@ -1,10 +1,10 @@
 apply plugin: 'com.android.application'
 
 android {
-    namespace = "app.lifeos.com"
+    namespace = "com.sukoonos.app"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "app.lifeos.com"
+        applicationId "com.sukoonos.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1

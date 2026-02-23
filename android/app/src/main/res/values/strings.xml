@@ -2,6 +2,7 @@
 <resources>
     <string name="app_name">Sukoon OS</string>
     <string name="title_activity_main">Sukoon OS</string>
+    <string name="package_name">com.sukoonos.app</string>
     <string name="package_name">app.lifeos.com</string>
     <string name="custom_url_scheme">app.lifeos.com</string>
 </resources>
