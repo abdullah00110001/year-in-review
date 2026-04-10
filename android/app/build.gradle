@@ -4,7 +4,7 @@ android {
     namespace = "com.mylifeos.app"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "app.lifeos.com"
+        applicationId "com.mylifeos.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
