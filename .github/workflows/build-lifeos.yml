@@ -1,0 +1,71 @@
+name: 🚀 Build LifeOS Official
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-life-os:
+    name: 📱 Building LifeOS APK
+    runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true 
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js v22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Setup Java v21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '21'
+          cache: 'gradle'
+
+      - name: Install Dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Build Optimized Assets
+        run: npm run build
+
+      - name: Add google-services.json
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: echo "$GOOGLE_SERVICES_JSON" > android/app/google-services.json
+
+      - name: Sync Capacitor
+        run: npx cap sync android
+
+      - name: Fix Permissions
+        run: chmod +x android/gradlew
+
+      - name: Build Stable APK
+        run: cd android && ./gradlew assembleDebug
+
+      - name: Rename APK
+        run: mv android/app/build/outputs/apk/debug/app-debug.apk android/app/build/outputs/apk/debug/LifeOS_v${{ github.run_number }}.apk
+
+      - name: Create LifeOS Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: lifeos-v${{ github.run_number }}
+          name: LifeOS Official Build ${{ github.run_number }}
+          body: |
+            ✅ LifeOS: Your Complete Productivity Platform.
+            🚀 High-performance assets integrated.
+            📱 Optimized for smooth loading.
+          files: android/app/build/outputs/apk/debug/LifeOS_v${{ github.run_number }}.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
