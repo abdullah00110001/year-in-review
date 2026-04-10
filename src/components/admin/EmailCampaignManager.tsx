@@ -35,29 +35,29 @@ export function EmailCampaignManager() {
     {
       id: 'welcome',
       name: 'Welcome Email',
-      subject: 'Welcome to Sukoon OS! 🎯',
-      body: `Assalamu Alaikum {{name}}!\n\nWelcome to Sukoon OS - your personal Life Operating System.\n\nHere's how to get started:\n1. Set your daily intentions\n2. Track your Salah and Quran reading\n3. Monitor your progress\n\nMay Allah bless your journey towards becoming the best version of yourself.\n\nBest regards,\nThe Sukoon OS Team`,
+      subject: 'Welcome to Life OS! 🎯',
+      body: `Assalamu Alaikum {{name}}!\n\nWelcome to Life OS - your personal Life Operating System.\n\nHere's how to get started:\n1. Set your daily intentions\n2. Track your Salah and Quran reading\n3. Monitor your progress\n\nMay Allah bless your journey towards becoming the best version of yourself.\n\nBest regards,\nThe Life OS Team`,
       type: 'welcome'
     },
     {
       id: 'inactive-7',
       name: '7-Day Inactive Reminder',
       subject: 'We miss you! Come back and continue your journey 🌟',
-      body: `Assalamu Alaikum {{name}},\n\nIt's been 7 days since we last saw you on Sukoon OS.\n\nYour streak was going strong - don't let it slip away!\n\nRemember, consistency is the key to transformation. Even small steps count.\n\nClick here to log today's progress: {{app_link}}\n\nMay Allah make it easy for you.\n\nBest regards,\nThe Sukoon OS Team`,
+      body: `Assalamu Alaikum {{name}},\n\nIt's been 7 days since we last saw you on Life OS.\n\nYour streak was going strong - don't let it slip away!\n\nRemember, consistency is the key to transformation. Even small steps count.\n\nClick here to log today's progress: {{app_link}}\n\nMay Allah make it easy for you.\n\nBest regards,\nThe Life OS Team`,
       type: 'inactive'
     },
     {
       id: 'weekly-digest',
       name: 'Weekly Digest',
       subject: 'Your Weekly Progress Report 📊',
-      body: `Assalamu Alaikum {{name}},\n\nHere's your weekly summary:\n\n📈 Days Logged: {{days_logged}}/7\n🔥 Current Streak: {{streak}} days\n⭐ Average Score: {{avg_score}}/5\n📖 Quran Days: {{quran_days}}\n🕌 Complete Salah Days: {{salah_days}}\n\nKeep up the great work!\n\nBest regards,\nThe Sukoon OS Team`,
+      body: `Assalamu Alaikum {{name}},\n\nHere's your weekly summary:\n\n📈 Days Logged: {{days_logged}}/7\n🔥 Current Streak: {{streak}} days\n⭐ Average Score: {{avg_score}}/5\n📖 Quran Days: {{quran_days}}\n🕌 Complete Salah Days: {{salah_days}}\n\nKeep up the great work!\n\nBest regards,\nThe Life OS Team`,
       type: 'digest'
     },
     {
       id: 'milestone',
       name: 'Milestone Achievement',
       subject: 'Congratulations on reaching {{milestone}}! 🏆',
-      body: `Assalamu Alaikum {{name}},\n\nMashaAllah! You've reached a major milestone:\n\n🏆 {{milestone}}\n\nThis is a testament to your dedication and consistency.\n\nKeep going - the best is yet to come!\n\nBest regards,\nThe Sukoon OS Team`,
+      body: `Assalamu Alaikum {{name}},\n\nMashaAllah! You've reached a major milestone:\n\n🏆 {{milestone}}\n\nThis is a testament to your dedication and consistency.\n\nKeep going - the best is yet to come!\n\nBest regards,\nThe Life OS Team`,
       type: 'milestone'
     }
   ]);

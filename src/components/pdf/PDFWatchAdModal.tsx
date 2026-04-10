@@ -19,7 +19,7 @@ export function PDFWatchAdModal({ onComplete, onClose }: PDFWatchAdModalProps) {
   const [isComplete, setIsComplete] = useState(false);
 
   useEffect(() => {
-    let interval: NodeJS.Timeout;
+    let interval: ReturnType<typeof setInterval>;
     
     if (isWatching && timeRemaining > 0) {
       interval = setInterval(() => {

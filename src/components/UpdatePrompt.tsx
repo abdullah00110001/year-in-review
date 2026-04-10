@@ -2,6 +2,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Button } from '@/components/ui/button';
 import { Download, AlertTriangle, Clock } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { useNavigate } from 'react-router-dom';
 
 interface UpdatePromptProps {
   open: boolean;
@@ -20,7 +21,8 @@ export default function UpdatePrompt({
   releaseNotes,
   latestVersion,
 }: UpdatePromptProps) {
-  // Use window.location since this renders outside BrowserRouter
+  // We need to handle navigation - but since this component is rendered
+  // outside BrowserRouter in App.tsx, we'll use window.location
   const handleUpdate = () => {
     window.location.href = '/download';
   };

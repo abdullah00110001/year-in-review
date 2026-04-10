@@ -172,18 +172,14 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
   }, [user]);
 
   const fetchLanguagePreference = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('language')
-        .eq('user_id', user!.id)
-        .maybeSingle();
+    const { data } = await supabase
+      .from('profiles')
+      .select('language')
+      .eq('user_id', user!.id)
+      .single();
 
-      if (!error && data?.language) {
-        setLanguageState(data.language as Language);
-      }
-    } catch (err) {
-      console.warn('[Language] Failed to fetch preference:', err);
+    if (data?.language) {
+      setLanguageState(data.language as Language);
     }
   };
 

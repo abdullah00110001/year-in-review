@@ -3,6 +3,8 @@ import { Link, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { 
   LayoutDashboard, 
+  Users, 
+  MessageSquare, 
   ChevronLeft,
   Shield,
   AlertTriangle,
@@ -10,28 +12,14 @@ import {
   Search,
   Bell,
   ChevronDown,
+  Settings,
   Activity,
   FileType,
   Zap,
   Menu,
+  X,
   Inbox,
-  Rocket,
-  Users,
-  UserCog,
-  Settings,
-  UsersRound,
-  Brain,
-  CreditCard,
-  Key,
-  DollarSign,
-  Smartphone,
-  FileText,
-  Scale,
-  Receipt,
-  Heart,
-  Calculator,
-  Trophy,
-  ShieldCheck
+  Rocket
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -52,41 +40,19 @@ const adminNavCategories = [
   {
     title: 'User Management',
     items: [
+      { title: 'User Inspector', href: '/admin/users', icon: Search },
       { title: 'At-Risk Users', href: '/admin/at-risk', icon: AlertTriangle },
       { title: 'User Feedback', href: '/admin/feedback', icon: Inbox },
       { title: 'Notifications', href: '/admin/notifications', icon: Bell },
     ]
   },
   {
-    title: 'Controls',
+    title: 'System Controls',
     items: [
-      { title: 'Users', href: '/admin/panel?tab=users', icon: Users },
-      { title: 'Roles', href: '/admin/panel?tab=roles', icon: UserCog },
-      { title: 'Features', href: '/admin/panel?tab=features', icon: Settings },
-      { title: 'Rise', href: '/admin/panel?tab=alarm', icon: Bell },
-      { title: 'Shield', href: '/admin/panel?tab=shield', icon: Shield },
-      { title: 'Groups', href: '/admin/panel?tab=groups', icon: UsersRound },
-      { title: 'Rules', href: '/admin/panel?tab=behavior', icon: Brain },
-      { title: 'AI', href: '/admin/panel?tab=ai', icon: Zap },
-      { title: 'Life Intel', href: '/admin/panel?tab=life', icon: Heart },
-      { title: 'Scoring', href: '/admin/panel?tab=productivity', icon: Calculator },
-      { title: 'Challenges', href: '/admin/panel?tab=challenges', icon: Trophy },
-      { title: 'Safety', href: '/admin/panel?tab=safety', icon: ShieldCheck },
-      { title: 'Payments', href: '/admin/panel?tab=payments', icon: CreditCard },
-      { title: 'Access', href: '/admin/panel?tab=entitlements', icon: Key },
-      { title: 'Revenue', href: '/admin/panel?tab=revenue', icon: DollarSign },
-      { title: 'Devices', href: '/admin/panel?tab=devices', icon: Smartphone },
-      { title: 'Audit', href: '/admin/panel?tab=audit', icon: FileText },
-      { title: 'Health', href: '/admin/panel?tab=health', icon: Activity },
-      { title: 'Policy', href: '/admin/panel?tab=governance', icon: Scale },
-      { title: 'Compliance', href: '/admin/panel?tab=compliance', icon: Receipt },
-      { title: 'Updates', href: '/admin/panel?tab=updates', icon: Rocket },
-    ]
-  },
-  {
-    title: 'System',
-    items: [
+      { title: 'Control Center', href: '/admin/panel', icon: Settings },
       { title: 'Command Center', href: '/admin/command', icon: Zap },
+      { title: 'App Updates', href: '/admin/panel?tab=updates', icon: Rocket },
+      { title: 'PDF Admin', href: '/admin/pdf-tools', icon: FileType },
     ]
   },
 ];
@@ -95,13 +61,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
   const location = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  const isActive = (href: string) => {
-    // For query-param based links, check both pathname and search
-    if (href.includes('?')) {
-      return location.pathname + location.search === href;
-    }
-    return location.pathname === href;
-  };
+  const isActive = (href: string) => location.pathname === href;
 
   const SidebarContent = () => (
     <>
@@ -135,7 +95,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
                         to={item.href}
                         onClick={() => setMobileOpen(false)}
                         className={cn(
-                          'group flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition-all duration-200',
+                          'group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200',
                           active
                             ? 'bg-primary/15 text-primary border border-primary/20 shadow-sm shadow-primary/10'
                             : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground border border-transparent'

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { format, subDays } from 'date-fns';
@@ -84,9 +84,8 @@ export function useDashboardData(): DashboardData {
   const [tahajjudData, setTahajjudData] = useState<TahajjudData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const fetchData = useCallback(async () => {
+  const fetchData = async () => {
     if (!user) {
       setLoading(false);
       return;
@@ -99,6 +98,7 @@ export function useDashboardData(): DashboardData {
       const today = format(new Date(), 'yyyy-MM-dd');
       const thirtyDaysAgo = format(subDays(new Date(), 30), 'yyyy-MM-dd');
 
+      // Fetch all data in parallel
       const [
         todayResult,
         recentResult,
@@ -106,30 +106,39 @@ export function useDashboardData(): DashboardData {
         serviceResult,
         nafsResult,
       ] = await Promise.all([
+        // Today's entry
         supabase
           .from('daily_entries')
           .select('*')
           .eq('user_id', user.id)
           .eq('date', today)
           .maybeSingle(),
+
+        // Recent 30 days entries
         supabase
           .from('daily_entries')
           .select('*')
           .eq('user_id', user.id)
           .gte('date', thirtyDaysAgo)
           .order('date', { ascending: false }),
+
+        // Study sessions
         supabase
           .from('study_sessions')
           .select('*')
           .eq('user_id', user.id)
           .gte('date', thirtyDaysAgo)
           .order('started_at', { ascending: false }),
+
+        // Service logs
         supabase
           .from('service_logs')
           .select('*')
           .eq('user_id', user.id)
           .gte('date', thirtyDaysAgo)
           .order('date', { ascending: false }),
+
+        // Nafs logs
         supabase
           .from('nafs_logs')
           .select('*')
@@ -138,17 +147,21 @@ export function useDashboardData(): DashboardData {
           .order('triggered_at', { ascending: false }),
       ]);
 
+      // Only throw on critical errors, not missing tables
       if (todayResult.error) console.warn('[Dashboard] todayEntry error:', todayResult.error.message);
       if (recentResult.error) console.warn('[Dashboard] recentEntries error:', recentResult.error.message);
       if (sessionsResult.error) console.warn('[Dashboard] sessions error:', sessionsResult.error.message);
       if (serviceResult.error) console.warn('[Dashboard] service error:', serviceResult.error.message);
       if (nafsResult.error) console.warn('[Dashboard] nafs error:', nafsResult.error.message);
 
+      // Process today's entry
       setTodayEntry(todayResult.data as DailyEntryData | null);
 
+      // Process recent entries
       const entries = (recentResult.data || []) as DailyEntryData[];
       setRecentEntries(entries);
 
+      // Generate tahajjud correlation data
       const tahajjud: TahajjudData[] = entries.map(e => ({
         date: e.date,
         performed: e.tahajjud_performed || false,
@@ -156,8 +169,13 @@ export function useDashboardData(): DashboardData {
       }));
       setTahajjudData(tahajjud);
 
+      // Process study sessions
       setStudySessions((sessionsResult.data || []) as StudySessionData[]);
+
+      // Process service logs
       setServiceLogs((serviceResult.data || []) as ServiceLogData[]);
+
+      // Process nafs logs
       setNafsLogs((nafsResult.data || []) as NafsLogData[]);
 
     } catch (err: any) {
@@ -166,36 +184,73 @@ export function useDashboardData(): DashboardData {
     } finally {
       setLoading(false);
     }
-  }, [user]);
+  };
 
-  // Debounced refetch for realtime events
-  const debouncedRefetch = useCallback(() => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      fetchData();
-    }, 1000);
-  }, [fetchData]);
-
+  // Initial fetch
   useEffect(() => {
     fetchData();
-  }, [fetchData]);
+  }, [user]);
 
+  // Set up real-time subscriptions
   useEffect(() => {
     if (!user) return;
 
     const channel = supabase
       .channel('dashboard-realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'daily_entries', filter: `user_id=eq.${user.id}` }, debouncedRefetch)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'study_sessions', filter: `user_id=eq.${user.id}` }, debouncedRefetch)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'service_logs', filter: `user_id=eq.${user.id}` }, debouncedRefetch)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'nafs_logs', filter: `user_id=eq.${user.id}` }, debouncedRefetch)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'daily_entries',
+          filter: `user_id=eq.${user.id}`,
+        },
+        () => {
+          fetchData();
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'study_sessions',
+          filter: `user_id=eq.${user.id}`,
+        },
+        () => {
+          fetchData();
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'service_logs',
+          filter: `user_id=eq.${user.id}`,
+        },
+        () => {
+          fetchData();
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'nafs_logs',
+          filter: `user_id=eq.${user.id}`,
+        },
+        () => {
+          fetchData();
+        }
+      )
       .subscribe();
 
     return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
       supabase.removeChannel(channel);
     };
-  }, [user, debouncedRefetch]);
+  }, [user]);
 
   return {
     todayEntry,
@@ -229,16 +284,19 @@ export function calculateScores(entry: DailyEntryData | null) {
     entry.isha_completed,
   ].filter(Boolean).length;
 
-  const salahPoints = salahCompleted * 12;
+  // Worship score (max 100)
+  const salahPoints = salahCompleted * 12; // 60 max
   const quranPoints = Math.min(20, (entry.quran_minutes || 0) / 1.5);
   const tahajjudPoints = entry.tahajjud_performed ? 10 : 0;
   const servicePoints = Math.min(10, (entry.service_hours || 0) * 5);
   const worshipScore = Math.round(salahPoints + quranPoints + tahajjudPoints + servicePoints);
 
+  // Productivity score (max 100)
   const studyPoints = Math.min(50, (entry.focused_study_minutes || 0) / 3);
   const devicePenalty = Math.min(30, (entry.mindless_scrolling_minutes || 0) / 4);
   const productivityScore = Math.max(0, Math.round(studyPoints + 50 - devicePenalty));
 
+  // Overall weighted score (60% worship, 40% productivity)
   const overallScore = Math.round(worshipScore * 0.6 + productivityScore * 0.4);
 
   return {

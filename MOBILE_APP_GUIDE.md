@@ -1,8 +1,8 @@
-# Sukoon OS - Mobile App Build Guide
+# Life OS - Mobile App Build Guide
 
 ## Complete Capacitor Native App Setup
 
-This guide covers building the Sukoon OS mobile app for Android and iOS using Capacitor.
+This guide covers building the Life OS mobile app for Android and iOS using Capacitor.
 
 ---
 

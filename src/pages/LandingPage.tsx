@@ -13,15 +13,11 @@ export default function LandingPage() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Wait for auth to finish loading before deciding where to go
-    if (loading) return;
-    
     if (isNative) {
-      // On native, skip landing page entirely
       navigate(user ? '/dashboard' : '/auth', { replace: true });
       return;
     }
-    if (user) {
+    if (!loading && user) {
       navigate('/dashboard', { replace: true });
     }
   }, [user, loading, navigate]);
@@ -89,8 +85,8 @@ export default function LandingPage() {
       <nav className="border-b border-border/50 bg-background/80 backdrop-blur-xl fixed top-0 left-0 right-0 z-50">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4">
           <div className="flex items-center gap-3">
-            <img src="/icons/app-icon.png" alt="Sukoon OS" className="h-10 w-10 rounded-xl shadow-lg shadow-primary/25" />
-            <span className="text-xl font-bold bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">Sukoon OS</span>
+            <img src="/icons/app-icon.png" alt="Life OS" className="h-10 w-10 rounded-xl shadow-lg shadow-primary/25" />
+            <span className="text-xl font-bold bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">Life OS</span>
           </div>
           <div className="hidden md:flex items-center gap-6 text-sm text-muted-foreground">
             <a href="#features" className="hover:text-foreground transition-colors">Features</a>
@@ -325,11 +321,11 @@ export default function LandingPage() {
         <div className="mx-auto max-w-6xl">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <img src="/icons/app-icon.png" alt="Sukoon OS" className="h-9 w-9 rounded-xl" />
-              <span className="font-semibold text-foreground">Sukoon OS</span>
+              <img src="/icons/app-icon.png" alt="Life OS" className="h-9 w-9 rounded-xl" />
+              <span className="font-semibold text-foreground">Life OS</span>
             </div>
             <p className="text-xs text-muted-foreground">
-              © {new Date().getFullYear()} Sukoon OS. Build better habits, transform your life.
+              © {new Date().getFullYear()} Life OS. Build better habits, transform your life.
             </p>
           </div>
         </div>

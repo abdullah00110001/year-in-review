@@ -7,9 +7,9 @@
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:970103049407:android:2d2b7542eadb2ce4d48a0a",
+        "mobilesdk_app_id": "1:970103049407:android:ed84727944f84401d48a0a",
         "android_client_info": {
-          "package_name": "com.sukoonos.app"
+          "package_name": "com.mylifeos.app"
         }
       },
       "oauth_client": [],

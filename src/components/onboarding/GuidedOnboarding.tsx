@@ -17,7 +17,7 @@ interface GuidedOnboardingProps {
 const steps = [
   {
     id: 'welcome',
-    title: 'Welcome to Sukoon OS 🚀',
+    title: 'Welcome to Life OS 🚀',
     subtitle: 'Your personal operating system for life',
     description: 'Track habits, build discipline, and transform your life — one day at a time.',
     icon: Rocket,
@@ -26,7 +26,7 @@ const steps = [
   {
     id: 'mode',
     title: 'Choose Your Path',
-    subtitle: 'How would you like to use Sukoon OS?',
+    subtitle: 'How would you like to use Life OS?',
     description: 'This personalizes your entire experience.',
     icon: Heart,
     gradient: 'from-emerald-500 to-teal-500',

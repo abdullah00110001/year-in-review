@@ -68,7 +68,7 @@ export function AccountabilityPartners() {
   };
 
   const shareInvite = () => {
-    const message = `Join me on Yearly Track for accountability!\n\nUse my invite code: ${inviteCode}\n\nDownload the app and let's grow together! 🌱`;
+    const message = `Join me on Life OS for accountability!\n\nUse my invite code: ${inviteCode}\n\nDownload the app and let's grow together! 🌱`;
     window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank');
   };
 

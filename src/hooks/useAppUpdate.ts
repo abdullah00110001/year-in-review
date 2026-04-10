@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { CURRENT_APP_VERSION_CODE } from '@/constants/version';
+import { isNative } from '@/lib/capacitor/platform';
 
 interface UpdateState {
   showPrompt: boolean;
+  showForceScreen: boolean;
   downloadUrl: string;
   isForceUpdate: boolean;
   releaseNotes: string | null;
@@ -13,6 +15,7 @@ interface UpdateState {
 export function useAppUpdate() {
   const [state, setState] = useState<UpdateState>({
     showPrompt: false,
+    showForceScreen: false,
     downloadUrl: '',
     isForceUpdate: false,
     releaseNotes: null,
@@ -20,7 +23,9 @@ export function useAppUpdate() {
   });
 
   useEffect(() => {
-    checkForUpdate();
+    // Delay check slightly to let app stabilize
+    const timer = setTimeout(() => checkForUpdate(), 2000);
+    return () => clearTimeout(timer);
   }, []);
 
   const checkForUpdate = async () => {
@@ -44,13 +49,26 @@ export function useAppUpdate() {
         if (snoozeUntil && Date.now() < Number(snoozeUntil)) return;
       }
 
-      setState({
-        showPrompt: true,
-        downloadUrl: download_url,
-        isForceUpdate: is_force_update,
-        releaseNotes: release_notes ?? null,
-        latestVersion: latest_version_code,
-      });
+      // Force update on native → full-screen block. Otherwise dialog.
+      if (is_force_update && isNative) {
+        setState({
+          showPrompt: false,
+          showForceScreen: true,
+          downloadUrl: download_url,
+          isForceUpdate: true,
+          releaseNotes: release_notes ?? null,
+          latestVersion: latest_version_code,
+        });
+      } else {
+        setState({
+          showPrompt: true,
+          showForceScreen: false,
+          downloadUrl: download_url,
+          isForceUpdate: is_force_update,
+          releaseNotes: release_notes ?? null,
+          latestVersion: latest_version_code,
+        });
+      }
     } catch {
       // silently fail
     }

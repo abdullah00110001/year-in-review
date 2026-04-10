@@ -1,8 +1,8 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.sukoonos.app',
-  appName: 'Sukoon OS',
+  appId: 'com.mylifeos.app',
+  appName: 'Life OS',
   webDir: 'dist',
   server: {
     cleartext: true,
@@ -17,9 +17,9 @@ const config: CapacitorConfig = {
       enabled: false,
     },
     SplashScreen: {
-      launchShowDuration: 0,
-      launchAutoHide: false,
-      launchFadeOutDuration: 300,
+      launchShowDuration: 2000,
+      launchAutoHide: true,
+      launchFadeOutDuration: 500,
       backgroundColor: '#0f172a',
       androidSplashResourceName: 'splash',
       androidScaleType: 'CENTER_CROP',
@@ -58,7 +58,7 @@ const config: CapacitorConfig = {
   ios: {
     contentInset: 'automatic',
     backgroundColor: '#0f172a',
-    scheme: 'Sukoon OS'
+    scheme: 'Life OS'
   }
 };
 

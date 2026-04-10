@@ -82,7 +82,7 @@ export default function LifeDistribution() {
   }, [user]);
 
   useEffect(() => {
-    let interval: NodeJS.Timeout;
+    let interval: ReturnType<typeof setInterval>;
     if (isTimerRunning) {
       interval = setInterval(() => {
         setTimerSeconds(prev => prev + 1);

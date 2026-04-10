@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { format, subDays, parseISO, differenceInDays } from 'date-fns';
@@ -21,32 +21,36 @@ export function useStreak(): StreakData {
     loading: true,
   });
 
-  const calculateStreaks = useCallback(async () => {
-    if (!user) return;
+  useEffect(() => {
+    if (user) {
+      calculateStreaks();
+    }
+  }, [user]);
 
-    const ninetyDaysAgo = format(subDays(new Date(), 90), 'yyyy-MM-dd');
+  const calculateStreaks = async () => {
+    // Get all habit entries for the user
+    const { data: entries } = await supabase
+      .from('habit_entries')
+      .select('date, completed')
+      .eq('user_id', user!.id)
+      .eq('completed', true)
+      .order('date', { ascending: false });
 
-    // Fetch only last 90 days + select only needed columns
-    const [entriesResult, habitsResult] = await Promise.all([
-      supabase
-        .from('habit_entries')
-        .select('date, completed')
-        .eq('user_id', user.id)
-        .eq('completed', true)
-        .gte('date', ninetyDaysAgo)
-        .order('date', { ascending: false }),
-      supabase
-        .from('habits')
-        .select('id', { count: 'exact', head: true })
-        .eq('user_id', user.id)
-        .eq('is_active', true),
-    ]);
-
-    const entries = entriesResult.data;
-    const habitsCount = habitsResult.count;
+    // Get habits count
+    const { count: habitsCount } = await supabase
+      .from('habits')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', user!.id)
+      .eq('is_active', true);
 
     if (!entries || entries.length === 0 || !habitsCount) {
-      setData({ currentStreak: 0, bestStreak: 0, consistencyScore: 0, totalActiveDays: 0, loading: false });
+      setData({
+        currentStreak: 0,
+        bestStreak: 0,
+        consistencyScore: 0,
+        totalActiveDays: 0,
+        loading: false,
+      });
       return;
     }
 
@@ -57,19 +61,21 @@ export function useStreak(): StreakData {
       completionsByDate.set(entry.date, count + 1);
     });
 
+    // Get unique active days (days with at least one completion)
     const activeDates = Array.from(completionsByDate.keys()).sort().reverse();
     const totalActiveDays = activeDates.length;
 
-    // Calculate current streak
+    // Calculate current streak (consecutive days from today or yesterday)
     let currentStreak = 0;
     const today = format(new Date(), 'yyyy-MM-dd');
     const yesterday = format(subDays(new Date(), 1), 'yyyy-MM-dd');
 
+    // Check if there's activity today or yesterday to start the streak
     let checkDate = activeDates.includes(today) ? today : 
                     activeDates.includes(yesterday) ? yesterday : null;
 
     if (checkDate) {
-      for (let i = 0; i < 90; i++) {
+      for (let i = 0; i < 365; i++) {
         const dateStr = format(subDays(parseISO(checkDate), i), 'yyyy-MM-dd');
         if (completionsByDate.has(dateStr)) {
           currentStreak++;
@@ -86,29 +92,37 @@ export function useStreak(): StreakData {
 
     activeDates.sort().forEach((dateStr) => {
       const currentDate = parseISO(dateStr);
+      
       if (lastDate === null) {
         tempStreak = 1;
       } else {
         const diff = differenceInDays(currentDate, lastDate);
-        tempStreak = diff === 1 ? tempStreak + 1 : 1;
+        if (diff === 1) {
+          tempStreak++;
+        } else {
+          tempStreak = 1;
+        }
       }
+
       bestStreak = Math.max(bestStreak, tempStreak);
       lastDate = currentDate;
     });
 
-    // Consistency score (last 30 days)
+    // Calculate consistency score (percentage of days with activity in last 30 days)
     const last30Days = Array.from({ length: 30 }, (_, i) => 
       format(subDays(new Date(), i), 'yyyy-MM-dd')
     );
     const activeLast30 = last30Days.filter(d => completionsByDate.has(d)).length;
     const consistencyScore = Math.round((activeLast30 / 30) * 100);
 
-    setData({ currentStreak, bestStreak, consistencyScore, totalActiveDays, loading: false });
-  }, [user]);
-
-  useEffect(() => {
-    calculateStreaks();
-  }, [calculateStreaks]);
+    setData({
+      currentStreak,
+      bestStreak,
+      consistencyScore,
+      totalActiveDays,
+      loading: false,
+    });
+  };
 
   return data;
 }

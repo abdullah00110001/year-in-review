@@ -5,60 +5,6 @@ import type { Database } from './types';
 const SUPABASE_URL = "https://nxvtoviyldffcqbtgriw.supabase.co";
 const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im54dnRvdml5bGRmZmNxYnRncml3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc0Njc3MDksImV4cCI6MjA4MzA0MzcwOX0.--MB5qt_OKqy3TAdeoyGfXW71wz0xNBv7i9oWVOvPpI";
 
-// Resilient fetch that respects caller's AbortSignal while adding timeout
-const resilientFetch = async (url: RequestInfo | URL, options?: RequestInit): Promise<Response> => {
-  const MAX_RETRIES = 2;
-  const TIMEOUT_MS = 15000;
-  
-  // Respect the caller's abort signal (critical for Supabase auth internals)
-  const callerSignal = options?.signal;
-  
-  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-    // If the caller already aborted, stop immediately
-    if (callerSignal?.aborted) {
-      throw new DOMException('The operation was aborted.', 'AbortError');
-    }
-    
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
-    
-    // Listen to caller's abort signal and forward it to our controller
-    const onCallerAbort = () => controller.abort();
-    callerSignal?.addEventListener('abort', onCallerAbort, { once: true });
-    
-    try {
-      // Build clean options WITHOUT the caller's signal (we use our merged one)
-      const { signal: _ignoredSignal, ...restOptions } = options || {};
-      
-      const response = await fetch(url, {
-        ...restOptions,
-        signal: controller.signal,
-      });
-      
-      clearTimeout(timeout);
-      callerSignal?.removeEventListener('abort', onCallerAbort);
-      return response;
-    } catch (error: any) {
-      clearTimeout(timeout);
-      callerSignal?.removeEventListener('abort', onCallerAbort);
-      
-      // If caller aborted, propagate immediately — no retry
-      if (callerSignal?.aborted || error?.name === 'AbortError') {
-        throw error;
-      }
-      
-      // Last attempt — throw
-      if (attempt === MAX_RETRIES) throw error;
-      
-      // Wait before retry (exponential backoff)
-      await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
-    }
-  }
-  
-  // Fallback (shouldn't reach here)
-  return fetch(url, options);
-};
-
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
 
@@ -67,8 +13,5 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
     storage: localStorage,
     persistSession: true,
     autoRefreshToken: true,
-  },
-  global: {
-    fetch: resilientFetch,
-  },
+  }
 });

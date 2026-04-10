@@ -298,7 +298,7 @@ export default function Premium() {
         <div className="text-center mb-8">
           <div className="flex items-center justify-center gap-2 mb-3">
             <Crown className="h-8 w-8 text-primary" />
-            <h1 className="text-3xl font-bold">Upgrade Your Sukoon OS</h1>
+            <h1 className="text-3xl font-bold">Upgrade Your Life OS</h1>
           </div>
           <p className="text-muted-foreground max-w-lg mx-auto">
             Unlock powerful features to supercharge your productivity and spiritual growth

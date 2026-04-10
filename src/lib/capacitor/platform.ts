@@ -58,12 +58,8 @@ export const initializeCapacitor = async (
   if (!isNative) return;
 
   try {
-    // Hide native splash screen (JS splash handles transition)
-    try {
-      await SplashScreen.hide({ fadeOutDuration: 300 });
-    } catch (e) {
-      console.warn('[Capacitor] SplashScreen hide error:', e);
-    }
+    // Hide splash screen after app is ready
+    await SplashScreen.hide({ fadeOutDuration: 500 });
 
     // Configure status bar for Android
     if (isAndroid) {
@@ -77,7 +73,7 @@ export const initializeCapacitor = async (
       await StatusBar.setStyle({ style: Style.Dark });
     }
 
-    // Handle Android back button — NEVER auto-exit
+    // Handle Android back button
     App.addListener('backButton', ({ canGoBack }) => {
       // Allow custom handler to prevent default
       if (onBackButton && onBackButton()) {
@@ -87,6 +83,7 @@ export const initializeCapacitor = async (
       // Check if any dialogs are open
       const dialogs = document.querySelectorAll('[role="dialog"][data-state="open"]');
       if (dialogs.length > 0) {
+        // Close the topmost dialog
         const closeButton = dialogs[dialogs.length - 1].querySelector('[aria-label="Close"]');
         if (closeButton) {
           (closeButton as HTMLElement).click();
@@ -97,20 +94,15 @@ export const initializeCapacitor = async (
       // Check if drawer/sheet is open
       const drawers = document.querySelectorAll('[data-vaul-drawer][data-state="open"]');
       if (drawers.length > 0) {
-        document.body.click();
+        document.body.click(); // Close drawer
         return;
       }
       
-      // Navigate back if possible, otherwise minimize (NEVER exit)
+      // Default behavior: go back or exit
       if (canGoBack) {
         window.history.back();
       } else {
-        // Minimize app instead of exiting — prevents accidental auto-exit
-        try {
-          App.minimizeApp();
-        } catch {
-          // minimizeApp not available on all versions, just ignore
-        }
+        App.exitApp();
       }
     });
 

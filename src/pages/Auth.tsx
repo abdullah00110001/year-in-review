@@ -242,7 +242,7 @@ export default function Auth() {
           <div className="mx-auto mb-3 sm:mb-4 flex h-14 w-14 sm:h-16 sm:w-16 items-center justify-center rounded-2xl bg-primary">
             <Target className="h-7 w-7 sm:h-8 sm:w-8 text-primary-foreground" />
           </div>
-          <h1 className="text-title">Sukoon OS</h1>
+          <h1 className="text-title">Life OS</h1>
           <p className="mt-1.5 sm:mt-2 text-body text-muted-foreground px-4">
             Build habits. Achieve goals. Transform your year.
           </p>

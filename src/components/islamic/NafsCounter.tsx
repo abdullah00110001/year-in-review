@@ -79,7 +79,7 @@ export default function NafsCounter({ urgesResisted, urgesSuccumbed, onUpdate }:
   }, [user, currentQuote, onUpdate, labels]);
 
   useEffect(() => {
-    let timer: NodeJS.Timeout;
+    let timer: ReturnType<typeof setTimeout>;
     
     if (showCountdown && countdown > 0) {
       timer = setTimeout(() => {

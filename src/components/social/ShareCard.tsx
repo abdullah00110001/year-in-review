@@ -59,7 +59,7 @@ export function ShareCard({ type, title, value, subtitle, icon }: ShareCardProps
     }
   };
 
-  const shareText = `🎉 ${title}: ${value}${subtitle ? ` - ${subtitle}` : ''}\n\nTracking my progress with Sukoon OS! 📊`;
+  const shareText = `🎉 ${title}: ${value}${subtitle ? ` - ${subtitle}` : ''}\n\nTracking my progress with Life OS! 📊`;
 
   const handleCopy = async () => {
     await navigator.clipboard.writeText(shareText);
