@@ -68,7 +68,7 @@ import FeedbackCenter from "./pages/admin/FeedbackCenter";
 import AdminAnalytics from "./pages/admin/AdminAnalytics";
 import AdminNotifications from "./pages/admin/AdminNotifications";
 import AdminCommandCenter from "./pages/admin/AdminCommandCenter";
-import AdminPDFTools from "./pages/admin/AdminPDFTools";
+
 import AdminPanel from "./pages/admin/AdminPanel";
 import DownloadApp from "./pages/DownloadApp";
 
@@ -175,7 +175,7 @@ const AppContent = () => {
           <Route path="/admin/notifications" element={<AdminProtectedRoute><AdminNotifications /></AdminProtectedRoute>} />
           <Route path="/admin/panel" element={<AdminProtectedRoute><AdminPanel /></AdminProtectedRoute>} />
           <Route path="/admin/command" element={<AdminProtectedRoute><AdminCommandCenter /></AdminProtectedRoute>} />
-          <Route path="/admin/pdf-tools" element={<AdminProtectedRoute><AdminPDFTools /></AdminProtectedRoute>} />
+          
           
           <Route path="*" element={<NotFound />} />
         </Routes>
