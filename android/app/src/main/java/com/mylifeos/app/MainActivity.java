@@ -1,4 +1,4 @@
-package app.lifeos.com;
+package com.mylifeos.app;
 
 import android.os.Bundle;
 import android.webkit.WebView;
@@ -8,7 +8,7 @@ import android.webkit.WebResourceError;
 import android.util.Log;
 import com.getcapacitor.BridgeActivity;
 
-import app.lifeos.com.plugins.AppUpdatePlugin;
+import com.mylifeos.app.plugins.AppUpdatePlugin;
 
 public class MainActivity extends BridgeActivity {
     private static final String TAG = "LifeOS";

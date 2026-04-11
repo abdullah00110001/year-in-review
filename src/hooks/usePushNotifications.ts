@@ -18,6 +18,12 @@ export function usePushNotifications() {
     try {
       const { PushNotifications } = await import('@capacitor/push-notifications');
 
+      try {
+        await PushNotifications.removeAllListeners();
+      } catch (e) {
+        console.warn('[Push] removeAllListeners failed:', e);
+      }
+
       // Check current status
       let permResult;
       try {

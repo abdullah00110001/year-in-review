@@ -72,7 +72,8 @@ export default function Auth() {
         const { data: roleData, error } = await supabase.rpc('get_user_role', { _user_id: user.id });
         if (cancelled) return;
         
-        const target = (!error && roleData === 'admin') ? '/admin' : '/dashboard';
+        const resolvedRole = typeof roleData === 'string' ? roleData : null;
+        const target = (!error && resolvedRole === 'admin') ? '/admin' : '/dashboard';
         console.log('[Auth] Redirecting to:', target);
         
         try {
