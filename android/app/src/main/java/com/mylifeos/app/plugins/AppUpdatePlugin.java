@@ -1,4 +1,4 @@
-package app.lifeos.com.plugins;
+package com.mylifeos.app.plugins;
 
 import android.app.DownloadManager;
 import android.content.BroadcastReceiver;

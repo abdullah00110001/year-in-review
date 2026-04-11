@@ -67,6 +67,13 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="https" android:host="nxvtoviyldffcqbtgriw.supabase.co" />
             </intent-filter>
+
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="com.mylifeos.app" android:host="callback" />
+            </intent-filter>
         </activity>
 
         <!-- Boot receiver for rescheduling alarms -->

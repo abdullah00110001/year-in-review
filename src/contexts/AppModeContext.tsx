@@ -247,11 +247,16 @@ export function AppModeProvider({ children }: { children: ReactNode }) {
   }, [user]);
 
   const fetchUserMode = async () => {
+    if (!user) {
+      setIsLoading(false);
+      return;
+    }
+
     try {
       const { data, error } = await supabase
         .from('profiles')
         .select('app_mode')
-        .eq('user_id', user!.id)
+        .eq('user_id', user.id)
         .maybeSingle();
 
       if (error) {
@@ -262,7 +267,7 @@ export function AppModeProvider({ children }: { children: ReactNode }) {
         // Profile doesn't exist yet — create one
         console.log('[AppMode] No profile found, creating default');
         try {
-          await supabase.from('profiles').insert({ user_id: user!.id, app_mode: 'islamic' });
+          await supabase.from('profiles').upsert({ user_id: user.id, app_mode: 'islamic' }, { onConflict: 'user_id' });
         } catch (insertErr) {
           console.warn('[AppMode] Profile auto-create failed:', insertErr);
         }
