@@ -17,6 +17,7 @@ import {
   scheduleRecurringAlarm, 
   cancelAlarmByUuid, 
 } from '@/lib/capacitor/nativeAlarm';
+import { cancelNativeAlarmShots, canScheduleExactAlarms, openExactAlarmSettings } from '@/lib/capacitor/riseAlarmBridge';
 import { isNative } from '@/lib/capacitor/platform';
 import { requestRisePermissions } from '@/lib/capacitor/permissions';
 
