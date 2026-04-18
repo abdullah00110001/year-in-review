@@ -3,6 +3,11 @@ import { App } from '@capacitor/app';
 import { LocalNotifications, type LocalNotificationSchema } from '@capacitor/local-notifications';
 import { Preferences } from '@capacitor/preferences';
 import { Haptics } from '@capacitor/haptics';
+import {
+  scheduleNativeAlarmShots,
+  cancelNativeAlarmShots,
+  canScheduleExactAlarms,
+} from './riseAlarmBridge';
 
 export interface AlarmConfig {
   id: number;
@@ -38,9 +43,10 @@ export async function checkAllAlarmPermissions() {
   }
 
   const notifPerm = await LocalNotifications.checkPermissions();
+  const exactAlarm = await canScheduleExactAlarms();
   return {
     notifications: notifPerm.display === 'granted',
-    exactAlarm: true,
+    exactAlarm,
   };
 }
 
@@ -52,6 +58,8 @@ export async function checkAlarmPermission(): Promise<boolean> {
 export async function requestAllAlarmPermissions(): Promise<boolean> {
   if (!Capacitor.isNativePlatform()) return true;
   const notifPerm = await LocalNotifications.requestPermissions();
+  // Exact alarm permission must be granted in system settings on Android 12+
+  // We surface the settings panel from the UI when needed.
   return notifPerm.display === 'granted';
 }
 
@@ -149,6 +157,7 @@ export async function scheduleRecurringAlarm(
 
   await cancelAlarmByUuid(uuid);
 
+  // 1. Schedule via Capacitor LocalNotifications (visible notification + sound)
   for (let i = 0; i < 7; i += 1) {
     if (!daysOfWeek.includes(i)) continue;
 
@@ -160,6 +169,17 @@ export async function scheduleRecurringAlarm(
     });
 
     if (!success) return false;
+  }
+
+  // 2. ALSO schedule via the native RiseAlarmPlugin so the alarm
+  //    fires full-screen on the lockscreen even under Doze / battery saver.
+  //    AlarmManager.setAlarmClock() is the only API that survives that.
+  if (Capacitor.isNativePlatform()) {
+    await scheduleNativeAlarmShots(uuid, time, daysOfWeek, {
+      title: config.title,
+      body: config.body,
+      missionType: config.missionType,
+    });
   }
 
   return true;

@@ -17,6 +17,7 @@ import {
   scheduleRecurringAlarm, 
   cancelAlarmByUuid, 
 } from '@/lib/capacitor/nativeAlarm';
+import { cancelNativeAlarmShots, canScheduleExactAlarms, openExactAlarmSettings } from '@/lib/capacitor/riseAlarmBridge';
 import { isNative } from '@/lib/capacitor/platform';
 import { requestRisePermissions } from '@/lib/capacitor/permissions';
 
@@ -62,6 +63,15 @@ export default function RisePage() {
       // Request native permissions on mount
       if (isNative) {
         requestRisePermissions().catch(console.error);
+        // On Android 12+, exact alarm permission must be granted in system settings
+        canScheduleExactAlarms().then((ok) => {
+          if (!ok) {
+            toast.warning('Tap to allow exact alarms (required for wake-up)', {
+              action: { label: 'Open settings', onClick: () => openExactAlarmSettings() },
+              duration: 8000,
+            });
+          }
+        }).catch(() => {});
       }
     }
   }, [user]);
@@ -180,6 +190,7 @@ export default function RisePage() {
         );
       } else {
         await cancelAlarmByUuid(alarmId);
+        if (isNative) await cancelNativeAlarmShots(alarmId, alarm.alarm_time, alarm.days_of_week);
       }
     }
 
@@ -288,6 +299,7 @@ export default function RisePage() {
   };
 
   const handleDeleteAlarm = async (alarmId: string) => {
+    const target = alarms.find(a => a.id === alarmId);
     const { error } = await supabase
       .from('rise_alarms')
       .delete()
@@ -298,9 +310,12 @@ export default function RisePage() {
       return;
     }
 
-    // Cancel native alarm
+    // Cancel both notification and native alarm channels
     if (isNative) {
       await cancelAlarmByUuid(alarmId);
+      if (target) {
+        await cancelNativeAlarmShots(alarmId, target.alarm_time, target.days_of_week);
+      }
     }
 
     toast.success('Alarm deleted');

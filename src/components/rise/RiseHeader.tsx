@@ -5,7 +5,6 @@ import { useNavigate } from 'react-router-dom';
 
 interface RiseHeaderProps {
   streak: number;
-  nextAlarm?: { time: string; countdown: string } | null;
 }
 
 export function RiseHeader({ streak }: RiseHeaderProps) {
