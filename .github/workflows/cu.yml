@@ -1,14 +1,15 @@
 name: 🧹 Cleanup Old Runs & Releases
 
 on:
-  workflow_dispatch: # ম্যানুয়ালি চালাবা
+  workflow_dispatch: # Actions ট্যাবে গিয়ে ম্যানুয়ালি চালাবা
 
 permissions:
-  actions: write
-  contents: write
+  actions: write # পুরান রান ডিলিট করার জন্য
+  contents: write # পুরান রিলিজ + ট্যাগ ডিলিট করার জন্য
 
 jobs:
   cleanup:
+    name: Deleting Old Data
     runs-on: ubuntu-latest
     steps:
       - name: Delete Old Workflow Runs
@@ -16,13 +17,13 @@ jobs:
         with:
           token: ${{ github.token }}
           repository: ${{ github.repository }}
-          retain_days: 7 # 7 দিনের পুরান সব রান ডিলিট
-          keep_minimum_runs: 5 # লেটেস্ট 5টা রেখে দিবে
+          retain_days: 7 # 7 দিনের পুরান সব রান ডিলিট হবে
+          keep_minimum_runs: 5 # লেটেস্ট 5টা রান রেখে দিবে
 
       - name: Delete Old Releases & Tags
         uses: dev-drprasad/delete-older-releases@v0.3.3
         with:
-          keep_latest: 5 # লেটেস্ট 5টা রিলিজ রাখো, বাকি সব APK সহ ডিলিট
-          delete_tags: true
+          keep_latest: 5 # লেটেস্ট 5টা APK রিলিজ রাখবে, বাকি 95টা ডিলিট
+          delete_tags: true # ট্যাগ সহ ডিলিট করবে
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
