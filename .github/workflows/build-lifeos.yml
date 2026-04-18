@@ -1,10 +1,7 @@
 name: 🚀 Build LifeOS Official
-
 on:
   push:
-    branches:
-      - main
-      - master
+    branches: [main, master]
   workflow_dispatch:
 
 permissions:
@@ -14,8 +11,9 @@ jobs:
   build-life-os:
     name: 📱 Building LifeOS APK
     runs-on: ubuntu-latest
+    
     env:
-      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true 
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
     steps:
       - name: Checkout Code
@@ -35,6 +33,133 @@ jobs:
           cache: 'gradle'
 
       - name: Install Dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Build Optimized Assets
+        run: npm run build
+
+      - name: Add google-services.json
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: echo "$GOOGLE_SERVICES_JSON" > android/app/google-services.json
+
+      - name: Sync Capacitor
+        run: npx cap sync android
+
+      - name: Fix Permissions
+        run: chmod +x android/gradlew
+
+      - name: Build Stable APK
+        id: build_apk
+        continue-on-error: true
+        run: |
+          cd android && ./gradlew assembleDebug --stacktrace 2>&1 | tee build.log
+          exit ${PIPESTATUS[0]}
+
+      - name: 🩺 LifeOS Doctor - Auto Diagnosis
+        if: always()
+        run: |
+          echo "================ LIFEOS DOCTOR REPORT ================"
+          
+          if [ ${{ steps.build_apk.outcome }} == 'success' ]; then
+            echo "✅ BUILD SUCCESS: No issues found. APK is ready."
+            exit 0
+          fi
+          
+          echo "❌ BUILD FAILED: Issue detected"
+          echo ""
+          
+          LOG_FILE="android/build.log"
+          
+          # 1. google-services.json Error
+          if grep -q "Malformed root json" $LOG_FILE; then
+            echo "👉 1. ISSUE: google-services.json file is malformed or empty"
+            echo "👉 2. REASON: GitHub Secret 'GOOGLE_SERVICES_JSON' is empty, or brackets {} were missed while copying"
+            echo "👉 3. SOLUTION: Download a new google-services.json from Firebase and update the GitHub Secret"
+            echo "👉 4. HOW TO FIX:"
+            echo "   a. Go to Firebase Console → Project Settings → Android App → Download google-services.json"
+            echo "   b. Open the file in Notepad, press Ctrl+A, Ctrl+C to copy everything"
+            echo "   c. Go to GitHub Repo → Settings → Secrets and variables → Actions → GOOGLE_SERVICES_JSON → Update secret"
+            echo "   d. Paste the entire file content and Save. Then push code again"
+          
+          # 2. google-services plugin missing
+          elif grep -q "Plugin with id 'com.google.gms.google-services' not found" $LOG_FILE; then
+            echo "👉 1. ISSUE: google-services Gradle Plugin not found"
+            echo "👉 2. REASON: Missing classpath in android/build.gradle"
+            echo "👉 3. SOLUTION: Add classpath and apply plugin in gradle files"
+            echo "👉 4. HOW TO FIX:"
+            echo "   a. Open android/build.gradle"
+            echo "   b. Inside dependencies { } add this line:"
+            echo "      classpath 'com.google.gms:google-services:4.4.1'"
+            echo "   c. Open android/app/build.gradle and add this line at the very bottom:"
+            echo "      apply plugin: 'com.google.gms.google-services'"
+            echo "   d. Commit and Push"
+          
+          # 3. Namespace Error
+          elif grep -q "Namespace not specified" $LOG_FILE; then
+            echo "👉 1. ISSUE: Namespace not specified for Android module"
+            echo "👉 2. REASON: Gradle 8+ requires 'namespace' in android/app/build.gradle"
+            echo "👉 3. SOLUTION: Add namespace property in build.gradle"
+            echo "👉 4. HOW TO FIX:"
+            echo "   a. Open android/app/build.gradle"
+            echo "   b. Inside android { } block, add at the top:"
+            echo "      namespace 'com.your.app.package'"
+            echo "   c. Replace 'com.your.app.package' with your actual package name from AndroidManifest.xml"
+          
+          # 4. SDK License Error
+          elif grep -q "license" $LOG_FILE && grep -q "not accepted" $LOG_FILE; then
+            echo "👉 1. ISSUE: Android SDK License not accepted"
+            echo "👉 2. REASON: GitHub Actions runner did not auto-accept SDK licenses"
+            echo "👉 3. SOLUTION: Add a step to accept licenses before build"
+            echo "👉 4. HOW TO FIX:"
+            echo "   a. After 'Setup Java' step, add this step:"
+            echo "      - name: Accept Android Licenses"
+            echo "        run: yes | sdkmanager --licenses"
+          
+          # 5. Package Name Mismatch
+          elif grep -q "No matching client found for package name" $LOG_FILE; then
+            echo "👉 1. ISSUE: Package name mismatch between app and google-services.json"
+            echo "👉 2. REASON: 'package_name' in google-services.json != applicationId in build.gradle"
+            echo "👉 3. SOLUTION: Make both package names identical"
+            echo "👉 4. HOW TO FIX:"
+            echo "   a. Check android/app/build.gradle → applicationId"
+            echo "   b. Check google-services.json → 'package_name'"
+            echo "   c. Both must be same. If not, add a new Android app in Firebase with correct package name"
+          
+          # 6. Unknown Error
+          else
+            echo "👉 1. ISSUE: Unknown Error - Not in predefined list"
+            echo "👉 2. REASON: New error type. Need to read raw logs"
+            echo "👉 3. SOLUTION: Check the 'What went wrong' section in build logs"
+            echo "👉 4. HOW TO FIX:"
+            echo "   a. Go to Actions tab → Click failed job"
+            echo "   b. Open 'Build Stable APK' step logs"
+            echo "   c. Find line starting with 'Execution failed for task'"
+            echo "   d. Search that error on Google or send it to me"
+          fi
+          
+          echo ""
+          echo "======================================================"
+          exit 1
+
+      - name: Rename APK
+        if: steps.build_apk.outcome == 'success'
+        run: mv android/app/build/outputs/apk/debug/app-debug.apk android/app/build/outputs/apk/debug/LifeOS_v${{ github.run_number }}.apk
+
+      - name: Create LifeOS Release
+        if: steps.build_apk.outcome == 'success'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: lifeos-v${{ github.run_number }}
+          name: LifeOS Official Build ${{ github.run_number }}
+          body: |
+            ✅ LifeOS: Your Complete Productivity Platform.
+            🚀 High-performance assets integrated.
+            📱 Optimized for smooth loading.
+            🔢 Build: ${{ github.run_number }}
+          files: android/app/build/outputs/apk/debug/LifeOS_v${{ github.run_number }}.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}      - name: Install Dependencies
         run: npm ci --legacy-peer-deps
 
       - name: Build Optimized Assets
