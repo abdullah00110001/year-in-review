@@ -33,7 +33,7 @@ jobs:
       - name: Scan for Leaked Secrets
         uses: trufflesecurity/trufflehog@v3.81.0
         with:
-          path:./
+          path: ./ # ফিক্স: এখানে স্পেস অ্যাড করা হইছে
           base: main
           head: HEAD
 
@@ -69,7 +69,7 @@ jobs:
         id: build_apk
         continue-on-error: true
         run: |
-          cd android &&./gradlew assembleDebug --stacktrace 2>&1 | tee build.log
+          cd android && ./gradlew assembleDebug --stacktrace 2>&1 | tee build.log
           exit ${PIPESTATUS[0]}
 
       - name: Perform CodeQL Analysis
@@ -80,7 +80,6 @@ jobs:
         if: always()
         run: |
           echo "================ LIFEOS DOCTOR REPORT ================"
-          # ফিক্স: কোটেশন অ্যাড করা হইছে "${{ steps.build_apk.outcome }}"
           if [ "${{ steps.build_apk.outcome }}" = "success" ]; then
             echo "✅ BUILD SUCCESS: No issues found. APK is ready."
             exit 0
@@ -93,35 +92,35 @@ jobs:
             echo "👉 2. REASON: Gradle 8+ requires 'namespace' in android/app/build.gradle"
             echo "👉 3. SOLUTION: Add namespace property in build.gradle"
             echo "👉 4. HOW TO FIX:"
-            echo " a. Open android/app/build.gradle"
-            echo " b. Inside android { } block, add at the top:"
-            echo " namespace 'com.your.app.package'"
-            echo " c. Replace 'com.your.app.package' with your actual package name from AndroidManifest.xml"
+            echo "   a. Open android/app/build.gradle"
+            echo "   b. Inside android { } block, add at the top:"
+            echo "      namespace 'com.your.app.package'"
+            echo "   c. Replace with your actual package name from AndroidManifest.xml"
           elif grep -q "license" $LOG_FILE && grep -q "not accepted" $LOG_FILE; then
             echo "👉 1. ISSUE: Android SDK License not accepted"
             echo "👉 2. REASON: GitHub Actions runner did not auto-accept SDK licenses"
             echo "👉 3. SOLUTION: Add a step to accept licenses before build"
             echo "👉 4. HOW TO FIX:"
-            echo " a. After 'Setup Java' step, add this step:"
-            echo " - name: Accept Android Licenses"
-            echo " run: yes | sdkmanager --licenses"
+            echo "   a. After 'Setup Java' step, add this step:"
+            echo "      - name: Accept Android Licenses"
+            echo "        run: yes | sdkmanager --licenses"
           elif grep -q "SDK location not found" $LOG_FILE; then
             echo "👉 1. ISSUE: Android SDK not found"
             echo "👉 2. REASON: local.properties file missing"
             echo "👉 3. SOLUTION: Generate local.properties"
             echo "👉 4. HOW TO FIX:"
-            echo " a. Add this step before Build:"
-            echo " - name: Setup local.properties"
-            echo " run: echo 'sdk.dir=$ANDROID_HOME' > android/local.properties"
+            echo "   a. Add this step before Build:"
+            echo "      - name: Setup local.properties"
+            echo "        run: echo 'sdk.dir=$ANDROID_HOME' > android/local.properties"
           else
             echo "👉 1. ISSUE: Unknown Error - Not in predefined list"
             echo "👉 2. REASON: New error type. Need to read raw logs"
             echo "👉 3. SOLUTION: Check the 'What went wrong' section in build logs"
             echo "👉 4. HOW TO FIX:"
-            echo " a. Go to Actions tab → Click failed job"
-            echo " b. Open 'Build Stable APK' step logs"
-            echo " c. Find line starting with 'Execution failed for task'"
-            echo " d. Search that error on Google or send it to me"
+            echo "   a. Go to Actions tab → Click failed job"
+            echo "   b. Open 'Build Stable APK' step logs"
+            echo "   c. Find line starting with 'Execution failed for task'"
+            echo "   d. Search that error on Google or send it to me"
           fi
           echo ""
           echo "======================================================"
@@ -181,83 +180,7 @@ jobs:
             📅 Commit: ${{ github.sha }}
           files: android/app/build/outputs/apk/debug/LifeOS_v${{ github.run_number }}.apk
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}        uses: trufflesecurity/trufflehog@v3.81.0
-        with:
-          path: ./
-          base: main
-          head: HEAD
-
-      - name: Setup Node.js v22
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: 'npm'
-
-      - name: Setup Java v21
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'zulu'
-          java-version: '21'
-          cache: 'gradle'
-
-      - name: Install Dependencies
-        run: npm ci --legacy-peer-deps
-
-      # 9: Unit Test - টেস্ট থাকলে রান হবে, না থাকলে স্কিপ
-      - name: Run Unit Tests
-        run: npm test -- --coverage || echo "No tests found, skipping"
-
-      - name: Build Optimized Assets
-        run: npm run build
-
-      - name: Sync Capacitor
-        run: npx cap sync android
-
-      - name: Fix Permissions
-        run: chmod +x android/gradlew
-
-      - name: Build Stable APK
-        id: build_apk
-        continue-on-error: true
-        run: |
-          cd android && ./gradlew assembleDebug --stacktrace 2>&1 | tee build.log
-          exit ${PIPESTATUS[0]}
-
-      # 29: CodeQL Analyze
-      - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v3
-        if: always()
-
-      - name: 🩺 LifeOS Doctor - Auto Diagnosis
-        if: always()
-        run: |
-          echo "================ LIFEOS DOCTOR REPORT ================"
-          if [ ${{ steps.build_apk.outcome }} == 'success' ]; then
-            echo "✅ BUILD SUCCESS: No issues found. APK is ready."
-            exit 0
-          fi
-          echo "❌ BUILD FAILED: Issue detected"
-          echo ""
-          LOG_FILE="android/build.log"
-          if grep -q "Namespace not specified" $LOG_FILE; then
-            echo "👉 1. ISSUE: Namespace not specified for Android module"
-            echo "👉 2. REASON: Gradle 8+ requires 'namespace' in android/app/build.gradle"
-            echo "👉 3. SOLUTION: Add namespace property in build.gradle"
-            echo "👉 4. HOW TO FIX:"
-            echo "   a. Open android/app/build.gradle"
-            echo "   b. Inside android { } block, add at the top:"
-            echo "      namespace 'com.your.app.package'"
-            echo "   c. Replace 'com.your.app.package' with your actual package name from AndroidManifest.xml"
-          elif grep -q "license" $LOG_FILE && grep -q "not accepted" $LOG_FILE; then
-            echo "👉 1. ISSUE: Android SDK License not accepted"
-            echo "👉 2. REASON: GitHub Actions runner did not auto-accept SDK licenses"
-            echo "👉 3. SOLUTION: Add a step to accept licenses before build"
-            echo "👉 4. HOW TO FIX:"
-            echo "   a. After 'Setup Java' step, add this step:"
-            echo "      - name: Accept Android Licenses"
-            echo "        run: yes | sdkmanager --licenses"
-          elif grep -q "SDK location not found" $LOG_FILE; then
-            echo "👉 1. ISSUE: Android SDK not found"
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}. ISSUE: Android SDK not found"
             echo "👉 2. REASON: local.properties file missing"
             echo "👉 3. SOLUTION: Generate local.properties"
             echo "👉 4. HOW TO FIX:"
