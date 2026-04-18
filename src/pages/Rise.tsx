@@ -190,6 +190,7 @@ export default function RisePage() {
         );
       } else {
         await cancelAlarmByUuid(alarmId);
+        if (isNative) await cancelNativeAlarmShots(alarmId, alarm.alarm_time, alarm.days_of_week);
       }
     }
 
