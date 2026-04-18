@@ -43,9 +43,10 @@ export async function checkAllAlarmPermissions() {
   }
 
   const notifPerm = await LocalNotifications.checkPermissions();
+  const exactAlarm = await canScheduleExactAlarms();
   return {
     notifications: notifPerm.display === 'granted',
-    exactAlarm: true,
+    exactAlarm,
   };
 }
 
@@ -57,6 +58,8 @@ export async function checkAlarmPermission(): Promise<boolean> {
 export async function requestAllAlarmPermissions(): Promise<boolean> {
   if (!Capacitor.isNativePlatform()) return true;
   const notifPerm = await LocalNotifications.requestPermissions();
+  // Exact alarm permission must be granted in system settings on Android 12+
+  // We surface the settings panel from the UI when needed.
   return notifPerm.display === 'granted';
 }
 
