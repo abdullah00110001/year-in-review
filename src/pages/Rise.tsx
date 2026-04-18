@@ -299,6 +299,7 @@ export default function RisePage() {
   };
 
   const handleDeleteAlarm = async (alarmId: string) => {
+    const target = alarms.find(a => a.id === alarmId);
     const { error } = await supabase
       .from('rise_alarms')
       .delete()
@@ -309,9 +310,12 @@ export default function RisePage() {
       return;
     }
 
-    // Cancel native alarm
+    // Cancel both notification and native alarm channels
     if (isNative) {
       await cancelAlarmByUuid(alarmId);
+      if (target) {
+        await cancelNativeAlarmShots(alarmId, target.alarm_time, target.days_of_week);
+      }
     }
 
     toast.success('Alarm deleted');
