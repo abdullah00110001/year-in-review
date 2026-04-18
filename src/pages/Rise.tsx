@@ -63,6 +63,15 @@ export default function RisePage() {
       // Request native permissions on mount
       if (isNative) {
         requestRisePermissions().catch(console.error);
+        // On Android 12+, exact alarm permission must be granted in system settings
+        canScheduleExactAlarms().then((ok) => {
+          if (!ok) {
+            toast.warning('Tap to allow exact alarms (required for wake-up)', {
+              action: { label: 'Open settings', onClick: () => openExactAlarmSettings() },
+              duration: 8000,
+            });
+          }
+        }).catch(() => {});
       }
     }
   }, [user]);
