@@ -593,6 +593,89 @@ export type Database = {
           },
         ]
       }
+      daily_custom_fields: {
+        Row: {
+          created_at: string
+          field_key: string
+          field_type: string
+          id: string
+          is_active: boolean
+          label: string
+          sort_order: number
+          unit: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          field_key: string
+          field_type: string
+          id?: string
+          is_active?: boolean
+          label: string
+          sort_order?: number
+          unit?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          field_key?: string
+          field_type?: string
+          id?: string
+          is_active?: boolean
+          label?: string
+          sort_order?: number
+          unit?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      daily_custom_values: {
+        Row: {
+          created_at: string
+          date: string
+          field_id: string
+          id: string
+          updated_at: string
+          user_id: string
+          value_bool: boolean | null
+          value_number: number | null
+          value_text: string | null
+        }
+        Insert: {
+          created_at?: string
+          date?: string
+          field_id: string
+          id?: string
+          updated_at?: string
+          user_id: string
+          value_bool?: boolean | null
+          value_number?: number | null
+          value_text?: string | null
+        }
+        Update: {
+          created_at?: string
+          date?: string
+          field_id?: string
+          id?: string
+          updated_at?: string
+          user_id?: string
+          value_bool?: boolean | null
+          value_number?: number | null
+          value_text?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "daily_custom_values_field_id_fkey"
+            columns: ["field_id"]
+            isOneToOne: false
+            referencedRelation: "daily_custom_fields"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       daily_entries: {
         Row: {
           akhirah_score: number | null
@@ -3500,6 +3583,10 @@ export type Database = {
           _role: Database["public"]["Enums"]["app_role"]
           _user_id: string
         }
+        Returns: boolean
+      }
+      is_group_member: {
+        Args: { _group_id: string; _user_id: string }
         Returns: boolean
       }
     }
