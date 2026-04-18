@@ -140,11 +140,11 @@ export default function MobileNav() {
     { name: t('nav.settings'), href: '/settings', icon: Settings },
   ];
 
-  // Bottom navigation: Home | Track | + Daily Input (FAB) | Life | Settings
+  // Bottom navigation: Home | Habit | Rise | Life | Settings
   const bottomNavItems = [
     { name: language === 'bn' ? 'হোম' : 'Home', href: '/dashboard', icon: Home },
-    { name: language === 'bn' ? 'অভ্যাস' : 'Habits', href: '/habits', icon: CheckSquare },
-    { name: language === 'bn' ? 'ইনপুট' : 'Input', href: '/daily-input', icon: Plus, isCenter: true },
+    { name: language === 'bn' ? 'অভ্যাস' : 'Habit', href: '/habits', icon: CheckSquare },
+    { name: language === 'bn' ? 'রাইজ' : 'Rise', href: '/rise', icon: Flame },
     { name: language === 'bn' ? 'লাইফ' : 'Life', href: '/life-calendar', icon: Heart },
     { name: language === 'bn' ? 'সেটিংস' : 'Settings', href: '/settings', icon: Settings },
   ];
@@ -242,27 +242,7 @@ export default function MobileNav() {
           {bottomNavItems.map((item) => {
             const isActive = location.pathname === item.href || 
                            (item.href !== '/dashboard' && location.pathname.startsWith(item.href));
-            const isCenter = 'isCenter' in item && item.isCenter;
-            
-            if (isCenter) {
-              return (
-                <Link
-                  key={item.href}
-                  to={item.href}
-                  className="flex items-center justify-center -mt-5 select-none"
-                  style={{ minWidth: 44, minHeight: 44 }}
-                  onClick={triggerHaptic}
-                >
-                  <div className={cn(
-                    'h-14 w-14 rounded-full flex items-center justify-center shadow-lg transition-transform active:scale-95',
-                    isActive ? 'bg-primary' : 'bg-primary/90'
-                  )}>
-                    <item.icon className="h-6 w-6 text-primary-foreground" />
-                  </div>
-                </Link>
-              );
-            }
-            
+
             return (
               <Link
                 key={item.href}

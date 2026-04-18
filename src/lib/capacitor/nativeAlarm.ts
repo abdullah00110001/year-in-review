@@ -1,416 +1,342 @@
-import { LocalNotifications, LocalNotificationSchema, ScheduleOn } from '@capacitor/local-notifications';
-import { Haptics, ImpactStyle } from '@capacitor/haptics';
-import { isNative, isAndroid } from './platform';
-import { supabase } from '@/integrations/supabase/client';
+import { Capacitor } from '@capacitor/core';
+import { App } from '@capacitor/app';
+import { LocalNotifications, type LocalNotificationSchema } from '@capacitor/local-notifications';
+import { Preferences } from '@capacitor/preferences';
+import { Haptics } from '@capacitor/haptics';
 
 export interface AlarmConfig {
   id: number;
   title: string;
   body: string;
   scheduledAt: Date;
-  sound?: string;
-  vibrate?: boolean;
+  missionType: 'photo' | 'math' | 'shake' | 'qr' | 'memory' | 'typing' | 'walking' | 'squat' | 'breath_hold' | 'morning_intention' | 'stand_detection' | 'none';
   snoozeMinutes?: number;
-  missionType?: 'math' | 'shake' | 'photo' | 'qr' | 'memory' | 'typing' | 'walking' | 'squat';
+  alarmDbId?: string;
   intention?: string;
   whoDepends?: string;
   isGroupAlarm?: boolean;
   groupId?: string;
-  daysOfWeek?: number[];
-  alarmDbId?: string;
 }
 
-export interface AlarmNotification {
-  id: number;
-  notificationId: number;
-  dbId?: string;
+export type AlarmNotification = LocalNotificationSchema;
+
+const ALARM_STORAGE_KEY = 'scheduled_alarms';
+let listenersRegistered = false;
+
+export function uuidToNumericId(value: string): number {
+  let hash = 0;
+  for (let i = 0; i < value.length; i += 1) {
+    hash = (hash << 5) - hash + value.charCodeAt(i);
+    hash |= 0;
+  }
+  return Math.abs(hash) % 100000;
 }
 
-// Store for active alarms
-const activeAlarms: Map<number, AlarmNotification> = new Map();
-
-// Convert UUID to numeric ID for notifications (consistent hashing)
-export const uuidToNumericId = (uuid: string): number => {
-  const cleaned = uuid.replace(/-/g, '');
-  // Use first 8 hex chars for a consistent ID
-  return parseInt(cleaned.slice(0, 8), 16) % 2147483647;
-};
-
-// Calculate next alarm time based on days of week
-const getNextAlarmTime = (time: string, daysOfWeek: number[]): Date => {
-  const [hours, minutes] = time.split(':').map(Number);
-  const now = new Date();
-  const today = now.getDay();
-  
-  // Sort days to find next occurrence
-  for (let dayOffset = 0; dayOffset <= 7; dayOffset++) {
-    const checkDay = (today + dayOffset) % 7;
-    
-    if (daysOfWeek.includes(checkDay)) {
-      const alarmDate = new Date(now);
-      alarmDate.setDate(alarmDate.getDate() + dayOffset);
-      alarmDate.setHours(hours, minutes, 0, 0);
-      
-      if (alarmDate > now) {
-        return alarmDate;
-      }
-    }
+export async function checkAllAlarmPermissions() {
+  if (!Capacitor.isNativePlatform()) {
+    return { notifications: true, exactAlarm: true };
   }
-  
-  // Default to tomorrow same time
-  const tomorrow = new Date(now);
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  tomorrow.setHours(hours, minutes, 0, 0);
-  return tomorrow;
-};
 
-// Schedule a Rise alarm
-export const scheduleAlarm = async (config: AlarmConfig): Promise<boolean> => {
-  try {
-    const notification: LocalNotificationSchema = {
-      id: config.id,
-      title: config.title,
-      body: config.body,
-      schedule: {
-        at: config.scheduledAt,
-        allowWhileIdle: true, // Critical for alarms - survives Doze
-      },
-      sound: config.sound || 'alarm_sound.wav',
-      channelId: 'rise_alarms',
-      extra: {
-        type: 'rise_alarm',
-        missionType: config.missionType || 'math',
-        intention: config.intention,
-        whoDepends: config.whoDepends,
-        isGroupAlarm: config.isGroupAlarm,
-        groupId: config.groupId,
-        snoozeMinutes: config.snoozeMinutes || 5,
-        alarmDbId: config.alarmDbId
-      },
-      ongoing: true, // Persistent notification - cannot be swiped away
-      autoCancel: false,
-      // Full-screen intent for alarm behavior
-      largeBody: config.intention || 'Time to wake up and conquer the day!',
-      summaryText: config.whoDepends ? `${config.whoDepends} is counting on you` : undefined
-    };
+  const notifPerm = await LocalNotifications.checkPermissions();
+  return {
+    notifications: notifPerm.display === 'granted',
+    exactAlarm: true,
+  };
+}
 
-    // Android-specific settings for alarm reliability
-    if (isAndroid) {
-      notification.channelId = 'rise_alarms';
-    }
+export async function checkAlarmPermission(): Promise<boolean> {
+  const perms = await checkAllAlarmPermissions();
+  return perms.notifications && perms.exactAlarm;
+}
 
-    await LocalNotifications.schedule({ notifications: [notification] });
-    
-    activeAlarms.set(config.id, {
-      id: config.id,
-      notificationId: config.id,
-      dbId: config.alarmDbId
-    });
+export async function requestAllAlarmPermissions(): Promise<boolean> {
+  if (!Capacitor.isNativePlatform()) return true;
+  const notifPerm = await LocalNotifications.requestPermissions();
+  return notifPerm.display === 'granted';
+}
 
-    console.log('[NativeAlarm] Scheduled alarm:', config.id, 'at', config.scheduledAt.toLocaleString());
-    return true;
-  } catch (error) {
-    console.error('[NativeAlarm] Failed to schedule:', error);
-    return false;
-  }
-};
+export async function requestAlarmPermission(): Promise<boolean> {
+  return requestAllAlarmPermissions();
+}
 
-// Schedule recurring alarm based on days of week
-export const scheduleRecurringAlarm = async (
-  alarmDbId: string,
-  time: string,
-  daysOfWeek: number[],
-  config: Omit<AlarmConfig, 'id' | 'scheduledAt'>
-): Promise<boolean> => {
-  const numericId = uuidToNumericId(alarmDbId);
-  const nextTime = getNextAlarmTime(time, daysOfWeek);
-  
-  return scheduleAlarm({
-    ...config,
-    id: numericId,
-    scheduledAt: nextTime,
-    alarmDbId
-  });
-};
-
-// Cancel a scheduled alarm
-export const cancelAlarm = async (alarmId: number): Promise<boolean> => {
-  try {
-    await LocalNotifications.cancel({ notifications: [{ id: alarmId }] });
-    activeAlarms.delete(alarmId);
-    console.log('[NativeAlarm] Cancelled alarm:', alarmId);
-    return true;
-  } catch (error) {
-    console.error('[NativeAlarm] Failed to cancel:', error);
-    return false;
-  }
-};
-
-// Cancel alarm by database UUID
-export const cancelAlarmByUuid = async (uuid: string): Promise<boolean> => {
-  return cancelAlarm(uuidToNumericId(uuid));
-};
-
-// Cancel all Rise alarms
-export const cancelAllAlarms = async (): Promise<boolean> => {
-  try {
-    const pending = await LocalNotifications.getPending();
-    const alarmNotifications = pending.notifications.filter(n => 
-      n.extra?.type === 'rise_alarm'
-    );
-    
-    if (alarmNotifications.length > 0) {
-      await LocalNotifications.cancel({ 
-        notifications: alarmNotifications.map(n => ({ id: n.id }))
-      });
-    }
-    
-    activeAlarms.clear();
-    console.log('[NativeAlarm] Cancelled all alarms');
-    return true;
-  } catch (error) {
-    console.error('[NativeAlarm] Failed to cancel all:', error);
-    return false;
-  }
-};
-
-// Snooze an active alarm
-export const snoozeAlarm = async (alarmId: number, minutes: number = 5): Promise<boolean> => {
-  try {
-    // Cancel current notification
-    await LocalNotifications.cancel({ notifications: [{ id: alarmId }] });
-    
-    // Reschedule for snooze duration
-    const snoozeTime = new Date();
-    snoozeTime.setMinutes(snoozeTime.getMinutes() + minutes);
-    
-    await LocalNotifications.schedule({
-      notifications: [{
-        id: alarmId,
-        title: '⏰ Snoozed Alarm',
-        body: `Wake up! (Snoozed ${minutes} min)`,
-        schedule: { at: snoozeTime, allowWhileIdle: true },
-        sound: 'alarm_sound.wav',
-        channelId: 'rise_alarms',
-        ongoing: true,
-        autoCancel: false,
-        extra: {
-          type: 'rise_alarm',
-          snoozed: true,
-          snoozeCount: 1
-        }
-      }]
-    });
-    
-    console.log('[NativeAlarm] Snoozed alarm:', alarmId, 'for', minutes, 'minutes');
-    return true;
-  } catch (error) {
-    console.error('[NativeAlarm] Failed to snooze:', error);
-    return false;
-  }
-};
-
-// Dismiss alarm (after mission completed)
-export const dismissAlarm = async (alarmId: number, userId?: string): Promise<boolean> => {
-  try {
-    await LocalNotifications.cancel({ notifications: [{ id: alarmId }] });
-    const alarmData = activeAlarms.get(alarmId);
-    activeAlarms.delete(alarmId);
-    
-    // Success haptic feedback
-    if (isNative) {
-      await Haptics.impact({ style: ImpactStyle.Medium });
-    }
-    
-    // Log to database
-    if (userId && alarmData?.dbId) {
-      try {
-        await supabase.from('rise_alarm_logs').insert({
-          user_id: userId,
-          alarm_id: alarmData.dbId,
-          scheduled_time: new Date().toISOString(),
-          actual_wake_time: new Date().toISOString(),
-          status: 'completed',
-          verification_completed: true
-        });
-      } catch (dbError) {
-        console.error('[NativeAlarm] Failed to log to database:', dbError);
-      }
-    }
-    
-    console.log('[NativeAlarm] Dismissed alarm:', alarmId);
-    return true;
-  } catch (error) {
-    console.error('[NativeAlarm] Failed to dismiss:', error);
-    return false;
-  }
-};
-
-// Get all pending alarms
-export const getPendingAlarms = async (): Promise<LocalNotificationSchema[]> => {
-  try {
-    const { notifications } = await LocalNotifications.getPending();
-    return notifications.filter(n => n.extra?.type === 'rise_alarm');
-  } catch {
-    return [];
-  }
-};
-
-// Check if alarm permission is granted
-export const checkAlarmPermission = async (): Promise<boolean> => {
-  try {
-    const { display } = await LocalNotifications.checkPermissions();
-    return display === 'granted';
-  } catch {
-    return false;
-  }
-};
-
-// Request alarm permission
-export const requestAlarmPermission = async (): Promise<boolean> => {
-  try {
-    const { display } = await LocalNotifications.requestPermissions();
-    return display === 'granted';
-  } catch {
-    return false;
-  }
-};
-
-// Trigger alarm vibration pattern
-export const triggerAlarmVibration = async (intensity: 'light' | 'medium' | 'heavy' = 'heavy') => {
-  if (!isNative) return;
-  
-  try {
-    const style = intensity === 'light' ? ImpactStyle.Light : 
-                  intensity === 'medium' ? ImpactStyle.Medium : ImpactStyle.Heavy;
-    
-    // Strong vibration pattern for wake-up
-    for (let i = 0; i < 5; i++) {
-      await Haptics.impact({ style });
-      await new Promise(resolve => setTimeout(resolve, 300));
-    }
-  } catch (error) {
-    console.error('[NativeAlarm] Vibration failed:', error);
-  }
-};
-
-// Initialize alarm notification channel (Android)
-export const initializeAlarmChannel = async () => {
-  if (!isAndroid) return;
-  
+export async function initializeAlarmChannel(): Promise<void> {
+  if (!Capacitor.isNativePlatform()) return;
   try {
     await LocalNotifications.createChannel({
-      id: 'rise_alarms',
+      id: 'rise_alarm',
       name: 'Rise Alarms',
-      description: 'Wake-up alarms from Rise - Critical alerts that bypass DND',
-      importance: 5, // Max importance - shows as heads-up notification
-      visibility: 1, // Public - shows on lock screen
-      vibration: true,
-      sound: 'alarm_sound.wav',
-      lights: true,
-      lightColor: '#ef4444' // Red for urgency
-    });
-    
-    // Create channel for snoozed alarms
-    await LocalNotifications.createChannel({
-      id: 'rise_snoozed',
-      name: 'Snoozed Alarms',
-      description: 'Reminders for snoozed alarms',
+      description: 'High priority alarms for Rise',
       importance: 5,
       visibility: 1,
+      // Use system default alarm sound — bundling a custom sound requires a raw resource.
+      // Omitting `sound` makes Android use the channel's default notification sound.
       vibration: true,
-      sound: 'alarm_sound.wav'
+      lights: true,
+      lightColor: '#f97316',
     });
-    
-    console.log('[NativeAlarm] Channels created');
   } catch (error) {
-    console.error('[NativeAlarm] Channel creation failed:', error);
+    console.error('Failed to initialize alarm channel', error);
   }
-};
+}
 
-// Reschedule all alarms after boot (called from boot receiver)
-export const rescheduleAllAlarmsAfterBoot = async (userId: string) => {
-  try {
-    const { data: alarms } = await supabase
-      .from('rise_alarms')
-      .select('*')
-      .eq('user_id', userId)
-      .eq('is_enabled', true);
-    
-    if (!alarms) return;
-    
-    for (const alarm of alarms) {
-      await scheduleRecurringAlarm(
-        alarm.id,
-        alarm.alarm_time,
-        alarm.days_of_week || [0, 1, 2, 3, 4, 5, 6],
-        {
-          title: alarm.label || 'Rise Alarm',
-          body: alarm.intention || 'Time to wake up!',
-          missionType: alarm.verification_type as any,
-          intention: alarm.intention || undefined,
-          snoozeMinutes: alarm.snooze_interval_minutes || 5
-        }
-      );
-    }
-    
-    console.log('[NativeAlarm] Rescheduled', alarms.length, 'alarms after boot');
-  } catch (error) {
-    console.error('[NativeAlarm] Failed to reschedule after boot:', error);
-  }
-};
-
-// Listen for alarm notifications
-export const setupAlarmListeners = (
-  onAlarmTriggered: (alarmId: number, extra: any) => void,
-  onAlarmAction: (alarmId: number, action: string) => void
-) => {
-  // When notification is received while app is open
-  LocalNotifications.addListener('localNotificationReceived', (notification) => {
-    if (notification.extra?.type === 'rise_alarm') {
-      console.log('[NativeAlarm] Alarm triggered:', notification.id);
-      onAlarmTriggered(notification.id, notification.extra);
-      triggerAlarmVibration('heavy');
-    }
-  });
-
-  // When user taps on notification or action button
-  LocalNotifications.addListener('localNotificationActionPerformed', (action) => {
-    const { notification, actionId } = action;
-    if (notification.extra?.type === 'rise_alarm') {
-      console.log('[NativeAlarm] Action performed:', actionId);
-      onAlarmAction(notification.id, actionId || 'tap');
-    }
-  });
-};
-
-// Register alarm action types (snooze, dismiss buttons)
-export const registerAlarmActions = async () => {
-  if (!isNative) return;
-  
+export async function registerAlarmActions(): Promise<void> {
+  if (!Capacitor.isNativePlatform()) return;
   try {
     await LocalNotifications.registerActionTypes({
       types: [
         {
-          id: 'alarm_actions',
+          id: 'ALARM_ACTIONS',
           actions: [
-            {
-              id: 'snooze',
-              title: 'Snooze 5 min',
-              foreground: false
-            },
-            {
-              id: 'dismiss',
-              title: 'I\'m Up!',
-              foreground: true,
-              destructive: false
-            }
-          ]
-        }
-      ]
+            { id: 'dismiss', title: 'Dismiss' },
+            { id: 'snooze', title: 'Snooze' },
+          ],
+        },
+      ],
     });
-    console.log('[NativeAlarm] Action types registered');
   } catch (error) {
-    console.error('[NativeAlarm] Failed to register actions:', error);
+    console.error('Failed to register alarm actions', error);
   }
-};
+}
+
+export async function scheduleAlarm(config: AlarmConfig): Promise<boolean> {
+  if (!Capacitor.isNativePlatform()) {
+    console.log('Web alarm scheduled', config);
+    return true;
+  }
+
+  try {
+    await LocalNotifications.schedule({
+      notifications: [
+        {
+          id: config.id,
+          title: config.title,
+          body: config.body,
+          schedule: { at: config.scheduledAt, allowWhileIdle: true },
+          channelId: 'rise_alarm',
+          actionTypeId: 'ALARM_ACTIONS',
+          extra: {
+            missionType: config.missionType,
+            snoozeMinutes: config.snoozeMinutes || 5,
+            alarmDbId: config.alarmDbId,
+            originalId: config.id,
+            intention: config.intention,
+            whoDepends: config.whoDepends,
+            isGroupAlarm: config.isGroupAlarm,
+            groupId: config.groupId,
+          },
+          autoCancel: false,
+          ongoing: true,
+        },
+      ],
+    });
+
+    await saveAlarmToStorage(config);
+    return true;
+  } catch (error) {
+    console.error('Schedule alarm failed', error);
+    return false;
+  }
+}
+
+export async function scheduleRecurringAlarm(
+  uuid: string,
+  time: string,
+  daysOfWeek: number[],
+  config: Omit<AlarmConfig, 'id' | 'scheduledAt'>,
+): Promise<boolean> {
+  const [hours, minutes] = time.split(':').map(Number);
+  const baseId = uuidToNumericId(uuid);
+
+  await cancelAlarmByUuid(uuid);
+
+  for (let i = 0; i < 7; i += 1) {
+    if (!daysOfWeek.includes(i)) continue;
+
+    const nextDate = getNextDayOfWeek(i, hours, minutes);
+    const success = await scheduleAlarm({
+      id: baseId + i,
+      ...config,
+      scheduledAt: nextDate,
+    });
+
+    if (!success) return false;
+  }
+
+  return true;
+}
+
+export async function cancelAlarm(id: number): Promise<boolean> {
+  if (!Capacitor.isNativePlatform()) return true;
+  try {
+    await LocalNotifications.cancel({ notifications: [{ id }] });
+    return true;
+  } catch (error) {
+    console.error('Cancel alarm failed', error);
+    return false;
+  }
+}
+
+export async function cancelAlarmByUuid(uuid: string): Promise<boolean> {
+  const baseId = uuidToNumericId(uuid);
+  const ids = Array.from({ length: 7 }, (_, i) => ({ id: baseId + i }));
+
+  try {
+    if (Capacitor.isNativePlatform()) {
+      await LocalNotifications.cancel({ notifications: ids });
+    }
+    await removeAlarmFromStorage(baseId);
+    return true;
+  } catch (error) {
+    console.error('Cancel alarm by uuid failed', error);
+    return false;
+  }
+}
+
+export async function cancelAllAlarms(): Promise<boolean> {
+  try {
+    if (Capacitor.isNativePlatform()) {
+      const pending = await LocalNotifications.getPending();
+      if (pending.notifications.length > 0) {
+        await LocalNotifications.cancel({
+          notifications: pending.notifications.map((n) => ({ id: n.id })),
+        });
+      }
+    }
+    await Preferences.remove({ key: ALARM_STORAGE_KEY });
+    return true;
+  } catch (error) {
+    console.error('Cancel all alarms failed', error);
+    return false;
+  }
+}
+
+export async function snoozeAlarm(id: number, minutes = 5): Promise<boolean> {
+  if (!Capacitor.isNativePlatform()) return true;
+
+  try {
+    const pending = await LocalNotifications.getPending();
+    const existing = pending.notifications.find((notification) => notification.id === id);
+    await cancelAlarm(id);
+
+    const nextAt = new Date(Date.now() + minutes * 60 * 1000);
+    await LocalNotifications.schedule({
+      notifications: [
+        {
+          id,
+          title: existing?.title || 'Rise Alarm',
+          body: existing?.body || 'Time to wake up!',
+          schedule: { at: nextAt, allowWhileIdle: true },
+          channelId: 'rise_alarm',
+          actionTypeId: 'ALARM_ACTIONS',
+          extra: { ...(existing?.extra || {}), snoozed: true },
+          autoCancel: false,
+          ongoing: true,
+        },
+      ],
+    });
+    return true;
+  } catch (error) {
+    console.error('Snooze alarm failed', error);
+    return false;
+  }
+}
+
+export async function dismissAlarm(id: number, userId?: string): Promise<boolean> {
+  if (userId) {
+    console.log('Dismiss alarm for user', userId);
+  }
+  return cancelAlarm(id);
+}
+
+export async function getPendingAlarms() {
+  if (!Capacitor.isNativePlatform()) return [];
+  const result = await LocalNotifications.getPending();
+  return result.notifications;
+}
+
+export async function triggerAlarmVibration(): Promise<boolean> {
+  try {
+    await Haptics.vibrate({ duration: 800 });
+    return true;
+  } catch (error) {
+    console.error('Alarm vibration failed', error);
+    return false;
+  }
+}
+
+export function setupAlarmListeners(
+  onTriggered: (alarmId: number, extra?: Record<string, any>) => void,
+  onAction: (alarmId: number, action: string) => void,
+): void {
+  if (!Capacitor.isNativePlatform() || listenersRegistered) return;
+  listenersRegistered = true;
+
+  LocalNotifications.addListener('localNotificationReceived', (notification) => {
+    onTriggered(notification.id, notification.extra as Record<string, any> | undefined);
+  });
+
+  LocalNotifications.addListener('localNotificationActionPerformed', (result) => {
+    onAction(result.notification.id, result.actionId);
+  });
+}
+
+export async function restoreAlarmsOnBoot() {
+  if (!Capacitor.isNativePlatform()) return;
+
+  App.addListener('appStateChange', async ({ isActive }) => {
+    if (!isActive) return;
+    const stored = await Preferences.get({ key: ALARM_STORAGE_KEY });
+    if (!stored.value) return;
+
+    const alarms: AlarmConfig[] = JSON.parse(stored.value);
+    const now = new Date();
+
+    for (const alarm of alarms) {
+      const scheduledAt = new Date(alarm.scheduledAt);
+      if (scheduledAt > now) {
+        await scheduleAlarm({ ...alarm, scheduledAt });
+      }
+    }
+  });
+}
+
+export async function rescheduleAllAlarmsAfterBoot(userId?: string): Promise<void> {
+  if (userId) {
+    console.log('Rescheduling alarms for user', userId);
+  }
+  await restoreAlarmsOnBoot();
+}
+
+function getNextDayOfWeek(dayOfWeek: number, hours: number, minutes: number): Date {
+  const now = new Date();
+  const result = new Date();
+  result.setHours(hours, minutes, 0, 0);
+
+  const currentDay = now.getDay();
+  let diff = dayOfWeek - currentDay;
+  if (diff < 0 || (diff === 0 && result <= now)) diff += 7;
+
+  result.setDate(now.getDate() + diff);
+  return result;
+}
+
+async function saveAlarmToStorage(config: AlarmConfig) {
+  const stored = await Preferences.get({ key: ALARM_STORAGE_KEY });
+  const alarms: AlarmConfig[] = stored.value ? JSON.parse(stored.value) : [];
+  const index = alarms.findIndex((alarm) => alarm.id === config.id);
+  const next = { ...config, scheduledAt: new Date(config.scheduledAt) as unknown as Date };
+
+  if (index >= 0) alarms[index] = next;
+  else alarms.push(next);
+
+  await Preferences.set({ key: ALARM_STORAGE_KEY, value: JSON.stringify(alarms) });
+}
+
+async function removeAlarmFromStorage(baseId: number) {
+  const stored = await Preferences.get({ key: ALARM_STORAGE_KEY });
+  if (!stored.value) return;
+
+  const alarms: AlarmConfig[] = JSON.parse(stored.value);
+  const filtered = alarms.filter((alarm) => !Array.from({ length: 7 }, (_, i) => baseId + i).includes(alarm.id));
+  await Preferences.set({ key: ALARM_STORAGE_KEY, value: JSON.stringify(filtered) });
+}

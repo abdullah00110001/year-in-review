@@ -13,15 +13,17 @@ import ProtectedRoute from "@/components/ProtectedRoute";
 import AdminProtectedRoute from "./components/admin/AdminProtectedRoute";
 import ScrollToTop from "@/components/ScrollToTop";
 import SmartNotificationProvider from "@/components/notifications/SmartNotifications";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { isNative } from "@/lib/capacitor/platform";
 import NativeSplash from "@/components/NativeSplash";
 import UpdatePrompt from "@/components/UpdatePrompt";
 import ForceUpdateScreen from "@/components/ForceUpdateScreen";
 import { useAppUpdate } from "@/hooks/useAppUpdate";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
+import { LocalNotifications } from '@capacitor/local-notifications';
+import { useToast } from "@/hooks/use-toast";
 
-// All pages imported directly - no lazy loading (fixes Capacitor WebView chunk failures)
+// All pages imported directly - no lazy loading
 import Auth from "./pages/Auth";
 import LandingPage from "./pages/LandingPage";
 import Dashboard from "./pages/Dashboard";
@@ -57,7 +59,6 @@ import Reflections from "./pages/Reflections";
 import ComparativeAnalytics from "./pages/ComparativeAnalytics";
 import ShieldPage from "./pages/Shield";
 import RisePage from "./pages/Rise";
-import PDFTools from "./pages/PDFTools";
 import TimeTracking from "./pages/TimeTracking";
 import LifeCalendar from "./pages/LifeCalendar";
 import Premium from "./pages/Premium";
@@ -68,7 +69,6 @@ import FeedbackCenter from "./pages/admin/FeedbackCenter";
 import AdminAnalytics from "./pages/admin/AdminAnalytics";
 import AdminNotifications from "./pages/admin/AdminNotifications";
 import AdminCommandCenter from "./pages/admin/AdminCommandCenter";
-
 import AdminPanel from "./pages/admin/AdminPanel";
 import DownloadApp from "./pages/DownloadApp";
 
@@ -96,15 +96,55 @@ const queryClient = new QueryClient({
 const AppContent = () => {
   const appUpdate = useAppUpdate();
   usePushNotifications();
+  const { toast } = useToast();
 
-  // Full-screen force update blocks everything
+  // পারমিশন চেক + রিকোয়েস্ট - অ্যাপ স্টার্ট হলেই রান হবে
+  useEffect(() => {
+    const requestPermissions = async () => {
+      if (!isNative) return;
+
+      try {
+        // 1. চেক করো অলরেডি পারমিশন আছে কিনা
+        const permResult = await LocalNotifications.checkPermissions();
+
+        if (permResult.display!== 'granted') {
+          console.log('[Permissions] Requesting notification permission...');
+          // 2. না থাকলে চাও - এই লাইনেই পপআপ আসবে
+          const requestResult = await LocalNotifications.requestPermissions();
+
+          if (requestResult.display === 'granted') {
+            toast({
+              title: "Notifications Enabled ✅",
+              description: "Rise alarms will work properly now",
+              duration: 3000,
+            });
+          } else {
+            toast({
+              title: "Permission Denied",
+              description: "Go to Settings > Apps > Life OS > Notifications to enable",
+              variant: "destructive",
+              duration: 8000,
+            });
+          }
+        } else {
+          console.log('[Permissions] Notification permission already granted');
+        }
+      } catch (error) {
+        console.error('[Permissions] Failed to request:', error);
+      }
+    };
+
+    // Splash শেষ হওয়ার 1 সেকেন্ড পর পারমিশন চাও
+    const timer = setTimeout(() => {
+      requestPermissions();
+    }, 1000);
+
+    return () => clearTimeout(timer);
+  }, []);
+
   if (appUpdate.showForceScreen) {
     return (
-      <ForceUpdateScreen
-        downloadUrl={appUpdate.downloadUrl}
-        releaseNotes={appUpdate.releaseNotes}
-        latestVersion={appUpdate.latestVersion}
-      />
+      <ForceUpdateScreen downloadUrl={appUpdate.downloadUrl} releaseNotes={appUpdate.releaseNotes} latestVersion={appUpdate.latestVersion} />
     );
   }
 
@@ -113,14 +153,7 @@ const AppContent = () => {
       <Toaster />
       <Sonner />
       <SmartNotificationProvider />
-      <UpdatePrompt
-        open={appUpdate.showPrompt}
-        onDismiss={appUpdate.dismiss}
-        downloadUrl={appUpdate.downloadUrl}
-        isForceUpdate={appUpdate.isForceUpdate}
-        releaseNotes={appUpdate.releaseNotes}
-        latestVersion={appUpdate.latestVersion}
-      />
+      <UpdatePrompt open={appUpdate.showPrompt} onDismiss={appUpdate.dismiss} downloadUrl={appUpdate.downloadUrl} isForceUpdate={appUpdate.isForceUpdate} releaseNotes={appUpdate.releaseNotes} latestVersion={appUpdate.latestVersion} />
       <BrowserRouter>
         <ScrollToTop />
         <Routes>
@@ -163,10 +196,8 @@ const AppContent = () => {
           <Route path="/rise" element={<ProtectedRoute><RisePage /></ProtectedRoute>} />
           <Route path="/time-tracking" element={<ProtectedRoute><TimeTracking /></ProtectedRoute>} />
           <Route path="/life-calendar" element={<ProtectedRoute><LifeCalendar /></ProtectedRoute>} />
-          <Route path="/pdf-tools" element={<PDFTools />} />
+         
           <Route path="/premium" element={<ProtectedRoute><Premium /></ProtectedRoute>} />
-          
-          {/* Admin routes */}
           <Route path="/admin" element={<AdminProtectedRoute><AdminOverview /></AdminProtectedRoute>} />
           <Route path="/admin/users" element={<AdminProtectedRoute><UserInspector /></AdminProtectedRoute>} />
           <Route path="/admin/at-risk" element={<AdminProtectedRoute><AtRiskUsers /></AdminProtectedRoute>} />
@@ -175,8 +206,6 @@ const AppContent = () => {
           <Route path="/admin/notifications" element={<AdminProtectedRoute><AdminNotifications /></AdminProtectedRoute>} />
           <Route path="/admin/panel" element={<AdminProtectedRoute><AdminPanel /></AdminProtectedRoute>} />
           <Route path="/admin/command" element={<AdminProtectedRoute><AdminCommandCenter /></AdminProtectedRoute>} />
-          
-          
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>

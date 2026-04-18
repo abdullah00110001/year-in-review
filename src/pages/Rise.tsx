@@ -11,13 +11,11 @@ import { RiseAlarmEditor } from '@/components/rise/RiseAlarmEditor';
 import { RiseGroupWake } from '@/components/rise/RiseGroupWake';
 import { RiseReports } from '@/components/rise/RiseReports';
 import { RiseSettings } from '@/components/rise/RiseSettings';
+import { CommunityWakeFeed } from '@/components/rise/CommunityWakeFeed';
 import { Card, CardContent } from '@/components/ui/card';
 import { 
   scheduleRecurringAlarm, 
   cancelAlarmByUuid, 
-  uuidToNumericId,
-  checkAlarmPermission,
-  requestAlarmPermission 
 } from '@/lib/capacitor/nativeAlarm';
 import { isNative } from '@/lib/capacitor/platform';
 import { requestRisePermissions } from '@/lib/capacitor/permissions';
@@ -52,6 +50,7 @@ export default function RisePage() {
   const [streak, setStreak] = useState<RiseStreak | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [nextAlarm, setNextAlarm] = useState<{ time: string; countdown: string } | null>(null);
+  void nextAlarm; // header no longer renders this; kept for backward compat
   
   // Editor state
   const [editorOpen, setEditorOpen] = useState(false);
@@ -349,13 +348,9 @@ export default function RisePage() {
 
   return (
     <div className="min-h-screen bg-background pb-20">
-      {/* Header - only show on alarms tab */}
-      {activeTab === 'alarms' && (
-        <RiseHeader 
-          streak={streak?.current_streak || 0}
-          nextAlarm={nextAlarm}
-        />
-      )}
+      {/* Header - shown on every tab so back button is always reachable */}
+      <RiseHeader streak={streak?.current_streak || 0} />
+
 
       {/* Content Area */}
       <div className="px-4 mt-4">
@@ -398,6 +393,10 @@ export default function RisePage() {
 
         {activeTab === 'group' && (
           <RiseGroupWake />
+        )}
+
+        {activeTab === 'community' && (
+          <CommunityWakeFeed />
         )}
 
         {activeTab === 'reports' && (

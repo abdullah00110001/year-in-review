@@ -1,14 +1,17 @@
 package com.mylifeos.app;
 
+import android.content.Intent;
 import android.os.Bundle;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebResourceError;
 import android.util.Log;
-import com.getcapacitor.BridgeActivity;
 
+import com.getcapacitor.BridgeActivity;
+import com.mylifeos.app.plugins.RiseAlarmPlugin;
 import com.mylifeos.app.plugins.AppUpdatePlugin;
+import com.mylifeos.app.plugins.ShieldPlugin;
 
 public class MainActivity extends BridgeActivity {
     private static final String TAG = "LifeOS";
@@ -17,14 +20,46 @@ public class MainActivity extends BridgeActivity {
     protected void onCreate(Bundle savedInstanceState) {
         // Register custom plugins before super.onCreate
         registerPlugin(AppUpdatePlugin.class);
+        registerPlugin(RiseAlarmPlugin.class);
+        registerPlugin(ShieldPlugin.class);
+        
         super.onCreate(savedInstanceState);
         Log.d(TAG, "MainActivity onCreate");
+
+        // Handle alarm intent if app was launched by alarm
+        handleAlarmIntent(getIntent());
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        handleAlarmIntent(intent);
+    }
+
+    private void handleAlarmIntent(Intent intent) {
+        if (intent != null && intent.getBooleanExtra("rise_alarm_trigger", false)) {
+            String title = intent.getStringExtra("title");
+            String body = intent.getStringExtra("body");
+            String missionType = intent.getStringExtra("missionType");
+            String dbId = intent.getStringExtra("dbId");
+            Log.d(TAG, "Alarm triggered: " + title);
+
+            // Send to JS side via event
+            getBridge().getWebView().post(() -> {
+                getBridge().triggerJSEvent("riseAlarmTriggered", "{"
+                    + "\"title\":\"" + title + "\","
+                    + "\"body\":\"" + body + "\","
+                    + "\"missionType\":\"" + missionType + "\","
+                    + "\"dbId\":\"" + dbId + "\""
+                    + "}");
+            });
+        }
     }
 
     @Override
     public void onStart() {
         super.onStart();
-        
         // Delay WebView setup to ensure bridge is fully initialized
         getWindow().getDecorView().post(() -> {
             try {
@@ -32,7 +67,6 @@ public class MainActivity extends BridgeActivity {
                     Log.w(TAG, "Bridge or WebView not ready yet");
                     return;
                 }
-                
                 WebView webView = getBridge().getWebView();
                 
                 // Prevent WebView crashes from killing the app
@@ -40,7 +74,7 @@ public class MainActivity extends BridgeActivity {
                 webView.getSettings().setDomStorageEnabled(true);
                 webView.getSettings().setAllowFileAccess(true);
                 webView.getSettings().setMixedContentMode(android.webkit.WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
-                
+
                 webView.setWebViewClient(new WebViewClient() {
                     @Override
                     public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
@@ -48,12 +82,13 @@ public class MainActivity extends BridgeActivity {
                         if (request != null && request.isForMainFrame()) {
                             Log.e(TAG, "WebView main frame error: " + error.getDescription());
                             view.loadData(
-                                "<html><body style='background:#0f172a;color:white;display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;flex-direction:column'>" +
-                                "<h2>⏳ Loading Life OS...</h2>" +
-                                "<p>Check your internet connection</p>" +
-                                "<button onclick='location.reload()' style='margin-top:20px;padding:12px 24px;background:#0ea5e9;color:white;border:none;border-radius:8px;font-size:16px'>Retry</button>" +
-                                "</body></html>",
-                                "text/html", "UTF-8"
+                                "<html><body style='background:#0f172a;color:white;display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;flex-direction:column'>"
+                                    + "<h2>⏳ Loading Life OS...</h2>"
+                                    + "<p>Check your internet connection</p>"
+                                    + "<button onclick='location.reload()' style='margin-top:20px;padding:12px 24px;background:#0ea5e9;color:white;border:none;border-radius:8px;font-size:16px'>Retry</button>"
+                                    + "</body></html>",
+                                "text/html",
+                                "UTF-8"
                             );
                         }
                     }
@@ -73,7 +108,6 @@ public class MainActivity extends BridgeActivity {
                         return super.shouldOverrideUrlLoading(view, request);
                     }
                 });
-                
                 Log.d(TAG, "WebView hardened successfully");
             } catch (Exception e) {
                 Log.e(TAG, "WebView setup error: " + e.getMessage());

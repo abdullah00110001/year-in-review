@@ -17,6 +17,7 @@ import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
 import HabitFrictionSystem from '@/components/insights/HabitFrictionSystem';
+import { CustomFieldsManager } from '@/components/daily/CustomFieldsManager';
 import { cn } from '@/lib/utils';
 import { 
   BookOpen, Clock, Dumbbell, Moon, Brain, Target, Smartphone,
@@ -1082,6 +1083,9 @@ export default function DailyInput() {
             </Card>
           </TabsContent>
         </Tabs>
+
+        {/* User-defined custom fields */}
+        <CustomFieldsManager date={selectedDate} readOnly={viewMode} />
 
         {/* Save Button */}
         {!viewMode && (

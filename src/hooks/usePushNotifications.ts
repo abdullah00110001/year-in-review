@@ -13,7 +13,40 @@ export function usePushNotifications() {
 
   // Request permission and register for push
   const registerPush = useCallback(async () => {
-    if (!isNative || !user || registeredRef.current) return;
+    if (registeredRef.current) return;
+
+    // Web fallback: use browser Notification API
+    if (!isNative) {
+      try {
+        if (typeof Notification === 'undefined') {
+          console.warn('[Push] Notifications API not available');
+          setPermissionStatus('denied');
+          return;
+        }
+        const currentPerm = Notification.permission;
+        if (currentPerm === 'granted') {
+          setPermissionStatus('granted');
+          registeredRef.current = true;
+          return;
+        }
+        if (currentPerm === 'denied') {
+          setPermissionStatus('denied');
+          return;
+        }
+        // Must be called directly from user gesture
+        const result = await Notification.requestPermission();
+        setPermissionStatus(result as PushPermissionStatus);
+        if (result === 'granted') {
+          registeredRef.current = true;
+        }
+      } catch (e) {
+        console.warn('[Push] Web notification permission failed:', e);
+        setPermissionStatus('denied');
+      }
+      return;
+    }
+
+    if (!user) return;
 
     try {
       const { PushNotifications } = await import('@capacitor/push-notifications');
@@ -137,15 +170,23 @@ export function usePushNotifications() {
     }
   }, [user]);
 
+  // Check web permission status on mount
+  useEffect(() => {
+    if (!isNative && typeof Notification !== 'undefined') {
+      setPermissionStatus(Notification.permission as PushPermissionStatus);
+    }
+  }, []);
+
   // Auto-register when user logs in (delayed for WebView stability)
   useEffect(() => {
-    if (!user || !isNative) return;
+    if (!user) return;
 
-    const timer = setTimeout(() => {
-      registerPush();
-    }, 3000); // Increased delay to let WebView fully initialize
-
-    return () => clearTimeout(timer);
+    if (isNative) {
+      const timer = setTimeout(() => {
+        registerPush();
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
   }, [user?.id]);
 
   return { permissionStatus, token, registerPush };

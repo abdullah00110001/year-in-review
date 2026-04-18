@@ -6,24 +6,15 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Slider } from '@/components/ui/slider';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { 
-  X, 
-  Pencil,
-  Camera, 
-  Calculator, 
-  Footprints, 
-  QrCode, 
-  Brain, 
-  Keyboard,
-  Dumbbell,
-  Smartphone,
-  Lock,
-  Volume2,
-  Vibrate,
-  Play,
-  ChevronRight
-} from 'lucide-react';
+import { X, Pencil, Camera, Calculator, Footprints, QrCode, Brain, Keyboard, Dumbbell, Smartphone, Lock, Volume2, Vibrate, Play, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
+import {
+  scheduleRecurringAlarm,
+  cancelAlarmByUuid,
+  requestAllAlarmPermissions,
+  checkAllAlarmPermissions
+} from '@/lib/capacitor/nativeAlarm';
 
 interface AlarmData {
   id?: string;
@@ -39,6 +30,7 @@ interface AlarmData {
   vibration_enabled: boolean;
   volume: number;
   gentle_wakeup_seconds: number;
+  is_local?: boolean;
 }
 
 interface RiseAlarmEditorProps {
@@ -83,35 +75,76 @@ const SOUNDS = [
   { id: 'intense', name: 'Intense Alarm' },
 ];
 
-export function RiseAlarmEditor({ 
-  open, 
-  onClose, 
-  onSave, 
-  initialData,
-  isEditing = false 
-}: RiseAlarmEditorProps) {
-  const [alarm, setAlarm] = useState<AlarmData>({ ...DEFAULT_ALARM, ...initialData });
+export function RiseAlarmEditor({ open, onClose, onSave, initialData, isEditing = false }: RiseAlarmEditorProps) {
+  const [alarm, setAlarm] = useState<AlarmData>({...DEFAULT_ALARM,...initialData});
   const [showLabelInput, setShowLabelInput] = useState(false);
+  const [permissionsOk, setPermissionsOk] = useState(false);
 
   useEffect(() => {
     if (open) {
-      setAlarm({ ...DEFAULT_ALARM, ...initialData });
+      setAlarm({...DEFAULT_ALARM,...initialData});
+      checkAllAlarmPermissions().then(perms => {
+        setPermissionsOk(perms.notifications && perms.exactAlarm);
+      });
     }
   }, [open, initialData]);
 
   const toggleDay = (day: number) => {
     setAlarm(prev => ({
-      ...prev,
-      days_of_week: prev.days_of_week.includes(day)
-        ? prev.days_of_week.filter(d => d !== day)
-        : [...prev.days_of_week, day].sort()
+...prev,
+      days_of_week: prev.days_of_week.includes(day)? prev.days_of_week.filter(d => d!== day) : [...prev.days_of_week, day].sort()
     }));
   };
 
   const isAllDays = alarm.days_of_week.length === 7;
 
-  const handleSave = () => {
-    onSave(alarm);
+  const handleSave = async () => {
+    if (!permissionsOk) {
+      const granted = await requestAllAlarmPermissions();
+      if (!granted) {
+        toast.error('Enable permissions from Settings for alarms to work');
+        return;
+      }
+      setPermissionsOk(true);
+    }
+
+    const alarmId = alarm.id || crypto.randomUUID();
+    const isLocal = alarm.alarm_type === 'personal' || alarm.alarm_type === 'recovery';
+
+    if (isEditing && alarm.id) {
+      await cancelAlarmByUuid(alarm.id);
+    }
+
+    await scheduleRecurringAlarm(
+      alarmId,
+      alarm.alarm_time,
+      alarm.days_of_week,
+      {
+        title: alarm.label || 'Rise Alarm',
+        body: alarm.intention || 'Time to wake up!',
+        missionType: alarm.verification_type as any,
+        snoozeMinutes: alarm.snooze_interval_minutes,
+        alarmDbId: isLocal? undefined : alarmId
+      }
+    );
+
+    if (isLocal) {
+      const localAlarms = JSON.parse(localStorage.getItem('local_alarms') || '[]');
+      const updatedAlarm = {...alarm, id: alarmId, is_local: true};
+
+      if (isEditing) {
+        const index = localAlarms.findIndex((a: AlarmData) => a.id === alarm.id);
+        if (index >= 0) localAlarms[index] = updatedAlarm;
+      } else {
+        localAlarms.push(updatedAlarm);
+      }
+      localStorage.setItem('local_alarms', JSON.stringify(localAlarms));
+      toast.success(isEditing? 'Personal alarm updated!' : 'Personal alarm set! ✅');
+    } else {
+      onSave({...alarm, id: alarmId});
+      toast.success(isEditing? 'Alarm updated!' : 'Alarm created!');
+    }
+
     onClose();
   };
 
@@ -120,11 +153,9 @@ export function RiseAlarmEditor({
     const [hours, minutes] = alarm.alarm_time.split(':').map(Number);
     const alarmTime = new Date();
     alarmTime.setHours(hours, minutes, 0, 0);
-    
     if (alarmTime <= now) {
       alarmTime.setDate(alarmTime.getDate() + 1);
     }
-    
     const diff = alarmTime.getTime() - now.getTime();
     const diffHours = Math.floor(diff / (1000 * 60 * 60));
     const diffMinutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
@@ -135,29 +166,40 @@ export function RiseAlarmEditor({
     <Sheet open={open} onOpenChange={onClose}>
       <SheetContent side="bottom" className="h-[95vh] p-0 rounded-t-3xl">
         <div className="flex flex-col h-full">
-          {/* Header */}
           <SheetHeader className="p-4 border-b border-border flex-row items-center justify-between">
             <Button variant="ghost" size="icon" onClick={onClose}>
               <X className="h-5 w-5" />
             </Button>
-            <SheetTitle>Wake-up alarm</SheetTitle>
+            <SheetTitle>{isEditing? 'Edit Alarm' : 'Wake-up alarm'}</SheetTitle>
             <div className="w-10" />
           </SheetHeader>
-
           <ScrollArea className="flex-1">
             <div className="p-4 space-y-6">
-              {/* Label Input */}
-              <div 
-                className="flex items-center gap-3 cursor-pointer"
-                onClick={() => setShowLabelInput(true)}
-              >
+              {!permissionsOk && (
+                <div className="bg-destructive/10 border border-destructive rounded-xl p-3">
+                  <p className="text-sm mb-2">Alarms need permissions to work when phone is locked</p>
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    onClick={async () => {
+                      const granted = await requestAllAlarmPermissions();
+                      setPermissionsOk(granted);
+                      if (granted) toast.success('Permissions granted!');
+                    }}
+                  >
+                    Grant Permissions
+                  </Button>
+                </div>
+              )}
+
+              <div className="flex items-center gap-3 cursor-pointer" onClick={() => setShowLabelInput(true)}>
                 <span className="text-2xl">🌟</span>
-                {showLabelInput ? (
+                {showLabelInput? (
                   <Input
                     autoFocus
                     placeholder="Alarm label (e.g., Wake up early)"
                     value={alarm.label}
-                    onChange={(e) => setAlarm(prev => ({ ...prev, label: e.target.value }))}
+                    onChange={(e) => setAlarm(prev => ({...prev, label: e.target.value}))}
                     onBlur={() => setShowLabelInput(false)}
                     className="flex-1"
                   />
@@ -169,18 +211,16 @@ export function RiseAlarmEditor({
                 <Pencil className="h-4 w-4 text-muted-foreground" />
               </div>
 
-              {/* Time Picker */}
               <div className="text-center py-4">
                 <Input
                   type="time"
                   value={alarm.alarm_time}
-                  onChange={(e) => setAlarm(prev => ({ ...prev, alarm_time: e.target.value }))}
+                  onChange={(e) => setAlarm(prev => ({...prev, alarm_time: e.target.value}))}
                   className="text-5xl h-20 text-center font-bold border-0 bg-transparent focus:ring-0"
                 />
                 <p className="text-sm text-amber-500 mt-2">{getTimeUntilAlarm()}</p>
               </div>
 
-              {/* Daily Toggle & Days */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-muted-foreground">Daily</span>
@@ -190,8 +230,8 @@ export function RiseAlarmEditor({
                       checked={isAllDays}
                       onChange={() => {
                         setAlarm(prev => ({
-                          ...prev,
-                          days_of_week: isAllDays ? [] : [0, 1, 2, 3, 4, 5, 6]
+                   ...prev,
+                          days_of_week: isAllDays? [] : [0, 1, 2, 3, 4, 5, 6]
                         }));
                       }}
                       className="w-5 h-5 rounded border-amber-500 text-amber-500 focus:ring-amber-500"
@@ -203,7 +243,7 @@ export function RiseAlarmEditor({
                   {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, i) => (
                     <Button
                       key={i}
-                      variant={alarm.days_of_week.includes(i) ? 'default' : 'outline'}
+                      variant={alarm.days_of_week.includes(i)? 'default' : 'outline'}
                       size="icon"
                       className={cn(
                         'h-11 w-11 rounded-full',
@@ -217,7 +257,6 @@ export function RiseAlarmEditor({
                 </div>
               </div>
 
-              {/* Wake-up Mission */}
               <div className="bg-card rounded-2xl p-4 space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="font-medium">Wake-up mission</span>
@@ -232,15 +271,10 @@ export function RiseAlarmEditor({
                     return (
                       <button
                         key={mission.id}
-                        onClick={() => !mission.locked && setAlarm(prev => ({ 
-                          ...prev, 
-                          verification_type: mission.id 
-                        }))}
+                        onClick={() =>!mission.locked && setAlarm(prev => ({...prev, verification_type: mission.id}))}
                         className={cn(
                           'relative flex flex-col items-center gap-1 p-3 rounded-xl transition-all',
-                          isSelected 
-                            ? 'bg-amber-500/20 border-2 border-amber-500' 
-                            : 'bg-muted',
+                          isSelected? 'bg-amber-500/20 border-2 border-amber-500' : 'bg-muted',
                           mission.locked && 'opacity-50'
                         )}
                       >
@@ -255,10 +289,8 @@ export function RiseAlarmEditor({
                 </div>
               </div>
 
-              {/* Sound Settings */}
               <div className="bg-card rounded-2xl p-4 space-y-4">
                 <Label className="text-muted-foreground text-sm">Alarm sound</Label>
-                
                 <button className="w-full flex items-center justify-between p-3 bg-muted rounded-xl">
                   <div className="flex items-center gap-3">
                     <div className="h-10 w-10 rounded-full bg-background flex items-center justify-center">
@@ -268,12 +300,11 @@ export function RiseAlarmEditor({
                   </div>
                   <ChevronRight className="h-4 w-4 text-muted-foreground" />
                 </button>
-
                 <div className="flex items-center gap-3">
                   <Volume2 className="h-5 w-5 text-muted-foreground" />
                   <Slider
                     value={[alarm.volume]}
-                    onValueChange={([v]) => setAlarm(prev => ({ ...prev, volume: v }))}
+                    onValueChange={([v]) => setAlarm(prev => ({...prev, volume: v}))}
                     max={100}
                     className="flex-1"
                   />
@@ -281,11 +312,10 @@ export function RiseAlarmEditor({
                     <Vibrate className="h-5 w-5 text-muted-foreground" />
                     <Switch
                       checked={alarm.vibration_enabled}
-                      onCheckedChange={(v) => setAlarm(prev => ({ ...prev, vibration_enabled: v }))}
+                      onCheckedChange={(v) => setAlarm(prev => ({...prev, vibration_enabled: v}))}
                     />
                   </div>
                 </div>
-
                 <div className="flex items-center justify-between py-2">
                   <span>Gentle wake-up</span>
                   <button className="flex items-center gap-1 text-muted-foreground">
@@ -295,7 +325,6 @@ export function RiseAlarmEditor({
                 </div>
               </div>
 
-              {/* Snooze Settings */}
               <div className="bg-card rounded-2xl p-4">
                 <div className="flex items-center justify-between">
                   <span>Snooze</span>
@@ -306,25 +335,21 @@ export function RiseAlarmEditor({
                 </div>
               </div>
 
-              {/* Intention */}
               <div className="bg-card rounded-2xl p-4 space-y-2">
                 <Label className="text-muted-foreground text-sm">Why are you waking up?</Label>
                 <Input
                   placeholder="e.g., Fajr prayer and morning study"
                   value={alarm.intention}
-                  onChange={(e) => setAlarm(prev => ({ ...prev, intention: e.target.value }))}
+                  onChange={(e) => setAlarm(prev => ({...prev, intention: e.target.value}))}
                   className="bg-muted border-0"
                 />
-                <p className="text-xs text-muted-foreground">
-                  This will appear when your alarm rings
-                </p>
+                <p className="text-xs text-muted-foreground">This will appear when your alarm rings</p>
               </div>
             </div>
           </ScrollArea>
 
-          {/* Save Button */}
           <div className="p-4 border-t border-border">
-            <Button 
+            <Button
               onClick={handleSave}
               className="w-full h-14 rounded-2xl bg-rose-500 hover:bg-rose-600 text-lg font-semibold"
             >
