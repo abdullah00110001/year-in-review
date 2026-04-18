@@ -157,6 +157,7 @@ export async function scheduleRecurringAlarm(
 
   await cancelAlarmByUuid(uuid);
 
+  // 1. Schedule via Capacitor LocalNotifications (visible notification + sound)
   for (let i = 0; i < 7; i += 1) {
     if (!daysOfWeek.includes(i)) continue;
 
@@ -168,6 +169,17 @@ export async function scheduleRecurringAlarm(
     });
 
     if (!success) return false;
+  }
+
+  // 2. ALSO schedule via the native RiseAlarmPlugin so the alarm
+  //    fires full-screen on the lockscreen even under Doze / battery saver.
+  //    AlarmManager.setAlarmClock() is the only API that survives that.
+  if (Capacitor.isNativePlatform()) {
+    await scheduleNativeAlarmShots(uuid, time, daysOfWeek, {
+      title: config.title,
+      body: config.body,
+      missionType: config.missionType,
+    });
   }
 
   return true;
