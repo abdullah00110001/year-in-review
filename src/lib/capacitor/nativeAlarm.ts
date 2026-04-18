@@ -3,6 +3,11 @@ import { App } from '@capacitor/app';
 import { LocalNotifications, type LocalNotificationSchema } from '@capacitor/local-notifications';
 import { Preferences } from '@capacitor/preferences';
 import { Haptics } from '@capacitor/haptics';
+import {
+  scheduleNativeAlarmShots,
+  cancelNativeAlarmShots,
+  canScheduleExactAlarms,
+} from './riseAlarmBridge';
 
 export interface AlarmConfig {
   id: number;
