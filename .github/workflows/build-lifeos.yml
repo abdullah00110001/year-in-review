@@ -2,7 +2,7 @@ name: 🚀 Build LifeOS Official
 
 on:
   push:
-    branches: [main] # master বাদ। শুধু main এ পুশ দিলেই বিল্ড হবে
+    branches:
   workflow_dispatch:
 
 permissions:
@@ -36,7 +36,7 @@ jobs:
         if: github.event_name == 'pull_request'
         uses: trufflesecurity/trufflehog@v3.81.0
         with:
-          path:./
+          path: ./ 
           base: ${{ github.event.repository.default_branch }}
           head: HEAD
           extra_args: --only-verified

@@ -1,0 +1,41 @@
+name: 🔧 Auto Fix Code Errors
+
+on:
+  push:
+    branches: 
+  workflow_dispatch:
+
+permissions:
+  contents: write # ফিক্স করে আবার কমিট করার পারমিশন
+
+jobs:
+  autofix:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node for Prettier
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Auto Fix YAML + JS + JSON
+        run: |
+          npx prettier --write "**/*.{yml,yaml,js,json}"
+          
+      - name: Auto Fix Shell Script Syntax
+        uses: reviewdog/action-shfmt@v1
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          reporter: github-pr-check
+          shfmt_flags: -w -i 2
+
+      - name: Commit Auto Fixes
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "🔧 Auto fix: YAML/Shell syntax errors"
+          commit_user_name: LifeOS Bot
+          commit_user_email: bot@lifeos.dev
