@@ -1,9 +1,9 @@
 name: 🧹 Cleanup Old Runs & Releases
 
 on:
-  workflow_dispatch: # Actions ট্যাবে গিয়ে ম্যানুয়ালি চালাবা
+  workflow_dispatch: # ম্যানুয়ালি চালানোর জন্য
   schedule:
-    - cron: '0 0 * * *' # চাইলে ডেইলি রাত 12টায় অটো চলবে, না চাইলে এই 2 লাইন ডিলিট করো
+    - cron: '0 * * * *' # প্রতি 1 ঘন্টা পর পর চেক করবে। 24 ঘন্টা হলে ডিলিট
 
 permissions:
   actions: write      # পুরান রান ডিলিট করার জন্য
@@ -19,15 +19,15 @@ jobs:
         with:
           token: ${{ github.token }}
           repository: ${{ github.repository }}
-          retain_days: 3           # শেষ 3 দিনের রান রাখবে
-          keep_minimum_runs: 0     # 3 দিনের ভিতর রান না থাকলেও সব ডিলিট করবে
+          retain_days: 1           # 1 দিন = 24 ঘন্টা। এর চেয়ে পুরান সব ডিলিট
+          keep_minimum_runs: 0     # 1টাও রাখবে না। 24 ঘন্টা পার হলেই গায়েব
 
       - name: Delete Old Releases & Tags
         uses: dev-drprasad/delete-older-releases@v0.3.3
         with:
-          keep_latest: 0           # লেটেস্ট কয়টা রাখবে সেটা দিন দিয়ে কন্ট্রোল হবে
+          keep_latest: 0           # লেটেস্টও রাখবে না
           delete_tags: true        # ট্যাগ সহ ডিলিট করবে
           delete_expired_releases: true
-          older_than_days: 3       # 3 দিনের পুরান রিলিজ+ট্যাগ সব ডিলিট
+          older_than_days: 1       # 24 ঘন্টার পুরান রিলিজ+ট্যাগ সব ডিলিট
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
