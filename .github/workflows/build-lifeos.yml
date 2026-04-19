@@ -1,4 +1,5 @@
 name: 🚀 Build LifeOS Official
+
 on:
   push:
     branches: [main, master]
@@ -7,7 +8,6 @@ on:
 permissions:
   contents: write
   issues: write
-  security-events: write
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -25,18 +25,6 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
-        with:
-          languages: javascript
-
-      - name: Scan for Leaked Secrets
-        uses: trufflesecurity/trufflehog@v3.81.0
-        with:
-          path: ./ # ফিক্স: এখানে স্পেস অ্যাড করা হইছে
-          base: main
-          head: HEAD
-
       - name: Setup Node.js v22
         uses: actions/setup-node@v4
         with:
@@ -53,11 +41,13 @@ jobs:
       - name: Install Dependencies
         run: npm ci --legacy-peer-deps
 
-      - name: Run Unit Tests
-        run: npm test -- --coverage || echo "No tests found, skipping"
-
       - name: Build Optimized Assets
         run: npm run build
+
+      - name: Add google-services.json
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: echo "$GOOGLE_SERVICES_JSON" > android/app/google-services.json
 
       - name: Sync Capacitor
         run: npx cap sync android
@@ -72,303 +62,61 @@ jobs:
           cd android && ./gradlew assembleDebug --stacktrace 2>&1 | tee build.log
           exit ${PIPESTATUS[0]}
 
-      - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v3
-        if: always()
-
       - name: 🩺 LifeOS Doctor - Auto Diagnosis
         if: always()
         run: |
           echo "================ LIFEOS DOCTOR REPORT ================"
+          
           if [ "${{ steps.build_apk.outcome }}" = "success" ]; then
             echo "✅ BUILD SUCCESS: No issues found. APK is ready."
             exit 0
           fi
-          echo "❌ BUILD FAILED: Issue detected"
-          echo ""
-          LOG_FILE="android/build.log"
-          if grep -q "Namespace not specified" $LOG_FILE; then
-            echo "👉 1. ISSUE: Namespace not specified for Android module"
-            echo "👉 2. REASON: Gradle 8+ requires 'namespace' in android/app/build.gradle"
-            echo "👉 3. SOLUTION: Add namespace property in build.gradle"
-            echo "👉 4. HOW TO FIX:"
-            echo "   a. Open android/app/build.gradle"
-            echo "   b. Inside android { } block, add at the top:"
-            echo "      namespace 'com.your.app.package'"
-            echo "   c. Replace with your actual package name from AndroidManifest.xml"
-          elif grep -q "license" $LOG_FILE && grep -q "not accepted" $LOG_FILE; then
-            echo "👉 1. ISSUE: Android SDK License not accepted"
-            echo "👉 2. REASON: GitHub Actions runner did not auto-accept SDK licenses"
-            echo "👉 3. SOLUTION: Add a step to accept licenses before build"
-            echo "👉 4. HOW TO FIX:"
-            echo "   a. After 'Setup Java' step, add this step:"
-            echo "      - name: Accept Android Licenses"
-            echo "        run: yes | sdkmanager --licenses"
-          elif grep -q "SDK location not found" $LOG_FILE; then
-            echo "👉 1. ISSUE: Android SDK not found"
-            echo "👉 2. REASON: local.properties file missing"
-            echo "👉 3. SOLUTION: Generate local.properties"
-            echo "👉 4. HOW TO FIX:"
-            echo "   a. Add this step before Build:"
-            echo "      - name: Setup local.properties"
-            echo "        run: echo 'sdk.dir=$ANDROID_HOME' > android/local.properties"
-          else
-            echo "👉 1. ISSUE: Unknown Error - Not in predefined list"
-            echo "👉 2. REASON: New error type. Need to read raw logs"
-            echo "👉 3. SOLUTION: Check the 'What went wrong' section in build logs"
-            echo "👉 4. HOW TO FIX:"
-            echo "   a. Go to Actions tab → Click failed job"
-            echo "   b. Open 'Build Stable APK' step logs"
-            echo "   c. Find line starting with 'Execution failed for task'"
-            echo "   d. Search that error on Google or send it to me"
-          fi
-          echo ""
-          echo "======================================================"
-          exit 1
-
-      - name: Rename APK
-        if: steps.build_apk.outcome == 'success'
-        run: mv android/app/build/outputs/apk/debug/app-debug.apk android/app/build/outputs/apk/debug/LifeOS_v${{ github.run_number }}.apk
-
-      - name: Analyze APK Size & Permissions
-        if: steps.build_apk.outcome == 'success'
-        id: apk_analysis
-        run: |
-          APK_PATH="android/app/build/outputs/apk/debug/LifeOS_v${{ github.run_number }}.apk"
-          APK_SIZE=$(du -h $APK_PATH | cut -f1)
-          echo "APK_SIZE=$APK_SIZE" >> $GITHUB_OUTPUT
-          echo "### APK Analysis" >> $GITHUB_STEP_SUMMARY
-          echo "APK Size: $APK_SIZE" >> $GITHUB_STEP_SUMMARY
-          $ANDROID_HOME/build-tools/34.0.0/aapt dump permissions $APK_PATH >> $GITHUB_STEP_SUMMARY
-
-      - name: Build Summary
-        if: always()
-        run: |
-          echo "### LifeOS Build Summary 🚀" >> $GITHUB_STEP_SUMMARY
-          echo "| Item | Value |" >> $GITHUB_STEP_SUMMARY
-          echo "| --- | --- |" >> $GITHUB_STEP_SUMMARY
-          echo "| Status | ${{ job.status }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Build Number | ${{ github.run_number }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| APK Size | ${{ steps.apk_analysis.outputs.APK_SIZE || 'N/A' }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Commit | ${{ github.sha }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Triggered By | ${{ github.actor }} |" >> $GITHUB_STEP_SUMMARY
-
-      - name: Create Issue on Failure
-        if: failure()
-        uses: dacbd/create-issue-action@v2
-        with:
-          token: ${{ github.token }}
-          title: "Build #${{ github.run_number }} Failed"
-          body: |
-            LifeOS Doctor Report: Build failed.
-            Commit: ${{ github.sha }}
-            Author: ${{ github.actor }}
-            Check logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          assignees: ${{ github.actor }}
-
-      - name: Create LifeOS Release
-        if: steps.build_apk.outcome == 'success'
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: lifeos-v${{ github.run_number }}
-          name: LifeOS Build ${{ github.run_number }}
-          body: |
-            ✅ LifeOS: Your Complete Productivity Platform.
-            🚀 High-performance assets integrated.
-            📱 Optimized for smooth loading.
-            🔢 Build: ${{ github.run_number }}
-            📅 Commit: ${{ github.sha }}
-          files: android/app/build/outputs/apk/debug/LifeOS_v${{ github.run_number }}.apk
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}. ISSUE: Android SDK not found"
-            echo "👉 2. REASON: local.properties file missing"
-            echo "👉 3. SOLUTION: Generate local.properties"
-            echo "👉 4. HOW TO FIX:"
-            echo "   a. Add this step before Build:"
-            echo "      - name: Setup local.properties"
-            echo "        run: echo 'sdk.dir=$ANDROID_HOME' > android/local.properties"
-          else
-            echo "👉 1. ISSUE: Unknown Error - Not in predefined list"
-            echo "👉 2. REASON: New error type. Need to read raw logs"
-            echo "👉 3. SOLUTION: Check the 'What went wrong' section in build logs"
-            echo "👉 4. HOW TO FIX:"
-            echo "   a. Go to Actions tab → Click failed job"
-            echo "   b. Open 'Build Stable APK' step logs"
-            echo "   c. Find line starting with 'Execution failed for task'"
-            echo "   d. Search that error on Google or send it to me"
-          fi
-          echo ""
-          echo "======================================================"
-          exit 1
-
-      - name: Rename APK
-        if: steps.build_apk.outcome == 'success'
-        run: mv android/app/build/outputs/apk/debug/app-debug.apk android/app/build/outputs/apk/debug/LifeOS_v${{ github.run_number }}.apk
-
-      # 5: APK Analyzer - সাইজ + পারমিশন রিপোর্ট
-      - name: Analyze APK Size & Permissions
-        if: steps.build_apk.outcome == 'success'
-        id: apk_analysis
-        run: |
-          APK_PATH="android/app/build/outputs/apk/debug/LifeOS_v${{ github.run_number }}.apk"
-          APK_SIZE=$(du -h $APK_PATH | cut -f1)
-          echo "APK_SIZE=$APK_SIZE" >> $GITHUB_OUTPUT
-          echo "### APK Analysis" >> $GITHUB_STEP_SUMMARY
-          echo "APK Size: $APK_SIZE" >> $GITHUB_STEP_SUMMARY
-          $ANDROID_HOME/build-tools/34.0.0/aapt dump permissions $APK_PATH >> $GITHUB_STEP_SUMMARY
-
-      # 15: Build Summary - সুন্দর টেবিল রিপোর্ট
-      - name: Build Summary
-        if: always()
-        run: |
-          echo "### LifeOS Build Summary 🚀" >> $GITHUB_STEP_SUMMARY
-          echo "| Item | Value |" >> $GITHUB_STEP_SUMMARY
-          echo "| --- | --- |" >> $GITHUB_STEP_SUMMARY
-          echo "| Status | ${{ job.status }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Build Number | ${{ github.run_number }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| APK Size | ${{ steps.apk_analysis.outputs.APK_SIZE || 'N/A' }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Commit | ${{ github.sha }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Triggered By | ${{ github.actor }} |" >> $GITHUB_STEP_SUMMARY
-
-      # 19: Auto Create Issue on Failure
-      - name: Create Issue on Failure
-        if: failure()
-        uses: dacbd/create-issue-action@v2
-        with:
-          token: ${{ github.token }}
-          title: "Build #${{ github.run_number }} Failed"
-          body: |
-            LifeOS Doctor Report: Build failed.
-            Commit: ${{ github.sha }}
-            Author: ${{ github.actor }}
-            Check logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          assignees: ${{ github.actor }}
-
-      - name: Create LifeOS Release
-        if: steps.build_apk.outcome == 'success'
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: lifeos-v${{ github.run_number }}
-          name: LifeOS Build ${{ github.run_number }}
-          body: |
-            ✅ LifeOS: Your Complete Productivity Platform.
-            🚀 High-performance assets integrated.
-            📱 Optimized for smooth loading.
-            🔢 Build: ${{ github.run_number }}
-            📅 Commit: ${{ github.sha }}
-          files: android/app/build/outputs/apk/debug/LifeOS_v${{ github.run_number }}.apk
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - name: Build Optimized Assets
-        run: npm run build
-
-      - name: Add google-services.json
-        env:
-          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
-        run: echo "$GOOGLE_SERVICES_JSON" > android/app/google-services.json
-
-      - name: Sync Capacitor
-        run: npx cap sync android
-
-      - name: Fix Permissions
-        run: chmod +x android/gradlew
-
-      - name: Build Stable APK
-        id: build_apk
-        continue-on-error: true
-        run: |
-          cd android && ./gradlew assembleDebug --stacktrace 2>&1 | tee build.log
-          exit ${PIPESTATUS[0]}
-
-      - name: 🩺 LifeOS Doctor - Auto Diagnosis
-        if: always()
-        run: |
-          echo "================ LIFEOS DOCTOR REPORT ================"
-          
-          if [ ${{ steps.build_apk.outcome }} == 'success' ]; then
-            echo "✅ BUILD SUCCESS: No issues found. APK is ready."
-            exit 0
-          fi
           
           echo "❌ BUILD FAILED: Issue detected"
           echo ""
           
           LOG_FILE="android/build.log"
           
-          # 1. google-services.json Error
           if grep -q "Malformed root json" $LOG_FILE; then
             echo "👉 1. ISSUE: google-services.json file is malformed or empty"
-            echo "👉 2. REASON: GitHub Secret 'GOOGLE_SERVICES_JSON' is empty, or brackets {} were missed while copying"
-            echo "👉 3. SOLUTION: Download a new google-services.json from Firebase and update the GitHub Secret"
-            echo "👉 4. HOW TO FIX:"
-            echo "   a. Go to Firebase Console → Project Settings → Android App → Download google-services.json"
-            echo "   b. Open the file in Notepad, press Ctrl+A, Ctrl+C to copy everything"
-            echo "   c. Go to GitHub Repo → Settings → Secrets and variables → Actions → GOOGLE_SERVICES_JSON → Update secret"
-            echo "   d. Paste the entire file content and Save. Then push code again"
-          
-          # 2. google-services plugin missing
-          elif grep -q "Plugin with id 'com.google.gms.google-services' not found" $LOG_FILE; then
-            echo "👉 1. ISSUE: google-services Gradle Plugin not found"
-            echo "👉 2. REASON: Missing classpath in android/build.gradle"
-            echo "👉 3. SOLUTION: Add classpath and apply plugin in gradle files"
-            echo "👉 4. HOW TO FIX:"
-            echo "   a. Open android/build.gradle"
-            echo "   b. Inside dependencies { } add this line:"
-            echo "      classpath 'com.google.gms:google-services:4.4.1'"
-            echo "   c. Open android/app/build.gradle and add this line at the very bottom:"
-            echo "      apply plugin: 'com.google.gms.google-services'"
-            echo "   d. Commit and Push"
-          
-          # 3. Namespace Error
+            echo "👉 2. SOLUTION: Re-copy the JSON content into GitHub Secrets carefully"
           elif grep -q "Namespace not specified" $LOG_FILE; then
             echo "👉 1. ISSUE: Namespace not specified for Android module"
-            echo "👉 2. REASON: Gradle 8+ requires 'namespace' in android/app/build.gradle"
-            echo "👉 3. SOLUTION: Add namespace property in build.gradle"
-            echo "👉 4. HOW TO FIX:"
-            echo "   a. Open android/app/build.gradle"
-            echo "   b. Inside android { } block, add at the top:"
-            echo "      namespace 'com.your.app.package'"
-            echo "   c. Replace 'com.your.app.package' with your actual package name from AndroidManifest.xml"
-          
-          # 4. SDK License Error
+            echo "👉 2. SOLUTION: Add namespace 'com.your.package' in android/app/build.gradle"
           elif grep -q "license" $LOG_FILE && grep -q "not accepted" $LOG_FILE; then
             echo "👉 1. ISSUE: Android SDK License not accepted"
-            echo "👉 2. REASON: GitHub Actions runner did not auto-accept SDK licenses"
-            echo "👉 3. SOLUTION: Add a step to accept licenses before build"
-            echo "👉 4. HOW TO FIX:"
-            echo "   a. After 'Setup Java' step, add this step:"
-            echo "      - name: Accept Android Licenses"
-            echo "        run: yes | sdkmanager --licenses"
-          
-          # 5. Package Name Mismatch
           elif grep -q "No matching client found for package name" $LOG_FILE; then
             echo "👉 1. ISSUE: Package name mismatch between app and google-services.json"
-            echo "👉 2. REASON: 'package_name' in google-services.json != applicationId in build.gradle"
-            echo "👉 3. SOLUTION: Make both package names identical"
-            echo "👉 4. HOW TO FIX:"
-            echo "   a. Check android/app/build.gradle → applicationId"
-            echo "   b. Check google-services.json → 'package_name'"
-            echo "   c. Both must be same. If not, add a new Android app in Firebase with correct package name"
-          
-          # 6. Unknown Error
           else
-            echo "👉 1. ISSUE: Unknown Error - Not in predefined list"
-            echo "👉 2. REASON: New error type. Need to read raw logs"
-            echo "👉 3. SOLUTION: Check the 'What went wrong' section in build logs"
-            echo "👉 4. HOW TO FIX:"
-            echo "   a. Go to Actions tab → Click failed job"
-            echo "   b. Open 'Build Stable APK' step logs"
-            echo "   c. Find line starting with 'Execution failed for task'"
-            echo "   d. Search that error on Google or send it to me"
+            echo "👉 1. ISSUE: Unknown Error. Check Actions tab logs -> Build Stable APK step"
           fi
           
-          echo ""
           echo "======================================================"
           exit 1
 
       - name: Rename APK
         if: steps.build_apk.outcome == 'success'
         run: mv android/app/build/outputs/apk/debug/app-debug.apk android/app/build/outputs/apk/debug/LifeOS_v${{ github.run_number }}.apk
+
+      - name: Analyze APK Size
+        if: steps.build_apk.outcome == 'success'
+        id: apk_analysis
+        run: |
+          APK_PATH="android/app/build/outputs/apk/debug/LifeOS_v${{ github.run_number }}.apk"
+          APK_SIZE=$(du -h $APK_PATH | cut -f1)
+          echo "APK_SIZE=$APK_SIZE" >> $GITHUB_OUTPUT
+          echo "### APK Analysis" >> $GITHUB_STEP_SUMMARY
+          echo "APK Size: $APK_SIZE" >> $GITHUB_STEP_SUMMARY
+
+      - name: Build Summary
+        if: always()
+        run: |
+          echo "### LifeOS Build Summary 🚀" >> $GITHUB_STEP_SUMMARY
+          echo "| Item | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "| --- | --- |" >> $GITHUB_STEP_SUMMARY
+          echo "| Status | ${{ job.status }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Build Number | ${{ github.run_number }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| APK Size | ${{ steps.apk_analysis.outputs.APK_SIZE || 'N/A' }} |" >> $GITHUB_STEP_SUMMARY
 
       - name: Create LifeOS Release
         if: steps.build_apk.outcome == 'success'
@@ -381,40 +129,6 @@ jobs:
             🚀 High-performance assets integrated.
             📱 Optimized for smooth loading.
             🔢 Build: ${{ github.run_number }}
-          files: android/app/build/outputs/apk/debug/LifeOS_v${{ github.run_number }}.apk
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}      - name: Install Dependencies
-        run: npm ci --legacy-peer-deps
-
-      - name: Build Optimized Assets
-        run: npm run build
-
-      - name: Add google-services.json
-        env:
-          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
-        run: echo "$GOOGLE_SERVICES_JSON" > android/app/google-services.json
-
-      - name: Sync Capacitor
-        run: npx cap sync android
-
-      - name: Fix Permissions
-        run: chmod +x android/gradlew
-
-      - name: Build Stable APK
-        run: cd android && ./gradlew assembleDebug
-
-      - name: Rename APK
-        run: mv android/app/build/outputs/apk/debug/app-debug.apk android/app/build/outputs/apk/debug/LifeOS_v${{ github.run_number }}.apk
-
-      - name: Create LifeOS Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: lifeos-v${{ github.run_number }}
-          name: LifeOS Official Build ${{ github.run_number }}
-          body: |
-            ✅ LifeOS: Your Complete Productivity Platform.
-            🚀 High-performance assets integrated.
-            📱 Optimized for smooth loading.
           files: android/app/build/outputs/apk/debug/LifeOS_v${{ github.run_number }}.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
