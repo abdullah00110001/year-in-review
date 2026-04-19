@@ -340,13 +340,6 @@ npx cap run ios
 ### Live Reload (Development)
 
 The app is configured to connect to the Lovable preview URL for development:
-```typescript
-// capacitor.config.ts
-server: {
-  url: 'https://77ecc391-ba6e-4f72-bf7d-26813e27ef4e.lovableproject.com?forceHideBadge=true',
-  cleartext: true,
-}
-```
 
 For production, remove the `server.url` setting to use bundled web assets.
 
