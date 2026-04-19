@@ -2,13 +2,14 @@ name: 🚀 Build LifeOS Official
 
 on:
   push:
-    branches: [main, master]
+    branches: [main] # master বাদ। শুধু main এ পুশ দিলেই বিল্ড হবে
   workflow_dispatch:
 
 permissions:
   contents: write
   issues: write
   security-events: write
+  pull-requests: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -18,13 +19,13 @@ jobs:
   build-life-os:
     name: 📱 Building LifeOS APK
     runs-on: ubuntu-latest
-
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v3
@@ -32,11 +33,13 @@ jobs:
           languages: javascript
 
       - name: Scan for Leaked Secrets
+        if: github.event_name == 'pull_request'
         uses: trufflesecurity/trufflehog@v3.81.0
         with:
-          path: ./ 
-          base: main
+          path:./
+          base: ${{ github.event.repository.default_branch }}
           head: HEAD
+          extra_args: --only-verified
 
       - name: Setup Node.js v22
         uses: actions/setup-node@v4
@@ -75,55 +78,39 @@ jobs:
         id: build_apk
         continue-on-error: true
         run: |
-          cd android && ./gradlew assembleDebug --stacktrace 2>&1 | tee build.log
+          cd android &&./gradlew assembleDebug --stacktrace 2>&1 | tee build.log
           exit ${PIPESTATUS[0]}
 
       - name: 🩺 LifeOS Doctor - Auto Diagnosis
         if: always()
         run: |
           echo "================ LIFEOS DOCTOR REPORT ================"
-          
           if [ "${{ steps.build_apk.outcome }}" == 'success' ]; then
             echo "✅ BUILD SUCCESS: No issues found. APK is ready."
             exit 0
           fi
-          
           echo "❌ BUILD FAILED: Issue detected"
           echo "### 🩺 LifeOS Doctor Diagnosis ❌" >> $GITHUB_STEP_SUMMARY
-          
           LOG_FILE="android/build.log"
-          
-          if [ ! -f "$LOG_FILE" ]; then
+          if [! -f "$LOG_FILE" ]; then
             echo "⚠️ **Issue:** Build failed before reaching the APK generation step (e.g., NPM install or sync failed)." >> $GITHUB_STEP_SUMMARY
             exit 1
           fi
-          
-          # 1. google-services.json Error
           if grep -q "Malformed root json" $LOG_FILE; then
             echo "👉 **ISSUE:** google-services.json file is malformed or empty" >> $GITHUB_STEP_SUMMARY
             echo "👉 **SOLUTION:** Re-download google-services.json from Firebase and update GitHub Secret carefully." >> $GITHUB_STEP_SUMMARY
-          
-          # 2. google-services plugin missing
           elif grep -q "Plugin with id 'com.google.gms.google-services' not found" $LOG_FILE; then
             echo "👉 **ISSUE:** google-services Gradle Plugin not found" >> $GITHUB_STEP_SUMMARY
             echo "👉 **SOLUTION:** Add classpath 'com.google.gms:google-services:4.4.1' in android/build.gradle and apply plugin in app/build.gradle." >> $GITHUB_STEP_SUMMARY
-          
-          # 3. Namespace Error
           elif grep -q "Namespace not specified" $LOG_FILE; then
             echo "👉 **ISSUE:** Namespace not specified for Android module" >> $GITHUB_STEP_SUMMARY
             echo "👉 **SOLUTION:** Add 'namespace' property inside android { } block in app/build.gradle." >> $GITHUB_STEP_SUMMARY
-          
-          # 4. SDK License Error
           elif grep -q "license" $LOG_FILE && grep -q "not accepted" $LOG_FILE; then
             echo "👉 **ISSUE:** Android SDK License not accepted" >> $GITHUB_STEP_SUMMARY
             echo "👉 **SOLUTION:** Add a step to accept licenses: yes | sdkmanager --licenses" >> $GITHUB_STEP_SUMMARY
-          
-          # 5. Package Name Mismatch
           elif grep -q "No matching client found for package name" $LOG_FILE; then
             echo "👉 **ISSUE:** Package name mismatch between app and google-services.json" >> $GITHUB_STEP_SUMMARY
             echo "👉 **SOLUTION:** Make sure applicationId in build.gradle matches 'package_name' in Firebase JSON." >> $GITHUB_STEP_SUMMARY
-          
-          # 6. Unknown Error (Extracting raw error for easy view)
           else
             echo "👉 **ISSUE:** Unknown Gradle Error Detected." >> $GITHUB_STEP_SUMMARY
             echo "🔍 **Raw Error Log (Last 30 lines):**" >> $GITHUB_STEP_SUMMARY
@@ -131,7 +118,6 @@ jobs:
             tail -n 30 $LOG_FILE >> $GITHUB_STEP_SUMMARY
             echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
           fi
-          
           echo "======================================================"
           exit 1
 
@@ -177,7 +163,6 @@ jobs:
             - **Commit:** ${{ github.sha }}
             - **Triggered By:** ${{ github.actor }}
             - **Action Logs:** [View Logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
-            
             *Please check the GitHub Actions Summary page for the exact error breakdown.*
           assignees: ${{ github.actor }}
 
