@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write # ফিক্স করে আবার কমিট করার পারমিশন
+  contents: write
 
 jobs:
   autofix:
@@ -14,8 +14,6 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Node for Prettier
         uses: actions/setup-node@v4
@@ -25,13 +23,12 @@ jobs:
       - name: Auto Fix YAML + JS + JSON
         run: |
           npx prettier --write "**/*.{yml,yaml,js,json}"
-          
+
       - name: Auto Fix Shell Script Syntax
-        uses: reviewdog/action-shfmt@v1
+        uses: mvdan/sh@v3 # এইটা লেটেস্ট, কোনো deprecated input নাই
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          reporter: github-pr-check
-          shfmt_flags: -w -i 2
+          path: ./
+          args: -w -i 2
 
       - name: Commit Auto Fixes
         uses: stefanzweifel/git-auto-commit-action@v5
