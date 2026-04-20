@@ -44,11 +44,19 @@ public class ShieldService extends Service {
     }
 
     @Override
-    public int onStartCommand(Intent intent, int flags, int startId) {
-       // startForeground(NOTIFICATION_ID, createNotification());
+public int onStartCommand(Intent intent, int flags, int startId) {
+    // startForeground(NOTIFICATION_ID, createNotification()); // এটা কমেন্ট থাক
+
+    // এই try-catch টা অ্যাড করো
+    try {
         startMonitoring();
-        return START_STICKY;
+    } catch (Exception e) {
+        Log.e("ShieldService", "Failed to start monitoring, probably permission issue", e);
+        stopSelf(); // ক্র্যাশ না করে সার্ভিস বন্ধ করে দাও
     }
+
+    return START_STICKY;
+}
 
     private void startMonitoring() {
         if (checkRunnable != null) handler.removeCallbacks(checkRunnable);

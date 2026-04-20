@@ -1,12 +1,10 @@
 name: 🚀 Build Native LifeOS
-
 on:
   push:
     branches:
       - main
       - master
   workflow_dispatch:
-
 permissions:
   contents: write
 
@@ -15,7 +13,6 @@ jobs:
     name: 📱 Build Native APK
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    
     steps:
       - name: Checkout Code
         uses: actions/checkout@v3
@@ -50,6 +47,12 @@ jobs:
 
       - name: Rename to LifeOS.apk
         run: mv android/app/build/outputs/apk/debug/app-debug.apk android/app/build/outputs/apk/debug/LifeOS.apk
+
+      - name: Upload APK for Testing
+        uses: actions/upload-artifact@v4
+        with:
+          name: lifeos-apk
+          path: android/app/build/outputs/apk/debug/LifeOS.apk
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
