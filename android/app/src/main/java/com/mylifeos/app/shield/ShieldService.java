@@ -45,7 +45,7 @@ public class ShieldService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        startForeground(NOTIFICATION_ID, createNotification());
+       // startForeground(NOTIFICATION_ID, createNotification());
         startMonitoring();
         return START_STICKY;
     }
