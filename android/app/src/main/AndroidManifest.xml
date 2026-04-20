@@ -22,7 +22,6 @@
     <!-- Shield - Foreground Service -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
-    <!-- ফিক্স 1: SPECIAL_USE ডিলিট করলাম, এটা লাগবে না -->
 
     <!-- Shield - Overlay -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
@@ -110,12 +109,19 @@
         </service>
 
         <!-- Shield Device Admin Receiver -->
-        <receiver android:name=".shield.ShieldDeviceAdminReceiver" ...>
-    <intent-filter>
-        <action android:name="android.app.action.DEVICE_ADMIN_ENABLED" />
-        <action android:name="android.app.action.DEVICE_ADMIN_DISABLE_REQUESTED" /> <!-- এই লাইনটা অ্যাড করো -->
-    </intent-filter>
-</receiver>
+        <receiver
+            android:name=".shield.ShieldDeviceAdminReceiver"
+            android:enabled="true"
+            android:exported="true"
+            android:permission="android.permission.BIND_DEVICE_ADMIN">
+            <meta-data
+                android:name="android.app.device_admin"
+                android:resource="@xml/device_admin" />
+            <intent-filter>
+                <action android:name="android.app.action.DEVICE_ADMIN_ENABLED" />
+                <action android:name="android.app.action.DEVICE_ADMIN_DISABLE_REQUESTED" />
+            </intent-filter>
+        </receiver>
 
         <!-- Shield Block Activity -->
         <activity
@@ -126,7 +132,6 @@
             android:launchMode="singleInstance"
             android:taskAffinity=""
             android:theme="@style/AppTheme.NoActionBar" />
-            <!-- ফিক্স 2: Theme.AppCompat.Light.NoActionBar → @style/AppTheme.NoActionBar -->
 
         <provider
             android:name="androidx.core.content.FileProvider"
