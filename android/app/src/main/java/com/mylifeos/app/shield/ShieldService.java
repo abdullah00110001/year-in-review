@@ -13,6 +13,8 @@ import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
+import android.provider.Settings; // ফিক্স 1: Settings ইম্পোর্ট অ্যাড করলাম
+import android.util.Log; // ফিক্স 2: Log ইম্পোর্ট অ্যাড করলাম
 import androidx.core.app.NotificationCompat;
 import java.text.SimpleDateFormat;
 import java.util.Date;
@@ -29,7 +31,7 @@ public class ShieldService extends Service {
     private ShieldPreferences preferences;
     private Handler handler;
     private Runnable checkRunnable;
-    private Map<String, Integer> dailyUsage = new HashMap<>(); // ফিক্স 1: HashMap দিয়ে ইনিশিয়ালাইজ
+    private Map<String, Integer> dailyUsage = new HashMap<>();
     private String lastKnownPackage = "";
 
     @Override
@@ -92,7 +94,6 @@ public class ShieldService extends Service {
     }
 
     private String getCurrentForegroundApp() {
-        // ফিক্স 2: আসল UsageStats দিয়ে ইমপ্লিমেন্ট করলাম
         String currentApp = null;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             UsageStatsManager usm = (UsageStatsManager) getSystemService(Context.USAGE_STATS_SERVICE);
@@ -147,13 +148,12 @@ public class ShieldService extends Service {
     }
 
     private Notification createNotification() {
-        // ফিক্স 3: MainActivity না পাইলে Settings খুলবে, ক্র্যাশ করবে না
         Intent intent;
         try {
             Class<?> mainActivityClass = Class.forName("com.mylifeos.app.MainActivity");
             intent = new Intent(this, mainActivityClass);
         } catch (ClassNotFoundException e) {
-            intent = new Intent(Settings.ACTION_SETTINGS); // Fallback
+            intent = new Intent(Settings.ACTION_SETTINGS);
         }
         
         PendingIntent pendingIntent = PendingIntent.getActivity(
@@ -163,7 +163,7 @@ public class ShieldService extends Service {
         return new NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("Shield Active")
             .setContentText("Protecting your focus")
-            .setSmallIcon(android.R.drawable.ic_lock_lock) // এটা সব ভার্সনে আছে
+            .setSmallIcon(android.R.drawable.ic_lock_lock)
             .setContentIntent(pendingIntent)
             .setOngoing(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
