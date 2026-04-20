@@ -5,6 +5,8 @@ import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
+import android.app.usage.UsageStats;
+import android.app.usage.UsageStatsManager;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Build;
@@ -14,6 +16,8 @@ import android.os.Looper;
 import androidx.core.app.NotificationCompat;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -25,8 +29,9 @@ public class ShieldService extends Service {
     private ShieldPreferences preferences;
     private Handler handler;
     private Runnable checkRunnable;
-    private Map<String, Integer> dailyUsage; // package -> seconds used today
-    
+    private Map<String, Integer> dailyUsage = new HashMap<>(); // ফিক্স 1: HashMap দিয়ে ইনিশিয়ালাইজ
+    private String lastKnownPackage = "";
+
     @Override
     public void onCreate() {
         super.onCreate();
@@ -44,6 +49,8 @@ public class ShieldService extends Service {
     }
 
     private void startMonitoring() {
+        if (checkRunnable != null) handler.removeCallbacks(checkRunnable);
+        
         checkRunnable = new Runnable() {
             @Override
             public void run() {
@@ -58,8 +65,12 @@ public class ShieldService extends Service {
 
     private void checkCurrentApp() {
         String currentPackage = getCurrentForegroundApp();
-        if (currentPackage == null || currentPackage.equals(getPackageName())) return;
-
+        if (currentPackage == null || currentPackage.equals(getPackageName()) || currentPackage.equals(lastKnownPackage)) {
+            lastKnownPackage = currentPackage;
+            return;
+        }
+        
+        lastKnownPackage = currentPackage;
         Set<String> blockedApps = preferences.getBlockedApps();
         Map<String, Integer> timeLimits = preferences.getTimeLimits();
 
@@ -81,24 +92,41 @@ public class ShieldService extends Service {
     }
 
     private String getCurrentForegroundApp() {
-        // Note: Real implementation needs UsageStatsManager
-        // For now return null. AccessibilityService will handle detection
-        return null;
+        // ফিক্স 2: আসল UsageStats দিয়ে ইমপ্লিমেন্ট করলাম
+        String currentApp = null;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            UsageStatsManager usm = (UsageStatsManager) getSystemService(Context.USAGE_STATS_SERVICE);
+            long time = System.currentTimeMillis();
+            List<UsageStats> appList = usm.queryUsageStats(UsageStatsManager.INTERVAL_DAILY, time - 1000 * 1000, time);
+            if (appList != null && appList.size() > 0) {
+                UsageStats recentApp = null;
+                for (UsageStats usageStats : appList) {
+                    if (recentApp == null || usageStats.getLastTimeUsed() > recentApp.getLastTimeUsed()) {
+                        recentApp = usageStats;
+                    }
+                }
+                if (recentApp != null) currentApp = recentApp.getPackageName();
+            }
+        }
+        return currentApp;
     }
 
     private void launchBlockScreen(String packageName, String reason) {
-        Intent intent = new Intent(this, ShieldBlockActivity.class);
-        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
-        intent.putExtra("blocked_package", packageName);
-        intent.putExtra("reason", reason);
-        startActivity(intent);
+        try {
+            Intent intent = new Intent(this, ShieldBlockActivity.class);
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+            intent.putExtra("blocked_package", packageName);
+            intent.putExtra("reason", reason);
+            startActivity(intent);
+        } catch (Exception e) {
+            Log.e("ShieldService", "Failed to launch block screen: " + e.getMessage());
+        }
     }
 
     private void resetDailyUsageIfNeeded() {
         String today = new SimpleDateFormat("yyyy-MM-dd", Locale.US).format(new Date());
         String lastReset = preferences.getLastResetDate();
-        
-        if (!today.equals(lastReset)) {
+        if (lastReset == null || !today.equals(lastReset)) {
             dailyUsage.clear();
             preferences.updateLastResetDate(today);
         }
@@ -107,37 +135,39 @@ public class ShieldService extends Service {
     private void createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             NotificationChannel channel = new NotificationChannel(
-                CHANNEL_ID,
-                "Shield Protection",
+                CHANNEL_ID, 
+                "Shield Protection", 
                 NotificationManager.IMPORTANCE_LOW
             );
             channel.setDescription("Shield is actively protecting you");
+            channel.setShowBadge(false);
             NotificationManager manager = getSystemService(NotificationManager.class);
-            manager.createNotificationChannel(channel);
+            if (manager != null) manager.createNotificationChannel(channel);
         }
     }
 
     private Notification createNotification() {
-        Intent intent = new Intent(this, getMainActivityClass());
+        // ফিক্স 3: MainActivity না পাইলে Settings খুলবে, ক্র্যাশ করবে না
+        Intent intent;
+        try {
+            Class<?> mainActivityClass = Class.forName("com.mylifeos.app.MainActivity");
+            intent = new Intent(this, mainActivityClass);
+        } catch (ClassNotFoundException e) {
+            intent = new Intent(Settings.ACTION_SETTINGS); // Fallback
+        }
+        
         PendingIntent pendingIntent = PendingIntent.getActivity(
-            this, 0, intent, PendingIntent.FLAG_IMMUTABLE
+            this, 0, intent, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT
         );
 
         return new NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("Shield Active")
             .setContentText("Protecting your focus")
-            .setSmallIcon(android.R.drawable.ic_lock)
+            .setSmallIcon(android.R.drawable.ic_lock_lock) // এটা সব ভার্সনে আছে
             .setContentIntent(pendingIntent)
             .setOngoing(true)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
             .build();
-    }
-
-    private Class<?> getMainActivityClass() {
-        try {
-            return Class.forName("com.mylifeos.app.MainActivity");
-        } catch (ClassNotFoundException e) {
-            return null;
-        }
     }
 
     @Override
@@ -145,6 +175,7 @@ public class ShieldService extends Service {
         if (handler != null && checkRunnable != null) {
             handler.removeCallbacks(checkRunnable);
         }
+        stopForeground(true);
         super.onDestroy();
     }
 

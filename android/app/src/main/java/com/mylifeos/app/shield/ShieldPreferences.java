@@ -37,11 +37,14 @@ public class ShieldPreferences {
     }
 
     public Set<String> getBlockedApps() {
-        return prefs.getStringSet(KEY_BLOCKED_APPS, new HashSet<>());
+        // ফিক্স 1: নতুন HashSet বানায় রিটার্ন করো। ডাইরেক্ট রেফারেন্স না।
+        Set<String> storedSet = prefs.getStringSet(KEY_BLOCKED_APPS, null);
+        return storedSet != null ? new HashSet<>(storedSet) : new HashSet<>();
     }
 
     public void setBlockedApps(Set<String> packages) {
-        prefs.edit().putStringSet(KEY_BLOCKED_APPS, packages).apply();
+        // ফিক্স 2: নতুন HashSet বানায় সেভ করো। বাইরের সেট মডিফাই হলে ঝামেলা হবে না।
+        prefs.edit().putStringSet(KEY_BLOCKED_APPS, new HashSet<>(packages)).apply();
     }
 
     public String getCurrentMode() {
@@ -54,13 +57,18 @@ public class ShieldPreferences {
 
     public Map<String, Integer> getTimeLimits() {
         String json = prefs.getString(KEY_TIME_LIMITS, "{}");
-        Type type = new TypeToken<HashMap<String, Integer>>(){}.getType();
-        Map<String, Integer> map = gson.fromJson(json, type);
-        return map != null ? map : new HashMap<>();
+        try {
+            Type type = new TypeToken<HashMap<String, Integer>>(){}.getType();
+            Map<String, Integer> map = gson.fromJson(json, type);
+            return map != null ? map : new HashMap<>();
+        } catch (Exception e) {
+            // ফিক্স 3: JSON পার্স না হলে ক্র্যাশ না করে খালি ম্যাপ দাও
+            return new HashMap<>();
+        }
     }
 
     public void setTimeLimits(Map<String, Integer> limits) {
-        String json = gson.toJson(limits);
+        String json = gson.toJson(limits != null ? limits : new HashMap<>());
         prefs.edit().putString(KEY_TIME_LIMITS, json).apply();
     }
 
