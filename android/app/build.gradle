@@ -2,12 +2,12 @@ apply plugin: 'com.android.application'
 
 android {
     namespace = "com.mylifeos.app"
-    compileSdk = 34  // 34 করে দিলাম
+    compileSdk = 36
 
     defaultConfig {
         applicationId "com.mylifeos.app"
         minSdkVersion 22  // এটা 22 থাকলেও চলবে
-        targetSdkVersion 34  // 34 করে দিলাম
+        targetSdkVersion 36
         versionCode 1
         versionName "1.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"

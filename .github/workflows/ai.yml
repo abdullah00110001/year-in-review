@@ -7,7 +7,8 @@ on:
 
 jobs:
   ai-fix:
-    if: ${{ github.event.workflow_run.conclusion == 'failure' }}
+    # এই লাইনটা চেঞ্জ করছি - আগে failure চেক করতো, এখন সব সময় রান হবে
+    if: always()
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -20,7 +21,7 @@ jobs:
           ref: ${{ github.event.workflow_run.head_branch }}
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Get Failed Build Logs
+      - name: Get Build Logs
         id: get_logs
         uses: actions/github-script@v7
         with:
@@ -30,55 +31,63 @@ jobs:
               repo: context.repo.repo,
               run_id: ${{ github.event.workflow_run.id }},
             });
-            const failedJob = jobs.data.jobs.find(job => job.conclusion === 'failure');
+            // ফেইল হলে ফেইলড জব, সাকসেস হলে লাস্ট জবের লগ নিবে
+            let targetJob = jobs.data.jobs.find(job => job.conclusion === 'failure');
+            if (!targetJob) {
+              targetJob = jobs.data.jobs[jobs.data.jobs.length - 1]; // সাকসেস হলে লাস্ট জব
+            }
             const log = await github.rest.actions.downloadJobLogsForWorkflowRun({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              job_id: failedJob.id,
+              job_id: targetJob.id,
             });
-            core.setOutput('log', log.data);
+            const logText = log.data.toString().slice(-50000);
+            core.setOutput('log', logText);
+            core.setOutput('conclusion', '${{ github.event.workflow_run.conclusion }}');
 
       - name: Setup Node for AI Script
         uses: actions/setup-node@v4
         with:
           node-version: '20'
 
-      - name: Run Gemini AI Fixer
+      - name: Run Gemini AI Analysis
         id: ai_fix
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           BUILD_LOG: ${{ steps.get_logs.outputs.log }}
+          BUILD_STATUS: ${{ steps.get_logs.outputs.conclusion }}
         run: |
           npm init -y
           npm install @google/generative-ai
           node -e "
-            const { GoogleGenerativeAI } = require('@google/generative-ai');
-            const fs = require('fs');
-            const { execSync } = require('child_process');
-            const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-            const model = genAI.getGenerativeModel({ model: 'gemini-2.5-pro' });
-            const buildLog = process.env.BUILD_LOG;
-            const allFiles = execSync('find android/app/src -type f \\( -name \"*.java\" -o -name \"*.xml\" -o -name \"*.gradle\" \\)').toString().split('\n').filter(Boolean);
-            let codeContext = '';
-            allFiles.forEach(file => {
-              codeContext += `\n--- FILE: ${file} ---\n` + fs.readFileSync(file, 'utf8');
-            });
-            const prompt = \`
-            You are an expert Android developer. My GitHub Actions build failed.
-            BUILD LOG: \`\`\` ${buildLog.slice(-15000)} \`\`\`
-            PROJECT CODE: \`\`\` ${codeContext} \`\`\`
-            Task:
-            1. Root Cause: Explain exactly why the build failed in 1-2 sentences.
-            2. Fix: Provide the complete, corrected code for ONLY the files that need changes.
-            3. Format: Respond ONLY with a JSON object like this: {\"root_cause\": \"...\", \"fixes\": [{\"file\": \"path/to/file.java\", \"content\": \"full new file content...\"}]}
-            Do not add any text outside the JSON. \`;
-            (async () => {
-              const result = await model.generateContent(prompt);
-              const response = await result.response;
-              const text = response.text().replace(/```json|```/g, '').trim();
-              fs.writeFileSync('ai_fix.json', text);
-              console.log('AI analysis complete.');
-            })();
+          const { GoogleGenerativeAI } = require('@google/generative-ai');
+          const fs = require('fs');
+          const { execSync } = require('child_process');
+          const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+          const model = genAI.getGenerativeModel({ model: 'gemini-2.5-pro' });
+          const buildLog = process.env.BUILD_LOG;
+          const buildStatus = process.env.BUILD_STATUS;
+          const allFiles = execSync('find android -type f \\( -name \"*.java\" -o -name \"*.xml\" -o -name \"*.gradle\" \\) | head -20').toString().split('\n').filter(Boolean);
+          let codeContext = '';
+          allFiles.forEach(file => {
+            try {
+              codeContext += `\n--- FILE: ${file} ---\n` + fs.readFileSync(file, 'utf8').slice(0, 3000);
+            } catch(e) {}
+          });
+          const prompt = \`You are an expert Android developer. My GitHub Actions build status is: ${buildStatus}.
+          BUILD LOG: \`\`\`${buildLog}\`\`\`
+          PROJECT CODE: \`\`\`${codeContext}\`\`\`
+          Task:
+          1. If build FAILED: Explain root cause in 1-2 sentences and provide fixes.
+          2. If build SUCCEEDED: Suggest optimizations or improvements. If no changes needed, return empty fixes array.
+          3. Format: Respond ONLY with a JSON object like this: {\"build_status\": \"${buildStatus}\", \"root_cause\": \"...\", \"fixes\": [{\"file\": \"path/to/file.java\", \"content\": \"full new file content...\"}]} Do not add any text outside the JSON.\`;
+          (async () => {
+            const result = await model.generateContent(prompt);
+            const response = await result.response;
+            const text = response.text().replace(/\\\`\\\`\\\`json|\\\`\\\`\\\`/g, '').trim();
+            fs.writeFileSync('ai_fix.json', text);
+            console.log('AI analysis complete.');
+          })();
           "
 
       - name: Apply AI Fixes and Create PR
@@ -87,13 +96,25 @@ jobs:
           script: |
             const fs = require('fs');
             const { execSync } = require('child_process');
-            const aiFix = JSON.parse(fs.readFileSync('ai_fix.json', 'utf8'));
-            console.log('Root Cause:', aiFix.root_cause);
-            if (!aiFix.fixes || aiFix.fixes.length === 0) {
-              core.setFailed('AI could not determine a fix.');
+            if (!fs.existsSync('ai_fix.json')) {
+              console.log('ai_fix.json not found');
               return;
             }
-            const branchName = `ai-fix/${context.runId}`;
+            const aiFix = JSON.parse(fs.readFileSync('ai_fix.json', 'utf8'));
+            console.log('Build Status:', aiFix.build_status);
+            console.log('Root Cause:', aiFix.root_cause);
+
+            // সাকসেস হলে আর ফিক্স না থাকলে PR বানাবে না
+            if (aiFix.build_status === 'success' && (!aiFix.fixes || aiFix.fixes.length === 0)) {
+              console.log('Build succeeded and AI has no improvements. Skipping PR.');
+              return;
+            }
+            if (!aiFix.fixes || aiFix.fixes.length === 0) {
+              console.log('AI could not determine a fix.');
+              return;
+            }
+
+            const branchName = `ai-${aiFix.build_status}/${context.runId}`;
             execSync(`git checkout -b ${branchName}`);
             aiFix.fixes.forEach(fix => {
               fs.writeFileSync(fix.file, fix.content);
@@ -102,22 +123,29 @@ jobs:
             execSync(`git config user.name "AI Fixer Bot"`);
             execSync(`git config user.email "bot@users.noreply.github.com"`);
             execSync(`git add.`);
-            execSync(`git commit -m "fix: AI auto-fix for build failure\n\nRoot Cause: ${aiFix.root_cause}"`);
+            const commitMsg = aiFix.build_status === 'failure'
+             ? `fix: AI auto-fix for build failure\n\nRoot Cause: ${aiFix.root_cause}`
+              : `chore: AI optimization suggestion\n\nDetails: ${aiFix.root_cause}`;
+            execSync(`git commit -m "${commitMsg}"`);
             execSync(`git push origin ${branchName}`);
+
+            const prTitle = aiFix.build_status === 'failure'
+             ? `🤖 AI Fix: Build Failure`
+              : `✨ AI Optimization: Build Succeeded`;
             await github.rest.pulls.create({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              title: `🤖 AI Fix: Build Failure`,
+              title: prTitle,
               head: branchName,
               base: '${{ github.event.workflow_run.head_branch }}',
-              body: `### AI Build Fix\n\n**Root Cause:**\n${aiFix.root_cause}\n\n**Files Changed:**\n${aiFix.fixes.map(f => `- \`${f.file}\``).join('\n')}\n\nThis PR was automatically generated by Gemini. Please review and merge.`
+              body: `### AI Build Analysis\n\n**Build Status:** ${aiFix.build_status}\n**Root Cause/Details:**\n${aiFix.root_cause}\n\n**Files Changed:**\n${aiFix.fixes.map(f => `- \`${f.file}\``).join('\n')}\n\nThis PR was automatically generated by Gemini. Please review and merge.`
             });
 
   test-apk:
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    if: github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 25
-    permissions: # এই 3টা লাইন অ্যাড করছি
+    permissions:
       actions: read
       contents: read
     steps:
