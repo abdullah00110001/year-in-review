@@ -1,132 +1,188 @@
 package com.mylifeos.app;
 
-import android.content.Context;
+import android.Manifest;
+import android.app.AlertDialog;
 import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.provider.Settings;
-import android.webkit.WebView;
-import android.webkit.WebViewClient;
-import android.webkit.WebResourceRequest;
-import android.webkit.WebResourceError;
-import android.util.Log;
-import android.widget.Toast;
-import android.app.AppOpsManager;
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.core.content.ContextCompat;
 import com.getcapacitor.BridgeActivity;
-import com.mylifeos.app.plugins.RiseAlarmPlugin;
-import com.mylifeos.app.plugins.AppUpdatePlugin;
-import com.mylifeos.app.plugins.ShieldPlugin;
-import com.mylifeos.app.shield.ShieldService;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 
 public class MainActivity extends BridgeActivity {
-    private static final String TAG = "LifeOS";
+
+    private ActivityResultLauncher<String[]> runtimePermissionLauncher;
+    private int currentSpecialPermissionIndex = 0;
+
+    // 1. নরমাল Runtime পারমিশন যেগুলা ডায়ালগে আসবে
+    private final String[] RUNTIME_PERMISSIONS = {
+            Manifest.permission.CAMERA,
+            Manifest.permission.READ_EXTERNAL_STORAGE
+    };
+
+    // 2. Special পারমিশন যেগুলা Settings এ নিয়ে যাওয়া লাগবে
+    private enum SpecialPermission {
+        POST_NOTIFICATIONS,
+        OVERLAY,
+        USAGE_STATS,
+        BATTERY_OPTIMIZATION,
+        EXACT_ALARM,
+        INSTALL_PACKAGES
+    }
+    private final SpecialPermission[] SPECIAL_PERMISSIONS = SpecialPermission.values();
 
     @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        // Register custom plugins before super.onCreate
-        registerPlugin(AppUpdatePlugin.class);
-        registerPlugin(RiseAlarmPlugin.class);
-        registerPlugin(ShieldPlugin.class);
-
+    public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        Log.d(TAG, "MainActivity onCreate");
 
-        // Handle alarm intent if app was launched by alarm
-        handleAlarmIntent(getIntent());
-    }
-
-    @Override
-    protected void onNewIntent(Intent intent) {
-        super.onNewIntent(intent);
-        setIntent(intent);
-        handleAlarmIntent(intent);
-    }
-
-    private void handleAlarmIntent(Intent intent) {
-        if (intent!= null && intent.getBooleanExtra("rise_alarm_trigger", false)) {
-            String title = intent.getStringExtra("title");
-            String body = intent.getStringExtra("body");
-            String missionType = intent.getStringExtra("missionType");
-            String dbId = intent.getStringExtra("dbId");
-            Log.d(TAG, "Alarm triggered: " + title);
-
-            getBridge().getWebView().post(() -> {
-                getBridge().triggerJSEvent("riseAlarmTriggered", "{" +
-                        "\"title\":\"" + title + "\"," +
-                        "\"body\":\"" + body + "\"," +
-                        "\"missionType\":\"" + missionType + "\"," +
-                        "\"dbId\":\"" + dbId + "\"" +
-                        "}");
-            });
-        }
-    }
-
-    @Override
-    public void onStart() {
-        super.onStart();
-        getWindow().getDecorView().post(() -> {
-            try {
-                if (getBridge() == null || getBridge().getWebView() == null) {
-                    Log.w(TAG, "Bridge or WebView not ready yet");
-                    return;
-                }
-                WebView webView = getBridge().getWebView();
-                webView.getSettings().setJavaScriptEnabled(true);
-                webView.getSettings().setDomStorageEnabled(true);
-                webView.getSettings().setAllowFileAccess(true);
-                webView.getSettings().setMixedContentMode(android.webkit.WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
-
-                webView.setWebViewClient(new WebViewClient() {
-                    @Override
-                    public void onPageFinished(WebView view, String url) {
-                        super.onPageFinished(view, url);
-                        // পেজ লোড হওয়ার পর Shield চেক করো, আগে না
-                        if (url.contains("app") || url.contains("dashboard")) {
-                            checkAndStartShieldService();
-                        }
-                    }
-
-                    @Override
-                    public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
-                        if (request!= null && request.isForMainFrame()) {
-                            Log.e(TAG, "WebView main frame error: " + error.getDescription());
-                            view.loadData(
-                                    "<html><body style='background:#0f172a;color:white;display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;flex-direction:column'>" +
-                                            "<h2>⏳ Loading Life OS...</h2>" +
-                                            "<p>Check your internet connection</p>" +
-                                            "<button onclick='location.reload()' style='margin-top:20px;padding:12px 24px;background:#0ea5e9;color:white;border:none;border-radius:8px;font-size:16px'>Retry</button>" +
-                                            "</body></html>", "text/html", "UTF-8"
-                            );
-                        }
-                    }
-                });
-                Log.d(TAG, "WebView hardened successfully");
-            } catch (Exception e) {
-                Log.e(TAG, "WebView setup error: " + e.getMessage());
+        // Runtime পারমিশনের রেজাল্ট হ্যান্ডেল করার জন্য
+        runtimePermissionLauncher = registerForActivityResult(
+            new ActivityResultContracts.RequestMultiplePermissions(),
+            result -> {
+                // Runtime পারমিশন শেষ, এখন Special পারমিশন চাওয়া শুরু করো
+                checkAndRequestSpecialPermissions();
             }
-        });
-    }
-
-    // এই ফাংশনটা নতুন - লগিনের পর Shield চালু করার আগে পারমিশন চেক করবে
-    private void checkAndStartShieldService() {
-        AppOpsManager appOps = (AppOpsManager) getSystemService(Context.APP_OPS_SERVICE);
-        int mode = appOps.checkOpNoThrow(AppOpsManager.OPSTR_GET_USAGE_STATS,
-                android.os.Process.myUid(), getPackageName());
-
-        if (mode == AppOpsManager.MODE_ALLOWED) {
-            Log.d(TAG, "Usage Stats permission granted. Starting ShieldService.");
-            Intent serviceIntent = new Intent(this, ShieldService.class);
-            startService(serviceIntent);
-        } else {
-            Log.w(TAG, "Usage Stats permission NOT granted. Asking user.");
-            Toast.makeText(this, "Please enable Usage Access for Shield to work", Toast.LENGTH_LONG).show();
-            Intent intent = new Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS);
-            startActivity(intent);
-        }
+        );
     }
 
     @Override
     public void onResume() {
         super.onResume();
-        Log.d(TAG, "App resumed");
+        // অ্যাপ প্রতিবার সামনে আসলে চেক করবে
+        checkAndRequestRuntimePermissions();
+    }
+
+    private void checkAndRequestRuntimePermissions() {
+        List<String> permissionsToRequest = new ArrayList<>();
+        
+        // Android 13+ এ Notification পারমিশন Runtime
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)!= PackageManager.PERMISSION_GRANTED) {
+                permissionsToRequest.add(Manifest.permission.POST_NOTIFICATIONS);
+            }
+        }
+
+        for (String permission : RUNTIME_PERMISSIONS) {
+            if (ContextCompat.checkSelfPermission(this, permission)!= PackageManager.PERMISSION_GRANTED) {
+                permissionsToRequest.add(permission);
+            }
+        }
+
+        if (!permissionsToRequest.isEmpty()) {
+            runtimePermissionLauncher.launch(permissionsToRequest.toArray(new String[0]));
+        } else {
+            // Runtime সব ok, এখন Special গুলা চেক করো
+            checkAndRequestSpecialPermissions();
+        }
+    }
+
+    private void checkAndRequestSpecialPermissions() {
+        if (currentSpecialPermissionIndex >= SPECIAL_PERMISSIONS.length) {
+            currentSpecialPermissionIndex = 0; // সব শেষ, রিসেট করে দাও
+            return;
+        }
+
+        SpecialPermission permission = SPECIAL_PERMISSIONS[currentSpecialPermissionIndex];
+        boolean needRequest = false;
+        String title = "";
+        String message = "";
+        Runnable requestAction = null;
+
+        switch (permission) {
+            case OVERLAY:
+                if (!Settings.canDrawOverlays(this)) {
+                    needRequest = true;
+                    title = "Display over other apps";
+                    message = "Shield ফিচারের জন্য অন্য অ্যাপের উপর দেখানোর পারমিশন দিন।";
+                    requestAction = () -> {
+                        Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:" + getPackageName()));
+                        startActivity(intent);
+                    };
+                }
+                break;
+            case USAGE_STATS:
+                if (!hasUsageStatsPermission()) {
+                    needRequest = true;
+                    title = "Usage Access";
+                    message = "Shield এর জন্য অ্যাপ ইউসেজ দেখার পারমিশন দিন।";
+                    requestAction = () -> startActivity(new Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS));
+                }
+                break;
+            case BATTERY_OPTIMIZATION:
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    if (!((android.os.PowerManager) getSystemService(POWER_SERVICE)).isIgnoringBatteryOptimizations(getPackageName())) {
+                        needRequest = true;
+                        title = "Battery Optimization";
+                        message = "ব্যাকগ্রাউন্ডে অ্যালার্ম ঠিকমতো কাজ করার জন্য ব্যাটারি অপটিমাইজেশন বন্ধ করুন।";
+                        requestAction = () -> {
+                            Intent intent = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:" + getPackageName()));
+                            startActivity(intent);
+                        };
+                    }
+                }
+                break;
+            case EXACT_ALARM:
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    if (!((android.app.AlarmManager) getSystemService(ALARM_SERVICE)).canScheduleExactAlarms()) {
+                        needRequest = true;
+                        title = "Alarms & Reminders";
+                        message = "সঠিক সময়ে অ্যালার্ম বাজানোর জন্য পারমিশন দিন।";
+                        requestAction = () -> startActivity(new Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM));
+                    }
+                }
+                break;
+            case INSTALL_PACKAGES:
+                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    if (!getPackageManager().canRequestPackageInstalls()) {
+                        needRequest = true;
+                        title = "Install Unknown Apps";
+                        message = "OTA আপডেটের জন্য অ্যাপ ইনস্টল করার পারমিশন দিন।";
+                        requestAction = () -> {
+                            Intent intent = new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:" + getPackageName()));
+                            startActivity(intent);
+                        };
+                    }
+                }
+                break;
+        }
+
+        if (needRequest) {
+            final Runnable finalRequestAction = requestAction;
+            new AlertDialog.Builder(this)
+                   .setTitle(title)
+                   .setMessage(message)
+                   .setPositiveButton("Settings এ যান", (dialog, which) -> finalRequestAction.run())
+                   .setNegativeButton("পরে", (dialog, which) -> {
+                        currentSpecialPermissionIndex++;
+                        checkAndRequestSpecialPermissions(); // পরেরটা চেক করো
+                    })
+                   .setOnCancelListener(dialog -> {
+                        currentSpecialPermissionIndex++;
+                        checkAndRequestSpecialPermissions();
+                    })
+                   .show();
+        } else {
+            // এটা লাগবে না, পরেরটা চেক করো
+            currentSpecialPermissionIndex++;
+            checkAndRequestSpecialPermissions();
+        }
+    }
+
+    private boolean hasUsageStatsPermission() {
+        try {
+            android.app.usage.UsageStatsManager usageStatsManager = (android.app.usage.UsageStatsManager) getSystemService(USAGE_STATS_SERVICE);
+            long time = System.currentTimeMillis();
+            List<android.app.usage.UsageStats> stats = usageStatsManager.queryUsageStats(android.app.usage.UsageStatsManager.INTERVAL_DAILY, time - 1000 * 60, time);
+            return stats!= null &&!stats.isEmpty();
+        } catch (Exception e) {
+            return false;
+        }
     }
 }

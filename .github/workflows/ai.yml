@@ -117,6 +117,9 @@ jobs:
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    permissions: # এই 3টা লাইন অ্যাড করছি
+      actions: read
+      contents: read
     steps:
       - name: Download APK from build workflow
         uses: actions/download-artifact@v4
@@ -137,10 +140,10 @@ jobs:
             adb shell monkey -p com.mylifeos.app -c android.intent.category.LAUNCHER 1
             sleep 8
             adb shell input text "abdullahusimin1@gmail.com"
-            adb shell input keyevent 61 # Tab
-            adb shell input keyevent 61 # Tab to password field
+            adb shell input keyevent 61
+            adb shell input keyevent 61
             adb shell input text "123456"
-            adb shell input keyevent 66 # Enter to login
+            adb shell input keyevent 66
             sleep 20
             adb logcat -d > full_log.txt
             adb logcat -d *:E > error_log.txt

@@ -1,38 +1,11 @@
+import { useState, useEffect } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
-import { 
-  Ban,
-  Palette,
-  Clock,
-  Columns,
-  Power,
-  AppWindow,
-  AlertTriangle,
-  Bell,
-  ChevronRight,
-  Globe,
-  KeyRound,
-  Timer,
-  Moon,
-  Lock,
-  Vibrate,
-  Volume2,
-  Eye,
-  Download,
-  Upload,
-  Trash2,
-  Info,
-  HelpCircle,
-  MessageSquare,
-  Database,
-  RefreshCw,
-  Zap,
-  BellRing,
-  MonitorSmartphone,
-  ShieldCheck
-} from 'lucide-react';
+import { Ban, Palette, Clock, Columns, Power, AppWindow, AlertTriangle, Bell, ChevronRight, Globe, KeyRound, Timer, Moon, Lock, Vibrate, Volume2, Eye, Download, Upload, Trash2, Info, HelpCircle, MessageSquare, Database, RefreshCw, Zap, BellRing, MonitorSmartphone, ShieldCheck, CheckCircle2, XCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { openAccessibilitySettings, openDeviceAdminSettings, openUsageAccessSettings } from '@/utils/permissions';
+import { Capacitor } from '@capacitor/core';
 
 interface SettingItem {
   icon: typeof Ban;
@@ -46,6 +19,7 @@ interface SettingItem {
   isPremium?: boolean;
   iconColor?: string;
   iconBg?: string;
+  status?: 'granted' | 'denied';
 }
 
 interface ShieldSettingsProps {
@@ -62,6 +36,65 @@ interface ShieldSettingsProps {
 }
 
 export function ShieldSettings({ settings, onSettingChange, onNavigate }: ShieldSettingsProps) {
+  const [permissionStatus, setPermissionStatus] = useState({
+    accessibility: false,
+    usageStats: false,
+    deviceAdmin: false,
+    batteryOptimization: false,
+  });
+
+  useEffect(() => {
+    checkPermissionStatus();
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        checkPermissionStatus();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
+  }, []);
+
+  const checkPermissionStatus = async () => {
+    if (Capacitor.getPlatform()!== 'android') return;
+    const hasUsageStats = await checkUsageStatsPermission();
+    const hasBatteryOpt = await checkBatteryOptimization();
+    setPermissionStatus({
+      accessibility: false, // Android এ কোড দিয়ে চেক করা যায় না
+      usageStats: hasUsageStats,
+      deviceAdmin: false, // Android এ কোড দিয়ে চেক করা যায় না
+      batteryOptimization: hasBatteryOpt,
+    });
+  };
+
+  const checkUsageStatsPermission = async (): Promise<boolean> => {
+    try {
+      // @ts-ignore
+      const usageStatsManager = window.capacitor?.UsageStatsManager;
+      if (!usageStatsManager) return false;
+      const time = Date.now();
+      const stats = await usageStatsManager.queryUsageStats(0, time - 1000 * 60, time);
+      return stats && stats.length > 0;
+    } catch {
+      return false;
+    }
+  };
+
+  const checkBatteryOptimization = async (): Promise<boolean> => {
+    try {
+      // @ts-ignore
+      return await window.capacitor?.PowerManager?.isIgnoringBatteryOptimizations() || false;
+    } catch {
+      return false;
+    }
+  };
+
+  const handleOpenBatterySettings = async () => {
+    if (Capacitor.getPlatform() === 'android') {
+      // @ts-ignore
+      await window.capacitor?.App?.openUrl({ url: 'android.settings.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS' });
+    }
+  };
+
   const blockingSettings: SettingItem[] = [
     {
       icon: Ban,
@@ -234,10 +267,12 @@ export function ShieldSettings({ settings, onSettingChange, onNavigate }: Shield
     {
       icon: ShieldCheck,
       title: 'Device Admin',
-      description: 'Enable advanced protection features',
+      description: permissionStatus.deviceAdmin? 'Enabled - Tap to manage' : 'Tap to enable advanced protection',
       hasArrow: true,
+      onClick: openDeviceAdminSettings,
       iconColor: 'text-green-600',
       iconBg: 'bg-green-600/10',
+      status: permissionStatus.deviceAdmin? 'granted' : 'denied',
     },
     {
       icon: KeyRound,
@@ -250,18 +285,22 @@ export function ShieldSettings({ settings, onSettingChange, onNavigate }: Shield
     {
       icon: Eye,
       title: 'Accessibility Service',
-      description: 'Required for website blocking',
+      description: permissionStatus.accessibility? 'Enabled - Blocking apps works' : 'Tap to enable - Required for app blocking',
       hasArrow: true,
+      onClick: openAccessibilitySettings,
       iconColor: 'text-blue-500',
       iconBg: 'bg-blue-500/10',
+      status: permissionStatus.accessibility? 'granted' : 'denied',
     },
     {
       icon: Zap,
       title: 'Battery Optimization',
-      description: 'Disable for reliable background blocking',
+      description: permissionStatus.batteryOptimization? 'Disabled - App runs in background' : 'Tap to disable for reliable blocking',
       hasArrow: true,
+      onClick: handleOpenBatterySettings,
       iconColor: 'text-yellow-500',
       iconBg: 'bg-yellow-500/10',
+      status: permissionStatus.batteryOptimization? 'granted' : 'denied',
     },
   ];
 
@@ -285,10 +324,12 @@ export function ShieldSettings({ settings, onSettingChange, onNavigate }: Shield
     {
       icon: Database,
       title: 'Usage Statistics',
-      description: 'View detailed app usage data',
+      description: permissionStatus.usageStats? 'Enabled - Tap to view detailed data' : 'Tap to enable app usage tracking',
       hasArrow: true,
+      onClick: openUsageAccessSettings,
       iconColor: 'text-purple-500',
       iconBg: 'bg-purple-500/10',
+      status: permissionStatus.usageStats? 'granted' : 'denied',
     },
     {
       icon: Trash2,
@@ -328,14 +369,10 @@ export function ShieldSettings({ settings, onSettingChange, onNavigate }: Shield
   ];
 
   const renderSettingItem = (item: SettingItem, index: number, isLast: boolean) => (
-    <div
-      key={index}
-      className={cn(
-        'flex items-center gap-4 p-4 cursor-pointer active:bg-muted/50 transition-colors',
-        !isLast && 'border-b border-border/50'
-      )}
-      onClick={item.onClick}
-    >
+    <div key={index} className={cn(
+      'flex items-center gap-4 p-4 cursor-pointer active:bg-muted/50 transition-colors',
+     !isLast && 'border-b border-border/50'
+    )} onClick={item.onClick}>
       <div className={cn(
         "h-10 w-10 rounded-xl flex items-center justify-center shrink-0",
         item.iconBg || 'bg-muted'
@@ -350,6 +387,12 @@ export function ShieldSettings({ settings, onSettingChange, onNavigate }: Shield
               PRO
             </Badge>
           )}
+          {item.status === 'granted' && (
+            <CheckCircle2 className="h-4 w-4 text-green-500" />
+          )}
+          {item.status === 'denied' && (
+            <XCircle className="h-4 w-4 text-red-500" />
+          )}
         </div>
         <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">
           {item.description}
@@ -359,12 +402,7 @@ export function ShieldSettings({ settings, onSettingChange, onNavigate }: Shield
         <ChevronRight className="h-5 w-5 text-muted-foreground shrink-0" />
       )}
       {item.hasToggle && (
-        <Switch
-          checked={item.toggleValue}
-          onCheckedChange={item.onToggle}
-          onClick={(e) => e.stopPropagation()}
-          className="shrink-0 data-[state=checked]:bg-primary"
-        />
+        <Switch checked={item.toggleValue} onCheckedChange={item.onToggle} onClick={(e) => e.stopPropagation()} className="shrink-0 data-[state=checked]:bg-primary" />
       )}
     </div>
   );
@@ -374,9 +412,7 @@ export function ShieldSettings({ settings, onSettingChange, onNavigate }: Shield
       <h2 className="font-semibold text-xs text-muted-foreground mb-2 px-1 uppercase tracking-wider">{title}</h2>
       <Card className="overflow-hidden border-border/50">
         <CardContent className="p-0">
-          {items.map((item, index) => 
-            renderSettingItem(item, index, index === items.length - 1)
-          )}
+          {items.map((item, index) => renderSettingItem(item, index, index === items.length - 1))}
         </CardContent>
       </Card>
     </div>
