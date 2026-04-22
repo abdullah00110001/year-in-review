@@ -38,15 +38,17 @@ public class MainActivity extends BridgeActivity {
     }
     private final SpecialPermission[] SPECIAL_PERMISSIONS = SpecialPermission.values();
 
+    private boolean permissionFlowStarted = false;
+
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        // Runtime পারমিশনের রেজাল্ট হ্যান্ডেল করার জন্য
+        // Runtime permission result handler
         runtimePermissionLauncher = registerForActivityResult(
             new ActivityResultContracts.RequestMultiplePermissions(),
             result -> {
-                // Runtime পারমিশন শেষ, এখন Special পারমিশন চাওয়া শুরু করো
+                // After runtime permissions, run special-permission flow ONCE.
                 checkAndRequestSpecialPermissions();
             }
         );
@@ -55,22 +57,30 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onResume() {
         super.onResume();
-        // অ্যাপ প্রতিবার সামনে আসলে চেক করবে
-        checkAndRequestRuntimePermissions();
+        // Run the permission flow only once per process to avoid recursive
+        // dialog loops on every resume (which previously froze the app).
+        if (!permissionFlowStarted) {
+            permissionFlowStarted = true;
+            try {
+                checkAndRequestRuntimePermissions();
+            } catch (Throwable t) {
+                android.util.Log.e("MainActivity", "Permission flow failed safely", t);
+            }
+        }
     }
 
     private void checkAndRequestRuntimePermissions() {
         List<String> permissionsToRequest = new ArrayList<>();
-        
-        // Android 13+ এ Notification পারমিশন Runtime
+
+        // Android 13+ : POST_NOTIFICATIONS is a runtime permission
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)!= PackageManager.PERMISSION_GRANTED) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
                 permissionsToRequest.add(Manifest.permission.POST_NOTIFICATIONS);
             }
         }
 
         for (String permission : RUNTIME_PERMISSIONS) {
-            if (ContextCompat.checkSelfPermission(this, permission)!= PackageManager.PERMISSION_GRANTED) {
+            if (ContextCompat.checkSelfPermission(this, permission) != PackageManager.PERMISSION_GRANTED) {
                 permissionsToRequest.add(permission);
             }
         }
@@ -78,7 +88,6 @@ public class MainActivity extends BridgeActivity {
         if (!permissionsToRequest.isEmpty()) {
             runtimePermissionLauncher.launch(permissionsToRequest.toArray(new String[0]));
         } else {
-            // Runtime সব ok, এখন Special গুলা চেক করো
             checkAndRequestSpecialPermissions();
         }
     }
