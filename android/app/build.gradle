@@ -1,11 +1,11 @@
 apply plugin: 'com.android.application'
 
 android {
-    namespace = "com.myfileos.app"
+    namespace = "com.mylifeos.app"
     compileSdk = 36
 
     defaultConfig {
-        applicationId "com.myfileos.app"
+        applicationId "com.mylifeos.app"
         minSdkVersion 24
         targetSdkVersion 36
         versionCode 1

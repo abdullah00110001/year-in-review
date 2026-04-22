@@ -21,5 +21,5 @@
 #-renamesourcefileattribute SourceFile
 
 
-   -keep class com.myfileos.app.shield.** { *; }
-   -keep class com.myfileos.app.plugins.** { *; }
+   -keep class com.mylifeos.app.shield.** { *; }
+   -keep class com.mylifeos.app.plugins.** { *; }

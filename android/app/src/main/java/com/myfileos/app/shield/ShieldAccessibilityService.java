@@ -1,4 +1,4 @@
-package com.myfileos.app.shield;
+package com.mylifeos.app.shield;
 
 import android.accessibilityservice.AccessibilityService;
 import android.accessibilityservice.AccessibilityServiceInfo;

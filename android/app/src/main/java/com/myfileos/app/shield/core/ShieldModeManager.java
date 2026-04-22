@@ -1,7 +1,7 @@
-package com.myfileos.app.shield.core;
+package com.mylifeos.app.shield.core;
 
 import android.content.Context;
-import com.myfileos.app.shield.ShieldPreferences;
+import com.mylifeos.app.shield.ShieldPreferences;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;

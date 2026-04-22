@@ -1,4 +1,4 @@
-package com.myfileos.app.plugins;
+package com.mylifeos.app.plugins;
 
 import android.app.KeyguardManager;
 import android.content.BroadcastReceiver;
@@ -13,7 +13,7 @@ import android.os.PowerManager;
 import android.os.VibrationEffect;
 import android.os.Vibrator;
 
-import com.myfileos.app.MainActivity;
+import com.mylifeos.app.MainActivity;
 
 public class RiseAlarmReceiver extends BroadcastReceiver {
 
@@ -27,7 +27,7 @@ public class RiseAlarmReceiver extends BroadcastReceiver {
             PowerManager.FULL_WAKE_LOCK |
             PowerManager.ACQUIRE_CAUSES_WAKEUP |
             PowerManager.ON_AFTER_RELEASE,
-            "myfileos:rise_alarm"
+            "mylifeos:rise_alarm"
         );
         wl.acquire(60_000L);
 
@@ -84,7 +84,7 @@ public class RiseAlarmReceiver extends BroadcastReceiver {
             KeyguardManager km = (KeyguardManager) context.getSystemService(Context.KEYGUARD_SERVICE);
             if (km != null && Build.VERSION.SDK_INT < Build.VERSION_CODES.O_MR1) {
                 @SuppressWarnings("deprecation")
-                KeyguardManager.KeyguardLock lock = km.newKeyguardLock("myfileos:rise_alarm");
+                KeyguardManager.KeyguardLock lock = km.newKeyguardLock("mylifeos:rise_alarm");
                 lock.disableKeyguard();
             }
         } catch (Exception ignored) { }

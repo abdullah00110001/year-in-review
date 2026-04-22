@@ -1,4 +1,4 @@
-package com.myfileos.app;
+package com.mylifeos.app;
 
 import android.Manifest;
 import android.app.AlertDialog;
