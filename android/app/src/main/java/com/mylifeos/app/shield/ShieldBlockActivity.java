@@ -1,4 +1,4 @@
-package com.myfileos.app.shield;
+package com.mylifeos.app.shield;
 
 import android.app.Activity;
 import android.content.Intent;
@@ -9,7 +9,7 @@ import android.view.View;
 import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.TextView;
-import com.myfileos.app.R;
+import com.mylifeos.app.R;
 
 public class ShieldBlockActivity extends Activity {
     private String blockedPackage;

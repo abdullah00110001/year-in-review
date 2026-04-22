@@ -1,4 +1,4 @@
-package com.myfileos.app.plugins;
+package com.mylifeos.app.plugins;
 
 import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
@@ -7,10 +7,10 @@ import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
 
-import com.myfileos.app.shield.core.ShieldModeManager;
-import com.myfileos.app.shield.core.ShieldStatsManager;
-import com.myfileos.app.shield.ShieldPreferences;
-import com.myfileos.app.shield.ShieldPermissionHelper;
+import com.mylifeos.app.shield.core.ShieldModeManager;
+import com.mylifeos.app.shield.core.ShieldStatsManager;
+import com.mylifeos.app.shield.ShieldPreferences;
+import com.mylifeos.app.shield.ShieldPermissionHelper;
 
 import java.util.HashSet;
 import java.util.List;

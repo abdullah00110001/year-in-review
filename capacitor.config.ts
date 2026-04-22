@@ -1,7 +1,7 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.myfileos.app',
+  appId: 'com.mylifeos.app',
   appName: 'Life OS',
   webDir: 'dist',
   server: {
