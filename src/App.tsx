@@ -318,21 +318,9 @@ import AdminPanel from "./pages/admin/AdminPanel";
 import DownloadApp from "./pages/DownloadApp";
 
 
-
-
-
-// App.tsx এর একদম প্রথমে, সব import এর নিচে
-window.addEventListener('error', function (e) {
-  alert('ক্র্যাশ রিপোর্ট:\n' + e.message + '\nফাইল: ' + e.filename + '\nলাইন: ' + e.lineno);
-});
-
-window.addEventListener('unhandledrejection', function (e) {
-  alert('Promise এরর:\n' + e.reason);
-});
-// তারপর তোমার বাকি কোড...
-
-
-
+// Note: global error/unhandledrejection logging is set up in main.tsx.
+// We deliberately do NOT use alert() here because blocking dialogs during
+// Android WebView boot can lock the app and look like a hard crash.
 
 
 const queryClient = new QueryClient({

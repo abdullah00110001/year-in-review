@@ -1,35 +1,48 @@
-import { App } from '@capacitor/app';
 import { Capacitor } from '@capacitor/core';
+import Shield from '@/lib/capacitor/shieldPlugin';
+
+const isAndroid = () => Capacitor.getPlatform() === 'android';
 
 /**
- * ইউজারকে ফোনের Accessibility Settings এ নিয়ে যায়।
- * Shield ফিচারের জন্য এটা চালু করা মাস্ট।
+ * Open Android Accessibility Settings (for Shield AccessibilityService).
  */
 export const openAccessibilitySettings = async () => {
-  if (Capacitor.getPlatform() === 'android') {
-    await App.openUrl({ url: 'android.settings.ACCESSIBILITY_SETTINGS' });
-  } else {
+  if (!isAndroid()) {
     alert('This feature is only available on Android.');
+    return;
+  }
+  try {
+    await Shield.requestAccessibility();
+  } catch (e) {
+    console.error('[Permissions] openAccessibilitySettings failed:', e);
   }
 };
 
 /**
- * ইউজারকে ফোনের Security Settings এ নিয়ে যায়।
- * ওখান থেকে Device Admin চালু করতে পারবে।
+ * Open Android Battery Optimization settings (used as the safe entry point
+ * for "advanced device protection" since Device Admin must be enabled by
+ * the user explicitly through their own flow).
  */
 export const openDeviceAdminSettings = async () => {
-  if (Capacitor.getPlatform() === 'android') {
-    await App.openUrl({ url: 'android.settings.SECURITY_SETTINGS' });
-  } else {
+  if (!isAndroid()) {
     alert('This feature is only available on Android.');
+    return;
+  }
+  try {
+    await Shield.requestBattery();
+  } catch (e) {
+    console.error('[Permissions] openDeviceAdminSettings failed:', e);
   }
 };
 
 /**
- * Usage Stats পারমিশনের জন্য Settings এ নিয়ে যায়।
+ * Open Android Usage Access Settings (required by Shield to read app usage).
  */
 export const openUsageAccessSettings = async () => {
-    if (Capacitor.getPlatform() === 'android') {
-        await App.openUrl({ url: 'android.settings.USAGE_ACCESS_SETTINGS' });
-    }
+  if (!isAndroid()) return;
+  try {
+    await Shield.requestUsageStats();
+  } catch (e) {
+    console.error('[Permissions] openUsageAccessSettings failed:', e);
+  }
 };

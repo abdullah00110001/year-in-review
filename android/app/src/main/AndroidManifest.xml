@@ -75,30 +75,43 @@
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="com.mylifeos.app" android:host="callback" />
+                <data android:scheme="com.myfileos.app" android:host="callback" />
             </intent-filter>
         </activity>
 
         <!-- Rise Alarm Receiver -->
         <receiver
-            android:name="com.mylifeos.app.plugins.RiseAlarmReceiver"
+            android:name="com.myfileos.app.plugins.RiseAlarmReceiver"
             android:exported="true"
             android:enabled="true">
         </receiver>
 
-        <!-- Shield Service - ✅ শুধু enabled="false" করলাম -->
-        <service android:name=".shield.ShieldService" android:enabled="false" android:exported="false" android:foregroundServiceType="dataSync" />
+        <!-- Shield Foreground Service: enabled, only started after permissions are granted -->
+        <service
+            android:name=".shield.ShieldService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
 
-        <!-- Shield Accessibility Service - ✅ শুধু enabled="false" করলাম -->
-        <service android:name=".shield.ShieldAccessibilityService" android:enabled="false" android:exported="true" android:label="Shield" android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+        <!-- Shield Accessibility Service: enabled so user can toggle it from Android Settings -->
+        <service
+            android:name=".shield.ShieldAccessibilityService"
+            android:enabled="true"
+            android:exported="true"
+            android:label="Shield"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
             <intent-filter>
                 <action android:name="android.accessibilityservice.AccessibilityService" />
             </intent-filter>
             <meta-data android:name="android.accessibilityservice" android:resource="@xml/accessibility_service_config" />
         </service>
 
-        <!-- Shield Device Admin Receiver - ✅ শুধু enabled="false" করলাম -->
-        <receiver android:name=".shield.ShieldDeviceAdminReceiver" android:enabled="false" android:exported="true" android:permission="android.permission.BIND_DEVICE_ADMIN">
+        <!-- Shield Device Admin Receiver: enabled but inert until user activates it -->
+        <receiver
+            android:name=".shield.ShieldDeviceAdminReceiver"
+            android:enabled="true"
+            android:exported="true"
+            android:permission="android.permission.BIND_DEVICE_ADMIN">
             <meta-data android:name="android.app.device_admin" android:resource="@xml/device_admin" />
             <intent-filter>
                 <action android:name="android.app.action.DEVICE_ADMIN_ENABLED" />
@@ -106,8 +119,15 @@
             </intent-filter>
         </receiver>
 
-        <!-- Shield Block Activity - ✅ শুধু enabled="false" করলাম -->
-        <activity android:name=".shield.ShieldBlockActivity" android:enabled="false" android:exported="false" android:excludeFromRecents="true" android:launchMode="singleInstance" android:taskAffinity="" android:theme="@style/AppTheme.NoActionBar" />
+        <!-- Shield Block Activity: enabled, only launched by Shield services when blocking -->
+        <activity
+            android:name=".shield.ShieldBlockActivity"
+            android:enabled="true"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:launchMode="singleInstance"
+            android:taskAffinity=""
+            android:theme="@style/AppTheme.NoActionBar" />
 
         <provider
             android:name="androidx.core.content.FileProvider"

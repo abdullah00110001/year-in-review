@@ -1,7 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 var config = {
-    appId: 'com.mylifeos.app',
+    appId: 'com.myfileos.app',
     appName: 'Life OS',
     webDir: 'dist',
     server: {

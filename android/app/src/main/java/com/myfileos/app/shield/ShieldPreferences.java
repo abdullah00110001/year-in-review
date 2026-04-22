@@ -1,4 +1,4 @@
-package com.mylifeos.app.shield;
+package com.myfileos.app.shield;
 
 import android.content.Context;
 import android.content.SharedPreferences;

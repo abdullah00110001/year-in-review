@@ -114,7 +114,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signInWithGoogle = async () => {
     const redirectUrl = isNative
-      ? 'com.mylifeos.app://callback'
+      ? 'com.myfileos.app://callback'
       : `${window.location.origin}/dashboard`;
 
     const { error } = await supabase.auth.signInWithOAuth({

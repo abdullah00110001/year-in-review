@@ -1,4 +1,4 @@
-package com.mylifeos.app.shield;
+package com.myfileos.app.shield;
 
 import android.app.Notification;
 import android.app.NotificationChannel;
@@ -158,7 +158,7 @@ public int onStartCommand(Intent intent, int flags, int startId) {
     private Notification createNotification() {
         Intent intent;
         try {
-            Class<?> mainActivityClass = Class.forName("com.mylifeos.app.MainActivity");
+            Class<?> mainActivityClass = Class.forName("com.myfileos.app.MainActivity");
             intent = new Intent(this, mainActivityClass);
         } catch (ClassNotFoundException e) {
             intent = new Intent(Settings.ACTION_SETTINGS);
