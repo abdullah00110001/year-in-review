@@ -33,18 +33,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     }, 5000);
 
-    // Listener for ONGOING auth changes — does NOT control loading
+    // Listener for ONGOING auth changes — sync state immediately, no setTimeout race
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, currentSession) => {
         if (!isMounted.current) return;
         console.log('[Auth] State change:', event, currentSession?.user?.email ?? 'no user');
-        
-        // Use setTimeout to avoid deadlocks when Supabase internal locks are held
-        setTimeout(() => {
-          if (!isMounted.current) return;
-          setSession(currentSession);
-          setUser(currentSession?.user ?? null);
-        }, 0);
+        // Apply synchronously — setTimeout(0) caused state to overwrite signIn's manual set
+        // and produced a brief null-user flicker that crashed downstream queries on Android.
+        setSession(currentSession);
+        setUser(currentSession?.user ?? null);
       }
     );
 
