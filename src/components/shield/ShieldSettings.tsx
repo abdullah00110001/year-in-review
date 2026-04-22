@@ -6,6 +6,7 @@ import { Ban, Palette, Clock, Columns, Power, AppWindow, AlertTriangle, Bell, Ch
 import { cn } from '@/lib/utils';
 import { openAccessibilitySettings, openDeviceAdminSettings, openUsageAccessSettings } from '@/utils/permissions';
 import { Capacitor } from '@capacitor/core';
+import Shield from '@/lib/capacitor/shieldPlugin';
 
 interface SettingItem {
   icon: typeof Ban;
@@ -55,43 +56,26 @@ export function ShieldSettings({ settings, onSettingChange, onNavigate }: Shield
   }, []);
 
   const checkPermissionStatus = async () => {
-    if (Capacitor.getPlatform()!== 'android') return;
-    const hasUsageStats = await checkUsageStatsPermission();
-    const hasBatteryOpt = await checkBatteryOptimization();
-    setPermissionStatus({
-      accessibility: false, // Android এ কোড দিয়ে চেক করা যায় না
-      usageStats: hasUsageStats,
-      deviceAdmin: false, // Android এ কোড দিয়ে চেক করা যায় না
-      batteryOptimization: hasBatteryOpt,
-    });
-  };
-
-  const checkUsageStatsPermission = async (): Promise<boolean> => {
+    if (Capacitor.getPlatform() !== 'android') return;
     try {
-      // @ts-ignore
-      const usageStatsManager = window.capacitor?.UsageStatsManager;
-      if (!usageStatsManager) return false;
-      const time = Date.now();
-      const stats = await usageStatsManager.queryUsageStats(0, time - 1000 * 60, time);
-      return stats && stats.length > 0;
-    } catch {
-      return false;
-    }
-  };
-
-  const checkBatteryOptimization = async (): Promise<boolean> => {
-    try {
-      // @ts-ignore
-      return await window.capacitor?.PowerManager?.isIgnoringBatteryOptimizations() || false;
-    } catch {
-      return false;
+      const perms = await Shield.checkPermissions();
+      setPermissionStatus({
+        accessibility: !!perms.accessibility,
+        usageStats: !!perms.usageStats,
+        deviceAdmin: false, // managed via separate flow
+        batteryOptimization: !!perms.battery,
+      });
+    } catch (e) {
+      console.warn('[ShieldSettings] checkPermissions failed:', e);
     }
   };
 
   const handleOpenBatterySettings = async () => {
-    if (Capacitor.getPlatform() === 'android') {
-      // @ts-ignore
-      await window.capacitor?.App?.openUrl({ url: 'android.settings.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS' });
+    if (Capacitor.getPlatform() !== 'android') return;
+    try {
+      await Shield.requestBattery();
+    } catch (e) {
+      console.error('[ShieldSettings] requestBattery failed:', e);
     }
   };
 
