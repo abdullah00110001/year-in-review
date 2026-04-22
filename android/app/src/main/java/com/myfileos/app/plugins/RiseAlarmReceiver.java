@@ -27,7 +27,7 @@ public class RiseAlarmReceiver extends BroadcastReceiver {
             PowerManager.FULL_WAKE_LOCK |
             PowerManager.ACQUIRE_CAUSES_WAKEUP |
             PowerManager.ON_AFTER_RELEASE,
-            "mylifeos:rise_alarm"
+            "myfileos:rise_alarm"
         );
         wl.acquire(60_000L);
 
@@ -84,7 +84,7 @@ public class RiseAlarmReceiver extends BroadcastReceiver {
             KeyguardManager km = (KeyguardManager) context.getSystemService(Context.KEYGUARD_SERVICE);
             if (km != null && Build.VERSION.SDK_INT < Build.VERSION_CODES.O_MR1) {
                 @SuppressWarnings("deprecation")
-                KeyguardManager.KeyguardLock lock = km.newKeyguardLock("mylifeos:rise_alarm");
+                KeyguardManager.KeyguardLock lock = km.newKeyguardLock("myfileos:rise_alarm");
                 lock.disableKeyguard();
             }
         } catch (Exception ignored) { }
