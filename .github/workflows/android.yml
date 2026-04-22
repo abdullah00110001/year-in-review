@@ -1,16 +1,21 @@
 name: Build Native APK
+
 on: [push]
+
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
-        with: { node-version: 20 }
+        with:
+          node-version: 22 # Capacitor 7+ এর জন্য Node 22 ফিক্স
+
       - run: npm ci
       - run: npm run build # Vite build
       - run: npx cap sync android
-      
+
       - name: Test on Emulator
         uses: reactivecircus/android-emulator-runner@v2
         with:
@@ -19,10 +24,10 @@ jobs:
             cd android &&./gradlew assembleDebug
             adb install app/build/outputs/apk/debug/app-debug.apk
             adb logcat -c
-            adb shell monkey -p com.your.app.package 1 # অ্যাপ ওপেন করো
+            adb shell monkey -p com.mylifeos.app 1 # তোমার প্যাকেজ নাম
             sleep 10
             adb logcat -d | grep "FATAL\|AndroidRuntime" > crash.txt || true
-      
+
       - uses: actions/upload-artifact@v4
         if: always()
         with:
