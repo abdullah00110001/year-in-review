@@ -1,4 +1,4 @@
-package com.mylifeos.app.plugins;
+package com.myfileos.app.plugins;
 
 import android.app.AlarmManager;
 import android.app.PendingIntent;

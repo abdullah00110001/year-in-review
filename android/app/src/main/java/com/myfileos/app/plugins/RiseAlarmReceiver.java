@@ -1,4 +1,4 @@
-package com.mylifeos.app.plugins;
+package com.myfileos.app.plugins;
 
 import android.app.KeyguardManager;
 import android.content.BroadcastReceiver;
@@ -13,7 +13,7 @@ import android.os.PowerManager;
 import android.os.VibrationEffect;
 import android.os.Vibrator;
 
-import com.mylifeos.app.MainActivity;
+import com.myfileos.app.MainActivity;
 
 public class RiseAlarmReceiver extends BroadcastReceiver {
 

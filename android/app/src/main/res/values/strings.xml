@@ -2,7 +2,7 @@
 <resources>
     <string name="app_name">Life OS</string>
     <string name="title_activity_main">Life OS</string>
-    <string name="package_name">com.mylifeos.app</string>
-    <string name="custom_url_scheme">com.mylifeos.app</string>
+    <string name="package_name">com.myfileos.app</string>
+    <string name="custom_url_scheme">com.myfileos.app</string>
     <string name="accessibility_service_description">Shield uses accessibility to detect and block distracting apps to help you stay focused.</string>
 </resources>

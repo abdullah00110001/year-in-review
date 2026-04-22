@@ -1,4 +1,4 @@
-package com.mylifeos.app.shield;
+package com.myfileos.app.shield;
 
 import android.app.Activity;
 import android.app.AppOpsManager;
@@ -21,7 +21,7 @@ public class ShieldPermissionHelper {
 
     private static final String TAG = "ShieldPermission";
     // তোমার AccessibilityService এর ফুল পাথ। AndroidManifest.xml এর সাথে মিলায় নিও।
-    private static final String ACCESSIBILITY_SERVICE_NAME = "com.mylifeos.app/com.mylifeos.app.shield.ShieldAccessibilityService";
+    private static final String ACCESSIBILITY_SERVICE_NAME = "com.myfileos.app/com.myfileos.app.shield.ShieldAccessibilityService";
 
     // তোমার আগের কোডের সাথে মিলিয়ে static বানানো হলো
 
