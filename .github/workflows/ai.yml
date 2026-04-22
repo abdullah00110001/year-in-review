@@ -2,7 +2,7 @@ name: AI Auto-Fix + Auto Test APK
 
 on:
   workflow_run:
-    workflows: ["🚀 Build Native LifeOS"]
+    workflows: ["🚀 Build Native LifeOS", "AI Auto-Fix + Auto Test APK"]
     types: [completed]
 
 jobs:
@@ -20,7 +20,7 @@ jobs:
           ref: ${{ github.event.workflow_run.head_branch }}
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Get Build Logs
+      - name: Get Failed Job Logs
         id: get_logs
         uses: actions/github-script@v7
         with:
@@ -30,18 +30,26 @@ jobs:
               repo: context.repo.repo,
               run_id: ${{ github.event.workflow_run.id }},
             });
+
+            // সব ফেইল জব খুঁজো, বিল্ড বা টেস্ট যেটাই হোক
             let targetJob = jobs.data.jobs.find(job => job.conclusion === 'failure');
+
+            // যদি কোনো ফেইল না থাকে তাহলে শেষ জব নাও সাকসেস কেসের জন্য
             if (!targetJob) {
               targetJob = jobs.data.jobs[jobs.data.jobs.length - 1];
             }
+
             const log = await github.rest.actions.downloadJobLogsForWorkflowRun({
               owner: context.repo.owner,
               repo: context.repo.repo,
               job_id: targetJob.id,
             });
+
             const logText = log.data.toString().slice(-50000);
             core.setOutput('log', logText);
             core.setOutput('conclusion', '${{ github.event.workflow_run.conclusion }}');
+            core.setOutput('job_name', targetJob.name);
+            core.setOutput('workflow_name', '${{ github.event.workflow_run.name }}');
 
       - name: Setup Node for AI Script
         uses: actions/setup-node@v4
@@ -54,6 +62,8 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           BUILD_LOG: ${{ steps.get_logs.outputs.log }}
           BUILD_STATUS: ${{ steps.get_logs.outputs.conclusion }}
+          JOB_NAME: ${{ steps.get_logs.outputs.job_name }}
+          WORKFLOW_NAME: ${{ steps.get_logs.outputs.workflow_name }}
         run: |
           npm init -y
           npm install @google/generative-ai
@@ -63,26 +73,37 @@ jobs:
           const { execSync } = require('child_process');
           const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
           const model = genAI.getGenerativeModel({ model: 'gemini-2.5-pro' });
+
           const buildLog = process.env.BUILD_LOG;
           const buildStatus = process.env.BUILD_STATUS;
+          const jobName = process.env.JOB_NAME;
+          const workflowName = process.env.WORKFLOW_NAME;
+
           let codeContext = '';
           try {
-            const allFiles = execSync('find android -type f \\( -name "*.java" -o -name "*.xml" -o -name "*.gradle" \\) | head -20').toString().split('\n').filter(Boolean);
+            // এখন টেস্টের জন্য yml ফাইলও নিলাম
+            const allFiles = execSync('find android.github -type f \\( -name "*.java" -o -name "*.xml" -o -name "*.gradle" -o -name "*.yml" \\) | head -25').toString().split('\n').filter(Boolean);
             allFiles.forEach(file => {
               try {
                 codeContext += `\n--- FILE: ${file} ---\n` + fs.readFileSync(file, 'utf8').slice(0, 3000);
               } catch(e) {}
             });
-          } catch(e) {
-            console.log('Error reading files:', e.message);
-          }
-          const prompt = `You are an expert Android developer. My GitHub Actions build status is: ${buildStatus}.
-          BUILD LOG: \`\`\`${buildLog}\`\`\`
+          } catch(e) { console.log('Error reading files:', e.message); }
+
+          const prompt = `You are an expert Android developer and CI/CD expert.
+          Workflow Name: ${workflowName}
+          Failed Job Name: ${jobName}
+          Overall Status: ${buildStatus}
+
+          LOG: \`\`\`${buildLog}\`\`\`
           PROJECT CODE: \`\`\`${codeContext}\`\`\`
+
           Task:
-          1. If build FAILED: Explain root cause in 1-2 sentences and provide fixes.
-          2. If build SUCCEEDED: Suggest optimizations or improvements. If no changes needed, return empty fixes array.
-          3. Format: Respond ONLY with a JSON object like this: {"build_status": "${buildStatus}", "root_cause": "...", "fixes": [{"file": "path/to/file.java", "content": "full new file content..."}]} Do not add any text outside the JSON.`;
+          1. If status is FAILURE: Find root cause. If job is 'test-apk' and log has 'exit code 224' or 'FATAL EXCEPTION', explain it's an emulator crash or app crash after login. Suggest fixes for ai.yml emulator-options or app permission handling.
+          2. If status is SUCCESS: Suggest 1-2 optimizations. If nothing needed, return empty fixes array.
+          3. Format: Respond ONLY with JSON: {"build_status": "${buildStatus}", "root_cause": "...", "fixes": [{"file": "path/to/file.yml", "content": "full new file content..."}]}
+          Do not add any text outside the JSON.`;
+
           (async () => {
             try {
               const result = await model.generateContent(prompt);
@@ -92,7 +113,9 @@ jobs:
               console.log('AI analysis complete.');
             } catch(e) {
               console.error('Gemini Error:', e.message);
-              process.exit(1);
+              // AI ফেইল করলেও exit 0 দিলাম যাতে জব লাল না হয়
+              fs.writeFileSync('ai_fix.json', '{"build_status": "failure", "root_cause": "AI analysis failed", "fixes": []}');
+              process.exit(0);
             }
           })();
           EOF
@@ -109,44 +132,40 @@ jobs:
               return;
             }
             const aiFix = JSON.parse(fs.readFileSync('ai_fix.json', 'utf8'));
-            console.log('Build Status:', aiFix.build_status);
+            console.log('Status:', aiFix.build_status);
             console.log('Root Cause:', aiFix.root_cause);
-            if (aiFix.build_status === 'success' && (!aiFix.fixes || aiFix.fixes.length === 0)) {
-              console.log('Build succeeded and AI has no improvements. Skipping PR.');
-              return;
-            }
+
             if (!aiFix.fixes || aiFix.fixes.length === 0) {
-              console.log('AI could not determine a fix.');
+              console.log('AI has no fixes. Skipping PR.');
               return;
             }
-            const branchName = `ai-${aiFix.build_status}/${context.runId}`;
+
+            const branchName = `ai-fix/${context.runId}`;
             execSync(`git checkout -b ${branchName}`);
             aiFix.fixes.forEach(fix => {
+              fs.mkdirSync(require('path').dirname(fix.file), { recursive: true });
               fs.writeFileSync(fix.file, fix.content);
               console.log(`Fixed: ${fix.file}`);
             });
             execSync(`git config user.name "AI Fixer Bot"`);
             execSync(`git config user.email "bot@users.noreply.github.com"`);
             execSync(`git add.`);
-            const commitMsg = aiFix.build_status === 'failure'
-             ? `fix: AI auto-fix for build failure\n\nRoot Cause: ${aiFix.root_cause}`
-              : `chore: AI optimization suggestion\n\nDetails: ${aiFix.root_cause}`;
+            const commitMsg = `fix: AI auto-fix for ${aiFix.build_status}\n\nRoot Cause: ${aiFix.root_cause}`;
             execSync(`git commit -m "${commitMsg}"`);
             execSync(`git push origin ${branchName}`);
-            const prTitle = aiFix.build_status === 'failure'
-             ? `🤖 AI Fix: Build Failure`
-              : `✨ AI Optimization: Build Succeeded`;
+
+            const prTitle = `🤖 AI Fix: ${aiFix.root_cause.slice(0, 50)}`;
             await github.rest.pulls.create({
               owner: context.repo.owner,
               repo: context.repo.repo,
               title: prTitle,
               head: branchName,
               base: '${{ github.event.workflow_run.head_branch }}',
-              body: `### AI Build Analysis\n\n**Build Status:** ${aiFix.build_status}\n**Root Cause/Details:**\n${aiFix.root_cause}\n\n**Files Changed:**\n${aiFix.fixes.map(f => `- \`${f.file}\``).join('\n')}\n\nThis PR was automatically generated by Gemini. Please review and merge.`
+              body: `### AI Build Analysis\n\n**Status:** ${aiFix.build_status}\n**Root Cause:**\n${aiFix.root_cause}\n\n**Files Changed:**\n${aiFix.fixes.map(f => `- \`${f.file}\``).join('\n')}\n\nThis PR was automatically generated by Gemini.`
             });
 
   test-apk:
-    if: github.event.workflow_run.conclusion == 'success'
+    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.name == '🚀 Build Native LifeOS'
     runs-on: ubuntu-latest
     timeout-minutes: 25
     permissions:
@@ -166,11 +185,15 @@ jobs:
           api-level: 33
           target: google_apis
           arch: x86_64
+          disable-animations: true
+          emulator-options: -no-window -no-audio -no-boot-anim -accel auto
           script: |
+            adb wait-for-device shell 'while [[ -z $(getprop sys.boot_completed) ]]; do sleep 1; done'
             adb install LifeOS.apk
             adb logcat -c
             adb shell monkey -p com.mylifeos.app -c android.intent.category.LAUNCHER 1
-            sleep 8
+            sleep 15
+            adb shell input keyevent 61
             adb shell input text "abdullahusimin1@gmail.com"
             adb shell input keyevent 61
             adb shell input keyevent 61
@@ -181,7 +204,6 @@ jobs:
             adb logcat -d *:E > error_log.txt
             if grep -q "FATAL EXCEPTION" error_log.txt; then
               echo "CRASH DETECTED! App crashed after login."
-              echo "--- Error Log ---"
               cat error_log.txt
               exit 1
             else

@@ -1,8 +1,8 @@
-# 🕌 Yearly Track — Life OS
+# Life OS
 
 **A comprehensive Islamic productivity & life management platform built for Muslims who want to optimize both Dunya and Akhirah.**
 
-[![Built with Lovable](https://img.shields.io/badge/Built%20with-Lovable-ff69b4)](https://lovable.dev)
+
 [![Capacitor](https://img.shields.io/badge/Mobile-Capacitor%208-blue)](https://capacitorjs.com)
 [![Supabase](https://img.shields.io/badge/Backend-Supabase-3ecf8e)](https://supabase.com)
 [![React](https://img.shields.io/badge/Frontend-React%2018-61dafb)](https://react.dev)

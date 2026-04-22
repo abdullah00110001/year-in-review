@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+/* import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { CURRENT_APP_VERSION_CODE } from '@/constants/version';
 import { isNative } from '@/lib/capacitor/platform';
@@ -78,7 +78,20 @@ export function useAppUpdate() {
     if (!state.isForceUpdate) {
       setState((s) => ({ ...s, showPrompt: false }));
     }
-  };
+  }; 
 
   return { ...state, dismiss };
+}
+ */ 
+ export function useAppUpdate() {
+  // OTA ফিচার ডিজেবল করা হয়েছে ক্র্যাশের জন্য
+  return {
+    showPrompt: false,
+    showForceScreen: false,
+    downloadUrl: '',
+    isForceUpdate: false,
+    releaseNotes: null,
+    latestVersion: 0,
+    dismiss: () => {},
+  };
 }
