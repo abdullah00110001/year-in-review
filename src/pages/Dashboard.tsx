@@ -62,10 +62,12 @@ export default function Dashboard() {
     }
   }, [modeLoading, user]);
   useEffect(() => {
-    if (user) {
+    if (user?.id) {
       fetchDashboardData();
+    } else {
+      setLoading(false);
     }
-  }, [user]);
+  }, [user?.id]);
 
   const fetchDashboardData = async () => {
     if (!user) { setLoading(false); return; }
