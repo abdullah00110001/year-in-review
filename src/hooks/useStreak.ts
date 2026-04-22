@@ -22,17 +22,26 @@ export function useStreak(): StreakData {
   });
 
   useEffect(() => {
-    if (user) {
-      calculateStreaks();
+    if (!user?.id) {
+      setData(d => ({ ...d, loading: false }));
+      return;
     }
-  }, [user]);
+    calculateStreaks().catch((err) => {
+      console.error('[useStreak] calculateStreaks failed:', err);
+      setData(d => ({ ...d, loading: false }));
+    });
+  }, [user?.id]);
 
   const calculateStreaks = async () => {
+    if (!user?.id) {
+      setData(d => ({ ...d, loading: false }));
+      return;
+    }
     // Get all habit entries for the user
     const { data: entries } = await supabase
       .from('habit_entries')
       .select('date, completed')
-      .eq('user_id', user!.id)
+      .eq('user_id', user.id)
       .eq('completed', true)
       .order('date', { ascending: false });
 
@@ -40,7 +49,7 @@ export function useStreak(): StreakData {
     const { count: habitsCount } = await supabase
       .from('habits')
       .select('*', { count: 'exact', head: true })
-      .eq('user_id', user!.id)
+      .eq('user_id', user.id)
       .eq('is_active', true);
 
     if (!entries || entries.length === 0 || !habitsCount) {

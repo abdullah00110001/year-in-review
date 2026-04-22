@@ -57,42 +57,33 @@ export default function Auth() {
   const { signIn, signUp, signInWithGoogle, user, loading } = useAuth();
   const navigate = useNavigate();
 
-  // Redirect authenticated users - hardened for native
+  // Redirect authenticated users — single navigate call, no window.location fallback.
+  // window.location.href on Android WebView reloads the whole bundle mid-React-tree
+  // which kills in-flight Supabase queries and causes the post-login crash.
   useEffect(() => {
     if (loading || !user) return;
-    
+
     let cancelled = false;
-    
     const redirect = async () => {
-      // Longer delay for native to let WebView stabilize
-      await new Promise(r => setTimeout(r, isNative ? 300 : 100));
+      // Small delay so the auth listener has flushed before we leave /auth.
+      await new Promise(r => setTimeout(r, isNative ? 200 : 50));
       if (cancelled) return;
 
+      let target = '/dashboard';
       try {
         const { data: roleData, error } = await supabase.rpc('get_user_role', { _user_id: user.id });
-        if (cancelled) return;
-        
-        const resolvedRole = typeof roleData === 'string' ? roleData : null;
-        const target = (!error && resolvedRole === 'admin') ? '/admin' : '/dashboard';
-        console.log('[Auth] Redirecting to:', target);
-        
-        try {
-          navigate(target, { replace: true });
-        } catch {
-          window.location.href = target;
+        if (!cancelled && !error && typeof roleData === 'string' && roleData === 'admin') {
+          target = '/admin';
         }
       } catch (err) {
-        console.error('[Auth] Redirect error:', err);
-        if (!cancelled) {
-          try {
-            navigate('/dashboard', { replace: true });
-          } catch {
-            window.location.href = '/dashboard';
-          }
-        }
+        console.warn('[Auth] role lookup failed, defaulting to /dashboard:', err);
       }
+
+      if (cancelled) return;
+      console.log('[Auth] Redirecting to:', target);
+      navigate(target, { replace: true });
     };
-    
+
     redirect();
     return () => { cancelled = true; };
   }, [user, loading, navigate]);
