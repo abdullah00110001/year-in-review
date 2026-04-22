@@ -1,12 +1,13 @@
 import { Capacitor } from '@capacitor/core';
-import Shield from '../../android/app/src/main/java/com/myfileos/app/plugins/Shield';
+import Shield from '@/lib/capacitor/shieldPlugin';
+
+const isAndroid = () => Capacitor.getPlatform() === 'android';
 
 /**
- * Open Android Accessibility Settings.
- * Used by Shield to enable the AccessibilityService.
+ * Open Android Accessibility Settings (for Shield AccessibilityService).
  */
 export const openAccessibilitySettings = async () => {
-  if (Capacitor.getPlatform() !== 'android') {
+  if (!isAndroid()) {
     alert('This feature is only available on Android.');
     return;
   }
@@ -18,18 +19,16 @@ export const openAccessibilitySettings = async () => {
 };
 
 /**
- * Open Android Security / Device Admin Settings.
- * Note: Device Admin is intentionally not auto-launched here. We open
- * security settings so the user can enable Shield's device admin manually.
+ * Open Android Battery Optimization settings (used as the safe entry point
+ * for "advanced device protection" since Device Admin must be enabled by
+ * the user explicitly through their own flow).
  */
 export const openDeviceAdminSettings = async () => {
-  if (Capacitor.getPlatform() !== 'android') {
+  if (!isAndroid()) {
     alert('This feature is only available on Android.');
     return;
   }
   try {
-    // Shield plugin does not expose a dedicated device-admin opener; battery
-    // settings is the closest safe fallback that does not crash the WebView.
     await Shield.requestBattery();
   } catch (e) {
     console.error('[Permissions] openDeviceAdminSettings failed:', e);
@@ -37,10 +36,10 @@ export const openDeviceAdminSettings = async () => {
 };
 
 /**
- * Open Android Usage Access Settings.
+ * Open Android Usage Access Settings (required by Shield to read app usage).
  */
 export const openUsageAccessSettings = async () => {
-  if (Capacitor.getPlatform() !== 'android') return;
+  if (!isAndroid()) return;
   try {
     await Shield.requestUsageStats();
   } catch (e) {
