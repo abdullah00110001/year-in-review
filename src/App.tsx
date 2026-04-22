@@ -317,11 +317,11 @@ import AdminCommandCenter from "./pages/admin/AdminCommandCenter";
 import AdminPanel from "./pages/admin/AdminPanel";
 import DownloadApp from "./pages/DownloadApp";
 
-import { setJSExceptionHandler } from 'react-native-exception-handler';
 
-setJSExceptionHandler((error, isFatal) => {
-  alert(`ক্র্যাশ ধরছি: ${error.name} ${error.message}`)
-}, true);
+
+
+
+
 
 const queryClient = new QueryClient({
   defaultOptions: {
