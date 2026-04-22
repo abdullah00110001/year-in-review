@@ -321,6 +321,18 @@ import DownloadApp from "./pages/DownloadApp";
 
 
 
+// App.tsx এর একদম প্রথমে, সব import এর নিচে
+window.addEventListener('error', function (e) {
+  alert('ক্র্যাশ রিপোর্ট:\n' + e.message + '\nফাইল: ' + e.filename + '\nলাইন: ' + e.lineno);
+});
+
+window.addEventListener('unhandledrejection', function (e) {
+  alert('Promise এরর:\n' + e.reason);
+});
+// তারপর তোমার বাকি কোড...
+
+
+
 
 
 const queryClient = new QueryClient({
