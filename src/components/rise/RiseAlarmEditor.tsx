@@ -9,12 +9,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { X, Pencil, Camera, Calculator, Footprints, QrCode, Brain, Keyboard, Dumbbell, Smartphone, Lock, Volume2, Vibrate, Play, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
-import {
-  scheduleRecurringAlarm,
-  cancelAlarmByUuid,
-  requestAllAlarmPermissions,
-  checkAllAlarmPermissions
-} from '@/lib/capacitor/nativeAlarm';
+import { scheduleRecurringAlarm, cancelAlarmByUuid, requestAllAlarmPermissions, checkAllAlarmPermissions } from '@/lib/capacitor/nativeAlarm';
 
 interface AlarmData {
   id?: string;
@@ -31,6 +26,7 @@ interface AlarmData {
   volume: number;
   gentle_wakeup_seconds: number;
   is_local?: boolean;
+  is_enabled?: boolean;
 }
 
 interface RiseAlarmEditorProps {
@@ -91,8 +87,10 @@ export function RiseAlarmEditor({ open, onClose, onSave, initialData, isEditing 
 
   const toggleDay = (day: number) => {
     setAlarm(prev => ({
-...prev,
-      days_of_week: prev.days_of_week.includes(day)? prev.days_of_week.filter(d => d!== day) : [...prev.days_of_week, day].sort()
+    ...prev,
+      days_of_week: prev.days_of_week.includes(day)
+      ? prev.days_of_week.filter(d => d!== day)
+        : [...prev.days_of_week, day].sort()
     }));
   };
 
@@ -114,7 +112,6 @@ export function RiseAlarmEditor({ open, onClose, onSave, initialData, isEditing 
       await cancelAlarmByUuid(alarm.id);
     }
 
-    // Schedule native alarm (works on locked screen via setAlarmClock)
     await scheduleRecurringAlarm(
       alarmId,
       alarm.alarm_time,
@@ -124,14 +121,12 @@ export function RiseAlarmEditor({ open, onClose, onSave, initialData, isEditing 
         body: alarm.intention || 'Time to wake up!',
         missionType: alarm.verification_type as any,
         snoozeMinutes: alarm.snooze_interval_minutes,
-        // Always treat alarms as device-local; never tie them to a Supabase row
         alarmDbId: undefined,
       }
     );
 
-    // ALWAYS persist to localStorage — alarms live on the device only
     const localAlarms = JSON.parse(localStorage.getItem('local_alarms') || '[]');
-    const updatedAlarm = { ...alarm, id: alarmId, is_local: true, is_enabled: true };
+    const updatedAlarm = {...alarm, id: alarmId, is_local: true, is_enabled: true };
 
     if (isEditing) {
       const index = localAlarms.findIndex((a: AlarmData) => a.id === alarm.id);
@@ -140,10 +135,13 @@ export function RiseAlarmEditor({ open, onClose, onSave, initialData, isEditing 
     } else {
       localAlarms.push(updatedAlarm);
     }
-    localStorage.setItem('local_alarms', JSON.stringify(localAlarms));
 
-    toast.success(isEditing ? 'Alarm updated!' : 'Alarm set! ✅');
-    onSave({ ...alarm, id: alarmId, is_local: true });
+    localStorage.setItem('local_alarms', JSON.stringify(localAlarms));
+    // FIX: লিস্টকে জানাও আপডেট হইছে
+    window.dispatchEvent(new Event('localAlarmsUpdated'));
+
+    toast.success(isEditing? 'Alarm updated!' : 'Alarm set! ✅');
+    onSave({...alarm, id: alarmId, is_local: true });
     onClose();
   };
 
@@ -163,7 +161,7 @@ export function RiseAlarmEditor({ open, onClose, onSave, initialData, isEditing 
 
   return (
     <Sheet open={open} onOpenChange={onClose}>
-      <SheetContent side="bottom" className="h-[95vh] p-0 rounded-t-3xl">
+      <SheetContent side="bottom" className="h- p-0 rounded-t-3xl">
         <div className="flex flex-col h-full">
           <SheetHeader className="p-4 border-b border-border flex-row items-center justify-between">
             <Button variant="ghost" size="icon" onClick={onClose}>
@@ -172,6 +170,7 @@ export function RiseAlarmEditor({ open, onClose, onSave, initialData, isEditing 
             <SheetTitle>{isEditing? 'Edit Alarm' : 'Wake-up alarm'}</SheetTitle>
             <div className="w-10" />
           </SheetHeader>
+
           <ScrollArea className="flex-1">
             <div className="p-4 space-y-6">
               {!permissionsOk && (
@@ -229,7 +228,7 @@ export function RiseAlarmEditor({ open, onClose, onSave, initialData, isEditing 
                       checked={isAllDays}
                       onChange={() => {
                         setAlarm(prev => ({
-                   ...prev,
+                        ...prev,
                           days_of_week: isAllDays? [] : [0, 1, 2, 3, 4, 5, 6]
                         }));
                       }}
@@ -299,6 +298,7 @@ export function RiseAlarmEditor({ open, onClose, onSave, initialData, isEditing 
                   </div>
                   <ChevronRight className="h-4 w-4 text-muted-foreground" />
                 </button>
+
                 <div className="flex items-center gap-3">
                   <Volume2 className="h-5 w-5 text-muted-foreground" />
                   <Slider
@@ -315,6 +315,7 @@ export function RiseAlarmEditor({ open, onClose, onSave, initialData, isEditing 
                     />
                   </div>
                 </div>
+
                 <div className="flex items-center justify-between py-2">
                   <span>Gentle wake-up</span>
                   <button className="flex items-center gap-1 text-muted-foreground">

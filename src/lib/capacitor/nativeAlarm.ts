@@ -157,7 +157,7 @@ export async function scheduleRecurringAlarm(
     const nextDate = getNextDayOfWeek(i, hours, minutes);
     const success = await scheduleAlarm({
       id: baseId + i,
-    ...config,
+     ...config,
       scheduledAt: nextDate,
     });
     if (!success) return false;
