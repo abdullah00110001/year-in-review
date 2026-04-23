@@ -20,6 +20,7 @@ import {
 import { cancelNativeAlarmShots, canScheduleExactAlarms, openExactAlarmSettings } from '@/lib/capacitor/riseAlarmBridge';
 import { isNative } from '@/lib/capacitor/platform';
 import { requestRisePermissions } from '@/lib/capacitor/permissions';
+import { PermissionOnboarding } from '@/components/mobile/PermissionOnboarding';
 
 interface RiseAlarm {
   id: string;
@@ -56,6 +57,7 @@ export default function RisePage() {
   // Editor state
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingAlarm, setEditingAlarm] = useState<RiseAlarm | null>(null);
+  const [permOpen, setPermOpen] = useState(false);
 
   useEffect(() => {
     if (user) {
