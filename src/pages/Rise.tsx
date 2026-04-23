@@ -292,6 +292,16 @@ export default function RisePage() {
 
       {/* Content Area */}
       <div className="px-4 mt-4">
+        {isNative && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="mb-3 w-full"
+            onClick={() => setPermOpen(true)}
+          >
+            Setup permissions for alarms
+          </Button>
+        )}
         {activeTab === 'alarms' && (
           <div className="space-y-3">
             {/* Alarms List */}
@@ -370,6 +380,9 @@ export default function RisePage() {
         } : undefined}
         isEditing={!!editingAlarm}
       />
+
+      {/* Permission Onboarding */}
+      <PermissionOnboarding open={permOpen} onClose={() => setPermOpen(false)} feature="rise" />
 
       {/* Bottom Navigation */}
       <RiseBottomNav activeTab={activeTab} onTabChange={setActiveTab} />
