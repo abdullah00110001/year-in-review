@@ -199,10 +199,10 @@ export default function RisePage() {
     const alarm = alarms.find(a => a.id === alarmId);
     if (!alarm) return;
 
-    await supabase
-      .from('rise_alarms')
-      .update({ is_enabled: enabled })
-      .eq('id', alarmId);
+    // Update localStorage
+    const updated = alarms.map(a => a.id === alarmId ? { ...a, is_enabled: enabled } : a);
+    setAlarms(updated);
+    saveLocalAlarms(updated);
 
     // Schedule/cancel native alarm
     if (isNative) {
@@ -221,13 +221,9 @@ export default function RisePage() {
         );
       } else {
         await cancelAlarmByUuid(alarmId);
-        if (isNative) await cancelNativeAlarmShots(alarmId, alarm.alarm_time, alarm.days_of_week);
+        await cancelNativeAlarmShots(alarmId, alarm.alarm_time, alarm.days_of_week);
       }
     }
-
-    setAlarms(prev => prev.map(a => 
-      a.id === alarmId ? { ...a, is_enabled: enabled } : a
-    ));
   };
 
   const handleEditAlarm = (alarm: RiseAlarm) => {
@@ -241,150 +237,37 @@ export default function RisePage() {
   };
 
   const handleSaveAlarm = async (data: any) => {
-    if (!user) return;
-
-    // Personal/local alarms are stored in localStorage by the editor itself.
-    // We just refresh the merged list here so the UI reflects them immediately.
-    if (data?.is_local) {
-      loadRiseData();
-      return;
-    }
-
-    try {
-      if (editingAlarm) {
-        // Update existing alarm
-        const { error } = await supabase
-          .from('rise_alarms')
-          .update({
-            alarm_time: data.alarm_time,
-            days_of_week: data.days_of_week,
-            alarm_type: data.alarm_type,
-            intention: data.intention || null,
-            label: data.label || null,
-            verification_type: data.verification_type,
-            snooze_limit: data.snooze_limit,
-            snooze_interval_minutes: data.snooze_interval_minutes,
-            sound_type: data.sound_type,
-            vibration_enabled: data.vibration_enabled
-          })
-          .eq('id', editingAlarm.id);
-
-        if (error) throw error;
-
-        // Reschedule native alarm
-        if (isNative) {
-          await cancelAlarmByUuid(editingAlarm.id);
-          await scheduleRecurringAlarm(
-            editingAlarm.id,
-            data.alarm_time,
-            data.days_of_week,
-            {
-              title: data.label || 'Rise Alarm',
-              body: data.intention || 'Time to wake up!',
-              missionType: data.verification_type as any,
-              intention: data.intention || undefined,
-              snoozeMinutes: data.snooze_interval_minutes || 5
-            }
-          );
-        }
-
-        toast.success('Alarm updated!');
-      } else {
-        // Create new alarm
-        const { data: newAlarm, error } = await supabase
-          .from('rise_alarms')
-          .insert({
-            user_id: user.id,
-            alarm_time: data.alarm_time,
-            days_of_week: data.days_of_week,
-            alarm_type: data.alarm_type,
-            intention: data.intention || null,
-            label: data.label || null,
-            verification_type: data.verification_type,
-            snooze_limit: data.snooze_limit,
-            snooze_interval_minutes: data.snooze_interval_minutes,
-            is_enabled: true
-          })
-          .select()
-          .single();
-
-        if (error) throw error;
-
-        // Schedule native alarm for new alarm
-        if (isNative && newAlarm) {
-          await scheduleRecurringAlarm(
-            newAlarm.id,
-            data.alarm_time,
-            data.days_of_week,
-            {
-              title: data.label || 'Rise Alarm',
-              body: data.intention || 'Time to wake up!',
-              missionType: data.verification_type as any,
-              intention: data.intention || undefined,
-              snoozeMinutes: data.snooze_interval_minutes || 5
-            }
-          );
-        }
-
-        toast.success('Alarm created!');
-      }
-
-      loadRiseData();
-    } catch (error) {
-      console.error('Error saving alarm:', error);
-      toast.error('Failed to save alarm');
-    }
+    // Editor already wrote to localStorage and scheduled the native alarm.
+    // We only need to refresh the list here so the UI reflects the change.
+    loadRiseData();
   };
 
   const handleDeleteAlarm = async (alarmId: string) => {
     const target = alarms.find(a => a.id === alarmId);
-    const { error } = await supabase
-      .from('rise_alarms')
-      .delete()
-      .eq('id', alarmId);
+    const remaining = alarms.filter(a => a.id !== alarmId);
+    setAlarms(remaining);
+    saveLocalAlarms(remaining);
 
-    if (error) {
-      toast.error('Failed to delete alarm');
-      return;
-    }
-
-    // Cancel both notification and native alarm channels
     if (isNative) {
       await cancelAlarmByUuid(alarmId);
       if (target) {
         await cancelNativeAlarmShots(alarmId, target.alarm_time, target.days_of_week);
       }
     }
-
     toast.success('Alarm deleted');
-    loadRiseData();
   };
 
   const handleDuplicateAlarm = async (alarm: RiseAlarm) => {
-    if (!user) return;
-
-    const { error } = await supabase
-      .from('rise_alarms')
-      .insert({
-        user_id: user.id,
-        alarm_time: alarm.alarm_time,
-        days_of_week: alarm.days_of_week,
-        alarm_type: alarm.alarm_type,
-        intention: alarm.intention,
-        label: alarm.label ? `${alarm.label} (copy)` : null,
-        verification_type: alarm.verification_type,
-        snooze_limit: alarm.snooze_limit,
-        snooze_interval_minutes: alarm.snooze_interval_minutes,
-        is_enabled: false
-      });
-
-    if (error) {
-      toast.error('Failed to duplicate alarm');
-      return;
-    }
-
+    const copy: RiseAlarm = {
+      ...alarm,
+      id: crypto.randomUUID(),
+      label: alarm.label ? `${alarm.label} (copy)` : null,
+      is_enabled: false,
+    };
+    const next = [...alarms, copy];
+    setAlarms(next);
+    saveLocalAlarms(next);
     toast.success('Alarm duplicated');
-    loadRiseData();
   };
 
   if (isLoading) {
