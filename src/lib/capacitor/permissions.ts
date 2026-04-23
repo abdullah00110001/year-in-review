@@ -1,6 +1,8 @@
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { PushNotifications } from '@capacitor/push-notifications';
 import { isNative, isAndroid } from './platform';
+import Shield from './shieldPlugin';
+import { canScheduleExactAlarms, openExactAlarmSettings } from './riseAlarmBridge';
 
 export type PermissionStatus = 'granted' | 'denied' | 'prompt';
 
@@ -8,6 +10,9 @@ export interface PermissionState {
   notifications: PermissionStatus;
   exactAlarm: PermissionStatus;
   usageStats: PermissionStatus;
+  overlay: PermissionStatus;
+  battery: PermissionStatus;
+  accessibility: PermissionStatus;
 }
 
 // Check notification permission
