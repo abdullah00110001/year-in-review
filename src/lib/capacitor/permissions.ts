@@ -250,13 +250,16 @@ export const openBatterySettings = async () => {
 
 // Get all permission states
 export const getAllPermissions = async (): Promise<PermissionState> => {
-  const [notifications, exactAlarm, usageStats] = await Promise.all([
+  const [notifications, exactAlarm, usageStats, overlay, battery, accessibility] = await Promise.all([
     checkNotificationPermission(),
     checkExactAlarmPermission(),
-    checkUsageStatsPermission()
+    checkUsageStatsPermission(),
+    checkOverlayPermission(),
+    checkBatteryPermission(),
+    checkAccessibilityPermission(),
   ]);
 
-  return { notifications, exactAlarm, usageStats };
+  return { notifications, exactAlarm, usageStats, overlay, battery, accessibility };
 };
 
 // Check if all required permissions are granted for Rise
