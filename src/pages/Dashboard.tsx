@@ -21,6 +21,7 @@ import GuidedOnboarding from '@/components/onboarding/GuidedOnboarding';
 import AdminFeedbackNotifications from '@/components/dashboard/AdminFeedbackNotifications';
 import PushNotificationPrompt from '@/components/notifications/PushNotificationPrompt';
 import { SkeletonStats, SkeletonCard, SkeletonHero } from '@/components/ui/skeleton-card';
+import { isAndroid } from '@/lib/capacitor/platform';
 
 interface DashboardStats {
   totalGoals: number;
@@ -108,6 +109,9 @@ export default function Dashboard() {
   const completionRate = stats.todayTotal > 0 
     ? Math.round((stats.todayCompleted / stats.todayTotal) * 100) 
     : 0;
+  const pageShellClass = isAndroid
+    ? 'px-4 pt-2 pb-24 sm:p-6 lg:p-8 max-w-7xl mx-auto lg:pb-8'
+    : 'p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto pb-24 lg:pb-8';
 
   const handleModeComplete = () => {
     setShowModeOnboarding(false);
@@ -122,7 +126,7 @@ export default function Dashboard() {
   if (loading && !stats.totalHabits && !recentHabits.length) {
     return (
       <AppLayout>
-        <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto pb-24 lg:pb-8">
+        <div className={pageShellClass}>
           <div className="mb-4 sm:mb-6 space-y-2">
             <div className="h-8 w-64 bg-muted rounded-lg animate-pulse" />
             <div className="h-4 w-48 bg-muted rounded animate-pulse" />
@@ -163,7 +167,7 @@ export default function Dashboard() {
         isOpen={showTour}
         onComplete={() => setShowTour(false)}
       />
-      <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto pb-24 lg:pb-8">
+      <div className={pageShellClass}>
         {/* Header */}
         <div className="mb-3 sm:mb-4">
           <h1 className="text-headline font-bold tracking-tight break-words">

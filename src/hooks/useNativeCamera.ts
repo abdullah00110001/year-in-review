@@ -9,6 +9,7 @@ import {
   CapturedImage
 } from '@/lib/capacitor/nativeCamera';
 import { Feedback } from '@/lib/capacitor/nativeHaptics';
+import { showPermissionDeniedToast } from '@/lib/capacitor/openAppSettings';
 import { toast } from 'sonner';
 
 export function useNativeCamera() {
@@ -24,16 +25,26 @@ export function useNativeCamera() {
     return granted;
   }, []);
 
-  // Request permission
+  // Request permission. MUST be called from a user gesture (button tap).
   const requestPermission = useCallback(async () => {
-    const granted = await requestCameraPermission();
-    setHasPermission(granted);
-    if (!granted) {
-      toast.error('Camera permission denied', {
-        description: 'Please enable camera access in settings',
+    try {
+      const granted = await requestCameraPermission();
+      setHasPermission(granted);
+      if (!granted) {
+        showPermissionDeniedToast({
+          feature: 'Camera',
+          reason: 'Camera access is needed to capture photos for your journal and wake-up proofs.',
+        });
+      }
+      return granted;
+    } catch (e) {
+      console.error('[useNativeCamera] requestPermission error:', e);
+      showPermissionDeniedToast({
+        feature: 'Camera',
+        reason: 'We could not request camera permission. Enable it manually in Settings.',
       });
+      return false;
     }
-    return granted;
   }, []);
 
   // Take photo with camera

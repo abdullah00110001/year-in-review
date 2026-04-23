@@ -174,8 +174,11 @@
     font-feature-settings: "rlig" 1, "calt" 1;
     font-weight: 400;
     line-height: 1.6;
-    /* Safe area for notched devices */
-    padding-top: env(safe-area-inset-top);
+    /* Safe area for notched devices.
+       NOTE: On Android we use StatusBar.setOverlaysWebView({ overlay: false }),
+       which already reserves space for the status bar. Adding padding-top here
+       causes a duplicate gap above the dashboard header. Only apply
+       horizontal + bottom safe-area paddings on the body. */
     padding-bottom: env(safe-area-inset-bottom);
     padding-left: env(safe-area-inset-left);
     padding-right: env(safe-area-inset-right);

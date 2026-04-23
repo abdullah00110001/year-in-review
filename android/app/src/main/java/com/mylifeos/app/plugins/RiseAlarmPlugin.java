@@ -1,9 +1,15 @@
 package com.mylifeos.app.plugins;
 
 import android.app.AlarmManager;
+import android.app.Notification;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
 import android.app.PendingIntent;
+import android.media.AudioAttributes;
 import android.content.Context;
 import android.content.Intent;
+import android.media.RingtoneManager;
+import android.net.Uri;
 import android.os.Build;
 import android.provider.Settings;
 import com.getcapacitor.JSObject;
@@ -14,6 +20,42 @@ import com.getcapacitor.annotation.CapacitorPlugin;
 
 @CapacitorPlugin(name = "RiseAlarm")
 public class RiseAlarmPlugin extends Plugin {
+
+    private static final String ALARM_CHANNEL_ID = "rise_alarm_native_v2";
+
+    private void ensureAlarmChannel(Context context) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+            return;
+        }
+
+        NotificationManager manager = context.getSystemService(NotificationManager.class);
+        if (manager == null) {
+            return;
+        }
+
+        Uri alarmUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM);
+        if (alarmUri == null) {
+            alarmUri = Settings.System.DEFAULT_ALARM_ALERT_URI;
+        }
+
+        AudioAttributes audioAttributes = new AudioAttributes.Builder()
+            .setUsage(AudioAttributes.USAGE_ALARM)
+            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+            .build();
+
+        NotificationChannel channel = new NotificationChannel(
+            ALARM_CHANNEL_ID,
+            "Rise Alarms",
+            NotificationManager.IMPORTANCE_HIGH
+        );
+        channel.setDescription("High priority Rise alarm alerts");
+        channel.enableVibration(true);
+        channel.enableLights(true);
+        channel.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
+        channel.setBypassDnd(true);
+        channel.setSound(alarmUri, audioAttributes);
+        manager.createNotificationChannel(channel);
+    }
 
     @PluginMethod
     public void set(PluginCall call) {
@@ -29,6 +71,7 @@ public class RiseAlarmPlugin extends Plugin {
         }
 
         Context context = getContext();
+        ensureAlarmChannel(context);
         AlarmManager alarmManager = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
         Intent intent = new Intent(context, RiseAlarmReceiver.class);
         intent.putExtra("title", title);
@@ -98,6 +141,21 @@ public class RiseAlarmPlugin extends Plugin {
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             getContext().startActivity(intent);
         }
+        call.resolve();
+    }
+
+    @PluginMethod
+    public void openAppSettings(PluginCall call) {
+        Intent intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
+        intent.setData(Uri.parse("package:" + getContext().getPackageName()));
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        getContext().startActivity(intent);
+        call.resolve();
+    }
+
+    @PluginMethod
+    public void ensureAlarmChannel(PluginCall call) {
+        ensureAlarmChannel(getContext());
         call.resolve();
     }
 }

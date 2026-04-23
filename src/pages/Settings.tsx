@@ -17,6 +17,7 @@ import NotificationSettings from '@/components/notifications/NotificationSetting
 
 import PremiumTab from '@/components/settings/PremiumTab';
 import AppUpdateChecker from '@/components/settings/AppUpdateChecker';
+import PermissionsCard from '@/components/settings/PermissionsCard';
 
 export default function Settings() {
   const { user, signOut } = useAuth();
@@ -148,6 +149,7 @@ export default function Settings() {
 
                 <ModeSwitcher />
                 <NotificationSettings />
+                <PermissionsCard />
 
                 {/* Appearance Card */}
                 <Card>

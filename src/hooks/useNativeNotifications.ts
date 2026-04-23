@@ -13,6 +13,7 @@ import {
 } from '@/lib/capacitor';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { showPermissionDeniedToast } from '@/lib/capacitor/openAppSettings';
 
 interface NotificationPreferences {
   dailyInputReminder: boolean;
@@ -95,20 +96,33 @@ export function useNativeNotifications() {
     return permission === 'granted';
   }, []);
 
-  // Request notification permission
+  // Request notification permission.
+  // MUST be called from a direct user gesture (button click) to satisfy Android 13+.
   const requestPermission = useCallback(async (): Promise<boolean> => {
-    const permission = await requestNotificationPermission();
-    const granted = permission === 'granted';
-    
-    setState(prev => ({ ...prev, hasPermission: granted }));
-    
-    if (granted) {
-      toast.success('Notifications enabled!');
-    } else {
-      toast.error('Notification permission denied');
+    try {
+      const permission = await requestNotificationPermission();
+      const granted = permission === 'granted';
+
+      setState(prev => ({ ...prev, hasPermission: granted }));
+
+      if (granted) {
+        toast.success('Notifications enabled!');
+      } else {
+        showPermissionDeniedToast({
+          feature: 'Notifications',
+          reason: 'Enable notifications so we can send daily reminders, prayer alerts, and your alarm.',
+        });
+      }
+
+      return granted;
+    } catch (e) {
+      console.error('[useNativeNotifications] requestPermission error:', e);
+      showPermissionDeniedToast({
+        feature: 'Notifications',
+        reason: 'We could not request notification permission. Please enable it manually.',
+      });
+      return false;
     }
-    
-    return granted;
   }, []);
 
   // Register for push notifications
@@ -220,26 +234,25 @@ export function useNativeNotifications() {
     }
   }, []);
 
-  // Initial setup
+  // Initial setup — load preferences & current permission status only.
+  // CRITICAL: We do NOT auto-request permission or auto-register for push here.
+  // Both are opt-in and must be triggered by explicit user action (Settings toggle).
   useEffect(() => {
     const init = async () => {
       setState(prev => ({ ...prev, isLoading: true }));
-      
-      await checkPermission();
-      await loadPreferences();
-      
-      // Auto-register for push if user is logged in
-      if (user && isNative) {
-        await registerForPush();
+      try {
+        await checkPermission();
+        await loadPreferences();
+      } catch (e) {
+        console.error('[useNativeNotifications] init error:', e);
       }
-      
       setState(prev => ({ ...prev, isLoading: false }));
     };
-    
+
     if (user) {
       init();
     }
-  }, [user, checkPermission, loadPreferences, registerForPush]);
+  }, [user, checkPermission, loadPreferences]);
 
   // Schedule reminders when preferences are loaded
   useEffect(() => {

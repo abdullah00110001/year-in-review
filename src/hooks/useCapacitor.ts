@@ -86,21 +86,10 @@ export function useCapacitor() {
       }
 
       // Step 2: Android-specific setup (all wrapped individually)
+      // NOTE: Notification permission is NOT auto-requested here.
+      // It is requested contextually when the user enables notifications in Settings
+      // or sets up an alarm/feature that needs it.
       if (isAndroid) {
-        // Request local notification permissions with a small delay so WebView is fully ready
-        setTimeout(async () => {
-          try {
-            const { LocalNotifications } = await import('@capacitor/local-notifications');
-            const permCheck = await LocalNotifications.checkPermissions();
-            if (permCheck.display !== 'granted') {
-              await LocalNotifications.requestPermissions();
-            }
-          } catch (error) {
-            console.error('[Capacitor] Notification permission error:', error);
-          }
-          // Push permission is now handled by usePushNotifications hook
-        }, 1500);
-
         // Notification channels - each in its own try/catch
         try {
           const { initializeNotificationChannels } = await import('@/lib/capacitor/nativeNotifications');

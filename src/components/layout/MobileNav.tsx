@@ -140,11 +140,12 @@ export default function MobileNav() {
     { name: t('nav.settings'), href: '/settings', icon: Settings },
   ];
 
-  // Bottom navigation: Home | Habit | Rise | Life | Settings
+  // Bottom navigation: Home | Habit | Rise | Shield | Life | Settings
   const bottomNavItems = [
     { name: language === 'bn' ? 'হোম' : 'Home', href: '/dashboard', icon: Home },
     { name: language === 'bn' ? 'অভ্যাস' : 'Habit', href: '/habits', icon: CheckSquare },
     { name: language === 'bn' ? 'রাইজ' : 'Rise', href: '/rise', icon: Flame },
+    { name: language === 'bn' ? 'শিল্ড' : 'Shield', href: '/shield', icon: Shield },
     { name: language === 'bn' ? 'লাইফ' : 'Life', href: '/life-calendar', icon: Heart },
     { name: language === 'bn' ? 'সেটিংস' : 'Settings', href: '/settings', icon: Settings },
   ];

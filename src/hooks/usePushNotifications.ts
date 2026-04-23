@@ -2,6 +2,7 @@ import { useEffect, useRef, useCallback, useState } from 'react';
 import { useAuth } from './useAuth';
 import { isNative } from '@/lib/capacitor/platform';
 import { supabase } from '@/integrations/supabase/client';
+import { showPermissionDeniedToast } from '@/lib/capacitor/openAppSettings';
 
 type PushPermissionStatus = 'granted' | 'denied' | 'prompt' | 'unknown';
 
@@ -11,8 +12,10 @@ export function usePushNotifications() {
   const [permissionStatus, setPermissionStatus] = useState<PushPermissionStatus>('unknown');
   const [token, setToken] = useState<string | null>(null);
 
-  // Request permission and register for push
+  // Request permission and register for push.
+  // CRITICAL: This entire flow is wrapped so no failure can crash the app.
   const registerPush = useCallback(async () => {
+    try {
     if (registeredRef.current) return;
 
     // Web fallback: use browser Notification API
@@ -67,17 +70,25 @@ export function usePushNotifications() {
       }
       setPermissionStatus(permResult.receive as PushPermissionStatus);
 
-      // Request if needed
+      // Request if needed (must be triggered from a user gesture on Android 13+)
       if (permResult.receive !== 'granted') {
         try {
           const requestResult = await PushNotifications.requestPermissions();
           setPermissionStatus(requestResult.receive as PushPermissionStatus);
           if (requestResult.receive !== 'granted') {
             console.warn('[Push] Permission denied');
+            showPermissionDeniedToast({
+              feature: 'Push notifications',
+              reason: 'Push notifications are needed for wake signals, mentor messages, and group alerts.',
+            });
             return;
           }
         } catch (e) {
           console.warn('[Push] requestPermissions failed:', e);
+          showPermissionDeniedToast({
+            feature: 'Push notifications',
+            reason: 'We could not request push permission. Enable it manually in Settings.',
+          });
           return;
         }
       }
@@ -168,6 +179,10 @@ export function usePushNotifications() {
     } catch (error) {
       console.error('[Push] Setup failed:', error);
     }
+    } catch (outerError) {
+      // Outermost guard: never let push registration crash the app.
+      console.error('[Push] Fatal error swallowed:', outerError);
+    }
   }, [user]);
 
   // Check web permission status on mount
@@ -177,17 +192,10 @@ export function usePushNotifications() {
     }
   }, []);
 
-  // Auto-register when user logs in (delayed for WebView stability)
-  useEffect(() => {
-    if (!user) return;
-
-    if (isNative) {
-      const timer = setTimeout(() => {
-        registerPush();
-      }, 3000);
-      return () => clearTimeout(timer);
-    }
-  }, [user?.id]);
+  // NOTE: We deliberately do NOT auto-register for push on login.
+  // Push registration is opt-in: the user must explicitly enable it from Settings,
+  // which calls `registerPush()`. Auto-registering on login was crashing the app
+  // on Android when FCM registration failed.
 
   return { permissionStatus, token, registerPush };
 }

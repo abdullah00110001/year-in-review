@@ -4,8 +4,9 @@ import android.app.KeyguardManager;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.media.AudioManager;
 import android.media.AudioAttributes;
-import android.media.Ringtone;
+import android.media.MediaPlayer;
 import android.media.RingtoneManager;
 import android.net.Uri;
 import android.os.Build;
@@ -17,7 +18,7 @@ import com.mylifeos.app.MainActivity;
 
 public class RiseAlarmReceiver extends BroadcastReceiver {
 
-    private static Ringtone activeRingtone;
+    private static MediaPlayer activeMediaPlayer;
 
     @Override
     public void onReceive(Context context, Intent intent) {
@@ -31,24 +32,27 @@ public class RiseAlarmReceiver extends BroadcastReceiver {
         );
         wl.acquire(60_000L);
 
-        // 2. Play system alarm sound (loud, persistent)
+        // 2. Play system alarm sound on the ALARM audio stream
         try {
-            stopRingtoneSafely();
+            stopAlarmSoundSafely();
             Uri alarmUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM);
             if (alarmUri == null) {
                 alarmUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);
             }
-            Ringtone r = RingtoneManager.getRingtone(context, alarmUri);
-            if (r != null) {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                    r.setAudioAttributes(new AudioAttributes.Builder()
-                        .setUsage(AudioAttributes.USAGE_ALARM)
-                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                        .build());
-                }
-                r.play();
-                activeRingtone = r;
+            MediaPlayer player = new MediaPlayer();
+            player.setDataSource(context, alarmUri);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                player.setAudioAttributes(new AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_ALARM)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                    .build());
+            } else {
+                player.setAudioStreamType(AudioManager.STREAM_ALARM);
             }
+            player.setLooping(true);
+            player.prepare();
+            player.start();
+            activeMediaPlayer = player;
         } catch (Exception ignored) { }
 
         // 3. Vibrate
@@ -92,12 +96,15 @@ public class RiseAlarmReceiver extends BroadcastReceiver {
         wl.release();
     }
 
-    public static void stopRingtoneSafely() {
+    public static void stopAlarmSoundSafely() {
         try {
-            if (activeRingtone != null && activeRingtone.isPlaying()) {
-                activeRingtone.stop();
+            if (activeMediaPlayer != null) {
+                if (activeMediaPlayer.isPlaying()) {
+                    activeMediaPlayer.stop();
+                }
+                activeMediaPlayer.release();
             }
         } catch (Exception ignored) { }
-        activeRingtone = null;
+        activeMediaPlayer = null;
     }
 }

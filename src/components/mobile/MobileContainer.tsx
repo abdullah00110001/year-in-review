@@ -1,6 +1,6 @@
 import { ReactNode } from 'react';
 import { cn } from '@/lib/utils';
-import { isNative } from '@/lib/capacitor/platform';
+import { isIOS, isNative } from '@/lib/capacitor/platform';
 
 interface MobileContainerProps {
   children: ReactNode;
@@ -28,7 +28,7 @@ export function MobileContainer({
         className
       )}
       style={{
-        paddingTop: safeArea ? 'env(safe-area-inset-top)' : undefined,
+        paddingTop: safeArea && isIOS ? 'env(safe-area-inset-top)' : undefined,
         paddingBottom: safeArea ? 'env(safe-area-inset-bottom)' : undefined,
         paddingLeft: safeArea ? 'env(safe-area-inset-left)' : undefined,
         paddingRight: safeArea ? 'env(safe-area-inset-right)' : undefined,
@@ -95,7 +95,7 @@ export function MobileHeader({
         className
       )}
       style={{
-        paddingTop: 'env(safe-area-inset-top)',
+        paddingTop: isIOS ? 'env(safe-area-inset-top)' : undefined,
       }}
     >
       <div className="px-4 py-3">

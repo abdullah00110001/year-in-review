@@ -7,6 +7,7 @@ import {
   scheduleNativeAlarmShots,
   cancelNativeAlarmShots,
   canScheduleExactAlarms,
+  ensureNativeAlarmChannel,
 } from './riseAlarmBridge';
 
 export interface AlarmConfig {
@@ -26,6 +27,7 @@ export interface AlarmConfig {
 export type AlarmNotification = LocalNotificationSchema;
 
 const ALARM_STORAGE_KEY = 'scheduled_alarms';
+const RISE_ALARM_CHANNEL_ID = 'rise_alarm_native_v2';
 let listenersRegistered = false;
 
 export function uuidToNumericId(value: string): number {
@@ -70,18 +72,7 @@ export async function requestAlarmPermission(): Promise<boolean> {
 export async function initializeAlarmChannel(): Promise<void> {
   if (!Capacitor.isNativePlatform()) return;
   try {
-    await LocalNotifications.createChannel({
-      id: 'rise_alarm',
-      name: 'Rise Alarms',
-      description: 'High priority alarms for Rise',
-      importance: 5,
-      visibility: 1,
-      // Use system default alarm sound — bundling a custom sound requires a raw resource.
-      // Omitting `sound` makes Android use the channel's default notification sound.
-      vibration: true,
-      lights: true,
-      lightColor: '#f97316',
-    });
+    await ensureNativeAlarmChannel();
   } catch (error) {
     console.error('Failed to initialize alarm channel', error);
   }
@@ -120,7 +111,7 @@ export async function scheduleAlarm(config: AlarmConfig): Promise<boolean> {
           title: config.title,
           body: config.body,
           schedule: { at: config.scheduledAt, allowWhileIdle: true },
-          channelId: 'rise_alarm',
+          channelId: RISE_ALARM_CHANNEL_ID,
           actionTypeId: 'ALARM_ACTIONS',
           extra: {
             missionType: config.missionType,
@@ -246,7 +237,7 @@ export async function snoozeAlarm(id: number, minutes = 5): Promise<boolean> {
           title: existing?.title || 'Rise Alarm',
           body: existing?.body || 'Time to wake up!',
           schedule: { at: nextAt, allowWhileIdle: true },
-          channelId: 'rise_alarm',
+          channelId: RISE_ALARM_CHANNEL_ID,
           actionTypeId: 'ALARM_ACTIONS',
           extra: { ...(existing?.extra || {}), snoozed: true },
           autoCancel: false,

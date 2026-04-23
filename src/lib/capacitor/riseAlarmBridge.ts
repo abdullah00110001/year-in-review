@@ -23,6 +23,10 @@ export interface RiseAlarmPluginI {
   canScheduleExactAlarms(): Promise<{ granted: boolean }>;
 
   openAlarmSettings(): Promise<void>;
+
+  openAppSettings(): Promise<void>;
+
+  ensureAlarmChannel(): Promise<void>;
 }
 
 const RiseAlarm = registerPlugin<RiseAlarmPluginI>('RiseAlarm');
@@ -93,6 +97,26 @@ export async function openExactAlarmSettings(): Promise<void> {
     await RiseAlarm.openAlarmSettings();
   } catch (err) {
     console.error('openAlarmSettings failed', err);
+  }
+}
+
+export async function openNativeAppSettings(): Promise<void> {
+  if (!Capacitor.isNativePlatform()) return;
+  try {
+    await RiseAlarm.openAppSettings();
+  } catch (err) {
+    console.error('openAppSettings failed', err);
+    throw err;
+  }
+}
+
+export async function ensureNativeAlarmChannel(): Promise<void> {
+  if (!Capacitor.isNativePlatform()) return;
+  try {
+    await RiseAlarm.ensureAlarmChannel();
+  } catch (err) {
+    console.error('ensureAlarmChannel failed', err);
+    throw err;
   }
 }
 

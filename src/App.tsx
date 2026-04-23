@@ -20,7 +20,9 @@ import UpdatePrompt from "@/components/UpdatePrompt";
 import ForceUpdateScreen from "@/components/ForceUpdateScreen";
 import { useAppUpdate } from "@/hooks/useAppUpdate";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
-import { LocalNotifications } from '@capacitor/local-notifications';
+// LocalNotifications is intentionally NOT imported at top-level.
+// Use a dynamic `await import('@capacitor/local-notifications')` inside the
+// specific user-triggered flow that needs it (e.g. enabling notifications in Settings).
 import { useToast } from "@/hooks/use-toast";
 
 // All pages imported directly - no lazy loading
