@@ -1,5 +1,12 @@
 package com.mylifeos.app.plugins;
 
+import android.app.usage.UsageStats;
+import android.app.usage.UsageStatsManager;
+import android.content.Context;
+import android.content.pm.ApplicationInfo;
+import android.content.pm.PackageManager;
+import android.os.Build;
+
 import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
@@ -12,6 +19,8 @@ import com.mylifeos.app.shield.core.ShieldStatsManager;
 import com.mylifeos.app.shield.ShieldPreferences;
 import com.mylifeos.app.shield.ShieldPermissionHelper;
 
+import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
