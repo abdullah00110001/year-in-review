@@ -20,28 +20,20 @@ import com.getcapacitor.annotation.CapacitorPlugin;
 
 @CapacitorPlugin(name = "RiseAlarm")
 public class RiseAlarmPlugin extends Plugin {
-
     private static final String ALARM_CHANNEL_ID = "rise_alarm_native_v2";
 
     private void ensureAlarmChannel(Context context) {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
-            return;
-        }
-
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return;
         NotificationManager manager = context.getSystemService(NotificationManager.class);
-        if (manager == null) {
-            return;
-        }
+        if (manager == null) return;
+        if (manager.getNotificationChannel(ALARM_CHANNEL_ID)!= null) return;
 
-        Uri alarmUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM);
-        if (alarmUri == null) {
-            alarmUri = Settings.System.DEFAULT_ALARM_ALERT_URI;
-        }
+        Uri alarmUri = Uri.parse("android.resource://" + context.getPackageName() + "/" + com.mylifeos.app.R.raw.tonton);
 
         AudioAttributes audioAttributes = new AudioAttributes.Builder()
-            .setUsage(AudioAttributes.USAGE_ALARM)
-            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-            .build();
+         .setUsage(AudioAttributes.USAGE_ALARM)
+         .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+         .build();
 
         NotificationChannel channel = new NotificationChannel(
             ALARM_CHANNEL_ID,
@@ -50,6 +42,7 @@ public class RiseAlarmPlugin extends Plugin {
         );
         channel.setDescription("High priority Rise alarm alerts");
         channel.enableVibration(true);
+        channel.setVibrationPattern(new long[]{0, 1000, 500, 1000});
         channel.enableLights(true);
         channel.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
         channel.setBypassDnd(true);
@@ -73,6 +66,7 @@ public class RiseAlarmPlugin extends Plugin {
         Context context = getContext();
         ensureAlarmChannel(context);
         AlarmManager alarmManager = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
+
         Intent intent = new Intent(context, RiseAlarmReceiver.class);
         intent.putExtra("title", title);
         intent.putExtra("body", body);
@@ -80,7 +74,6 @@ public class RiseAlarmPlugin extends Plugin {
         intent.putExtra("dbId", dbId);
 
         int requestCode = (int) (timestamp % 2147483647);
-
         PendingIntent pendingIntent = PendingIntent.getBroadcast(
             context,
             requestCode,
@@ -89,12 +82,9 @@ public class RiseAlarmPlugin extends Plugin {
         );
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            alarmManager.setAlarmClock(
-                new AlarmManager.AlarmClockInfo(timestamp, pendingIntent),
-                pendingIntent
-            );
-        } else {
             alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, timestamp, pendingIntent);
+        } else {
+            alarmManager.setExact(AlarmManager.RTC_WAKEUP, timestamp, pendingIntent);
         }
 
         JSObject ret = new JSObject();
@@ -106,7 +96,6 @@ public class RiseAlarmPlugin extends Plugin {
     public void cancel(PluginCall call) {
         long timestamp = call.getLong("timestamp", 0L);
         int requestCode = (int) (timestamp % 2147483647);
-
         Context context = getContext();
         AlarmManager alarmManager = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
         Intent intent = new Intent(context, RiseAlarmReceiver.class);
@@ -116,7 +105,6 @@ public class RiseAlarmPlugin extends Plugin {
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
         );
-
         alarmManager.cancel(pendingIntent);
         call.resolve();
     }
@@ -134,10 +122,10 @@ public class RiseAlarmPlugin extends Plugin {
     }
 
     @PluginMethod
-    public void openAlarmSettings(PluginCall call) {
+    public void openExactAlarmSettings(PluginCall call) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             Intent intent = new Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM);
-            intent.setData(android.net.Uri.parse("package:" + getContext().getPackageName()));
+            intent.setData(Uri.parse("package:" + getContext().getPackageName()));
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             getContext().startActivity(intent);
         }
@@ -145,11 +133,13 @@ public class RiseAlarmPlugin extends Plugin {
     }
 
     @PluginMethod
-    public void openAppSettings(PluginCall call) {
-        Intent intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
-        intent.setData(Uri.parse("package:" + getContext().getPackageName()));
-        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-        getContext().startActivity(intent);
+    public void openOverlaySettings(PluginCall call) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION);
+            intent.setData(Uri.parse("package:" + getContext().getPackageName()));
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            getContext().startActivity(intent);
+        }
         call.resolve();
     }
 
