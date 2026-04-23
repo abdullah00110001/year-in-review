@@ -13,62 +13,61 @@ jobs:
     name: 📱 Build Native APK
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    
+
     steps:
-    - name: Checkout Code
-      uses: actions/checkout@v4
+      - name: Checkout Code
+        uses: actions/checkout@v4
 
-    - name: Setup Node.js v20
-      uses: actions/setup-node@v4
-      with:
-        node-version: 20
-        cache: 'npm'
+      # FIX: Node 22 লাগবে Capacitor 7+ এর জন্য
+      - name: Setup Node.js v22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
 
-    - name: Setup Java v21
-      uses: actions/setup-java@v4
-      with:
-        distribution: 'zulu'
-        java-version: '21'
+      - name: Setup Java v21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '21'
 
-    # FIX 1: Capacitor প্যাকেজগুলা ফোর্স ইন্সটল করো
-    - name: Install dependencies
-      run: |
-        npm install --legacy-peer-deps
-        npm install @capacitor/dialog@latest @capacitor/device@latest @capacitor/preferences@latest @capacitor/local-notifications@latest --save
+      - name: Install dependencies
+        run: |
+          npm install --legacy-peer-deps
+          npm install @capacitor/dialog@latest @capacitor/device@latest @capacitor/preferences@latest @capacitor/local-notifications@latest --save
 
-    - name: Build Web Assets
-      run: npm run build
+      - name: Build Web Assets
+        run: npm run build
 
-    - name: Sync Capacitor Android
-      run: npx cap sync android
+      - name: Sync Capacitor Android
+        run: npx cap sync android
 
-    - name: Fix Gradle Permissions
-      run: chmod +x android/gradlew
+      - name: Fix Gradle Permissions
+        run: chmod +x android/gradlew
 
-    # FIX 2: Gradle cache ক্লিয়ার + stacktrace অন
-    - name: Build APK
-      run: |
-        cd android
-        ./gradlew clean
-        ./gradlew assembleDebug --stacktrace --no-daemon
+      - name: Build APK
+        run: |
+          cd android
+          ./gradlew clean
+          ./gradlew assembleDebug --stacktrace --no-daemon
 
-    - name: Check APK exists
-      run: ls -la android/app/build/outputs/apk/debug/
+      - name: Check APK exists
+        run: ls -la android/app/build/outputs/apk/debug/
 
-    - name: Rename to LifeOS.apk
-      run: mv android/app/build/outputs/apk/debug/app-debug.apk android/app/build/outputs/apk/debug/LifeOS.apk
+      - name: Rename to LifeOS.apk
+        run: mv android/app/build/outputs/apk/debug/app-debug.apk android/app/build/outputs/apk/debug/LifeOS.apk
 
-    - name: Upload APK for Testing
-      uses: actions/upload-artifact@v4
-      with:
-        name: lifeos-apk
-        path: android/app/build/outputs/apk/debug/LifeOS.apk
+      - name: Upload APK for Testing
+        uses: actions/upload-artifact@v4
+        with:
+          name: lifeos-apk
+          path: android/app/build/outputs/apk/debug/LifeOS.apk
 
-    - name: Create Release
-      uses: softprops/action-gh-release@v1
-      with:
-        tag_name: v1.0.${{ github.run_number }}
-        name: LifeOS Native Release ${{ github.run_number }}
-        files: android/app/build/outputs/apk/debug/LifeOS.apk
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v1.0.${{ github.run_number }}
+          name: LifeOS Native Release ${{ github.run_number }}
+          files: android/app/build/outputs/apk/debug/LifeOS.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
