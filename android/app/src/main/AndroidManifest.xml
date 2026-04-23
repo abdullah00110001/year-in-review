@@ -92,6 +92,20 @@
             android:enabled="true">
         </receiver>
 
+        <!-- Boot receiver: re-arms alarms after device reboot or app update -->
+        <receiver
+            android:name="com.mylifeos.app.plugins.BootReceiver"
+            android:enabled="true"
+            android:exported="true"
+            android:directBootAware="false">
+            <intent-filter android:priority="1000">
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+                <action android:name="com.htc.intent.action.QUICKBOOT_POWERON" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+
         <!-- Shield Foreground Service: enabled, only started after permissions are granted -->
         <service
             android:name=".shield.ShieldService"

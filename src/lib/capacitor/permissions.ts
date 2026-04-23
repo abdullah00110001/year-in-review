@@ -1,6 +1,8 @@
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { PushNotifications } from '@capacitor/push-notifications';
 import { isNative, isAndroid } from './platform';
+import Shield from './shieldPlugin';
+import { canScheduleExactAlarms, openExactAlarmSettings } from './riseAlarmBridge';
 
 export type PermissionStatus = 'granted' | 'denied' | 'prompt';
 
@@ -8,6 +10,9 @@ export interface PermissionState {
   notifications: PermissionStatus;
   exactAlarm: PermissionStatus;
   usageStats: PermissionStatus;
+  overlay: PermissionStatus;
+  battery: PermissionStatus;
+  accessibility: PermissionStatus;
 }
 
 // Check notification permission
@@ -84,40 +89,108 @@ export const requestPushPermission = async (): Promise<PermissionStatus> => {
 // Android-specific: Check exact alarm permission (API 31+)
 export const checkExactAlarmPermission = async (): Promise<PermissionStatus> => {
   if (!isAndroid) return 'granted';
-  // Capacitor LocalNotifications handles this internally
-  // We check by trying to schedule and catching errors
-  return 'granted';
-};
-
-// Android-specific: Open app settings for exact alarm permission
-export const requestExactAlarmPermission = async (): Promise<PermissionStatus> => {
-  if (!isAndroid) return 'granted';
-  
   try {
-    // Open Android app settings where user can grant exact alarm permission
-    const { App } = await import('@capacitor/app');
-    // On Android 12+, exact alarm permission is auto-granted for alarm apps
-    // but users can revoke it in Settings > Apps > Special access > Alarms & reminders
-    console.log('[Permissions] Exact alarm permission - handled by system');
-    return 'granted';
+    const ok = await canScheduleExactAlarms();
+    return ok ? 'granted' : 'prompt';
   } catch {
-    return 'granted';
+    return 'prompt';
   }
 };
 
-// Android-specific: Check usage stats permission (for Shield)
+// Android-specific: Open the system "Alarms & reminders" page for this app
+export const requestExactAlarmPermission = async (): Promise<PermissionStatus> => {
+  if (!isAndroid) return 'granted';
+  try {
+    await openExactAlarmSettings();
+  } catch (e) {
+    console.warn('[Permissions] openExactAlarmSettings failed', e);
+  }
+  return checkExactAlarmPermission();
+};
+
+// Android-specific: Check usage stats permission (for Shield) — uses native AppOps check
 export const checkUsageStatsPermission = async (): Promise<PermissionStatus> => {
   if (!isAndroid) return 'denied';
-  // Usage stats requires user to manually enable in Settings
-  // We return 'prompt' to indicate user needs to go to Settings
-  return 'prompt';
+  try {
+    const { usageStats } = await Shield.checkPermissions();
+    return usageStats ? 'granted' : 'prompt';
+  } catch {
+    return 'prompt';
+  }
 };
 
 // Android-specific: Request usage stats permission
 export const requestUsageStatsPermission = async (): Promise<PermissionStatus> => {
   if (!isAndroid) return 'denied';
-  await openUsageStatsSettings();
-  return 'prompt';
+  try {
+    await Shield.requestUsageStats();
+  } catch (e) {
+    console.warn('[Permissions] requestUsageStats failed', e);
+  }
+  return checkUsageStatsPermission();
+};
+
+// Android-specific: Overlay (SYSTEM_ALERT_WINDOW)
+export const checkOverlayPermission = async (): Promise<PermissionStatus> => {
+  if (!isAndroid) return 'granted';
+  try {
+    const { overlay } = await Shield.checkPermissions();
+    return overlay ? 'granted' : 'prompt';
+  } catch {
+    return 'prompt';
+  }
+};
+
+export const requestOverlayPermission = async (): Promise<PermissionStatus> => {
+  if (!isAndroid) return 'granted';
+  try {
+    await Shield.requestOverlay();
+  } catch (e) {
+    console.warn('[Permissions] requestOverlay failed', e);
+  }
+  return checkOverlayPermission();
+};
+
+// Android-specific: Battery optimization exemption
+export const checkBatteryPermission = async (): Promise<PermissionStatus> => {
+  if (!isAndroid) return 'granted';
+  try {
+    const { battery } = await Shield.checkPermissions();
+    return battery ? 'granted' : 'prompt';
+  } catch {
+    return 'prompt';
+  }
+};
+
+export const requestBatteryPermission = async (): Promise<PermissionStatus> => {
+  if (!isAndroid) return 'granted';
+  try {
+    await Shield.requestBattery();
+  } catch (e) {
+    console.warn('[Permissions] requestBattery failed', e);
+  }
+  return checkBatteryPermission();
+};
+
+// Android-specific: Accessibility (Shield)
+export const checkAccessibilityPermission = async (): Promise<PermissionStatus> => {
+  if (!isAndroid) return 'granted';
+  try {
+    const { accessibility } = await Shield.checkPermissions();
+    return accessibility ? 'granted' : 'prompt';
+  } catch {
+    return 'prompt';
+  }
+};
+
+export const requestAccessibilityPermission = async (): Promise<PermissionStatus> => {
+  if (!isAndroid) return 'granted';
+  try {
+    await Shield.requestAccessibility();
+  } catch (e) {
+    console.warn('[Permissions] requestAccessibility failed', e);
+  }
+  return checkAccessibilityPermission();
 };
 
 // Open app settings (for when permission was denied)
@@ -177,13 +250,16 @@ export const openBatterySettings = async () => {
 
 // Get all permission states
 export const getAllPermissions = async (): Promise<PermissionState> => {
-  const [notifications, exactAlarm, usageStats] = await Promise.all([
+  const [notifications, exactAlarm, usageStats, overlay, battery, accessibility] = await Promise.all([
     checkNotificationPermission(),
     checkExactAlarmPermission(),
-    checkUsageStatsPermission()
+    checkUsageStatsPermission(),
+    checkOverlayPermission(),
+    checkBatteryPermission(),
+    checkAccessibilityPermission(),
   ]);
 
-  return { notifications, exactAlarm, usageStats };
+  return { notifications, exactAlarm, usageStats, overlay, battery, accessibility };
 };
 
 // Check if all required permissions are granted for Rise

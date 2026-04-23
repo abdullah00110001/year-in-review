@@ -82,6 +82,31 @@ export default function RisePage() {
     return () => clearInterval(interval);
   }, [alarms]);
 
+  const loadLocalAlarms = (): RiseAlarm[] => {
+    try {
+      const raw = localStorage.getItem('local_alarms');
+      if (!raw) return [];
+      const parsed = JSON.parse(raw);
+      return (parsed as any[]).map((a) => ({
+        id: a.id,
+        alarm_time: a.alarm_time,
+        days_of_week: a.days_of_week || [],
+        alarm_type: a.alarm_type || 'personal',
+        is_enabled: a.is_enabled !== false,
+        intention: a.intention || null,
+        label: a.label || null,
+        verification_type: a.verification_type || 'math',
+        snooze_limit: a.snooze_limit ?? 3,
+        snooze_interval_minutes: a.snooze_interval_minutes ?? 5,
+        sound_type: a.sound_type || 'default',
+        vibration_enabled: a.vibration_enabled ?? true,
+      }));
+    } catch (e) {
+      console.warn('Failed to read local alarms', e);
+      return [];
+    }
+  };
+
   const loadRiseData = async () => {
     if (!user) return;
     setIsLoading(true);
@@ -108,7 +133,14 @@ export default function RisePage() {
         streakData = newStreak;
       }
 
-      setAlarms(alarmsData as RiseAlarm[] || []);
+      // Merge cloud + local-only alarms so personal alarms appear immediately
+      const remote = (alarmsData as RiseAlarm[]) || [];
+      const local = loadLocalAlarms();
+      const merged = [...remote, ...local].sort((a, b) =>
+        a.alarm_time.localeCompare(b.alarm_time)
+      );
+
+      setAlarms(merged);
       setStreak(streakData);
     } catch (error) {
       console.error('Error loading rise data:', error);
@@ -211,6 +243,13 @@ export default function RisePage() {
 
   const handleSaveAlarm = async (data: any) => {
     if (!user) return;
+
+    // Personal/local alarms are stored in localStorage by the editor itself.
+    // We just refresh the merged list here so the UI reflects them immediately.
+    if (data?.is_local) {
+      loadRiseData();
+      return;
+    }
 
     try {
       if (editingAlarm) {
