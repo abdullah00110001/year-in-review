@@ -107,17 +107,20 @@ export default function RisePage() {
     }
   };
 
+  const saveLocalAlarms = (list: RiseAlarm[]) => {
+    try {
+      localStorage.setItem('local_alarms', JSON.stringify(list));
+    } catch (e) {
+      console.warn('Failed to persist local alarms', e);
+    }
+  };
+
   const loadRiseData = async () => {
     if (!user) return;
     setIsLoading(true);
 
     try {
-      const { data: alarmsData } = await supabase
-        .from('rise_alarms')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('alarm_time', { ascending: true });
-
+      // Streaks still come from Supabase (these are accountability stats, not alarms)
       let { data: streakData } = await supabase
         .from('rise_streaks')
         .select('*')
@@ -133,17 +136,13 @@ export default function RisePage() {
         streakData = newStreak;
       }
 
-      // Merge cloud + local-only alarms so personal alarms appear immediately
-      const remote = (alarmsData as RiseAlarm[]) || [];
+      // Alarms are device-local only — no Supabase round-trip
       const local = loadLocalAlarms();
-      const merged = [...remote, ...local].sort((a, b) =>
-        a.alarm_time.localeCompare(b.alarm_time)
-      );
-
-      setAlarms(merged);
+      setAlarms(local.sort((a, b) => a.alarm_time.localeCompare(b.alarm_time)));
       setStreak(streakData);
     } catch (error) {
       console.error('Error loading rise data:', error);
+      setAlarms(loadLocalAlarms());
     } finally {
       setIsLoading(false);
     }
