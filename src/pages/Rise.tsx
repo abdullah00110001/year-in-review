@@ -244,6 +244,13 @@ export default function RisePage() {
   const handleSaveAlarm = async (data: any) => {
     if (!user) return;
 
+    // Personal/local alarms are stored in localStorage by the editor itself.
+    // We just refresh the merged list here so the UI reflects them immediately.
+    if (data?.is_local) {
+      loadRiseData();
+      return;
+    }
+
     try {
       if (editingAlarm) {
         // Update existing alarm
