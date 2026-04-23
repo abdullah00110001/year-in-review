@@ -16,6 +16,19 @@ export interface ShieldPluginInterface {
 
   getStats(options: { packageName: string }): Promise<{ blockCount: number; timeSaved: number }>;
 
+  getScreenTimeStats(): Promise<{
+    totalMinutes: number;
+    totalLaunches: number;
+    apps: Array<{
+      packageName: string;
+      appName: string;
+      usageMinutes: number;
+      launchCount: number;
+      lastUsed: number;
+    }>;
+    error?: string;
+  }>;
+
   checkPermissions(): Promise<{
     accessibility: boolean;
     usageStats: boolean;

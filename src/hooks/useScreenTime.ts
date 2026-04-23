@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import { isNative } from '@/lib/capacitor/platform';
+import { isNative, isAndroid } from '@/lib/capacitor/platform';
+import Shield from '@/lib/capacitor/shieldPlugin';
 
 export interface AppUsage {
   packageName: string;
@@ -156,35 +157,36 @@ const generateMockData = (): { screenTime: number; appLaunches: number; apps: Ap
   };
 };
 
-// Fetch screen time from native layer
+// Fetch screen time from native layer (real UsageStatsManager on Android)
 const fetchNativeScreenTime = async (): Promise<{ screenTime: number; appLaunches: number; apps: AppUsage[] }> => {
-  if (isNative) {
+  if (isNative && isAndroid) {
     try {
-      // In production, this would call the native UsageStatsManager via Capacitor plugin
-      // For now, we use mock data that simulates real usage patterns
-      // 
-      // Native implementation would be:
-      // const result = await NativeShield.getScreenTimeStats({ days: 1 });
-      // return {
-      //   screenTime: result.totalMinutes,
-      //   appLaunches: result.totalLaunches,
-      //   apps: result.apps.map(app => ({
-      //     packageName: app.packageName,
-      //     appName: app.appName,
-      //     usageMinutes: Math.round(app.usageTimeMs / 60000),
-      //     launchCount: app.launchCount,
-      //     lastUsed: app.lastUsed,
-      //     category: categorizeApp(app.appName)
-      //   }))
-      // };
-      
-      return generateMockData();
+      const result = await Shield.getScreenTimeStats();
+      if (result?.error) {
+        console.warn('[ScreenTime] Native error:', result.error);
+        // No permission yet — return empty (UI will prompt)
+        return { screenTime: 0, appLaunches: 0, apps: [] };
+      }
+      const apps: AppUsage[] = (result.apps || []).map((app: any) => ({
+        packageName: app.packageName,
+        appName: app.appName,
+        usageMinutes: app.usageMinutes || 0,
+        launchCount: app.launchCount || 0,
+        lastUsed: new Date(app.lastUsed || Date.now()).toISOString(),
+        category: categorizeApp(app.appName),
+      }));
+      return {
+        screenTime: result.totalMinutes || 0,
+        appLaunches: result.totalLaunches || 0,
+        apps,
+      };
     } catch (err) {
-      console.error('Failed to get native screen time:', err);
-      return generateMockData();
+      console.error('[ScreenTime] Failed to get native screen time:', err);
+      return { screenTime: 0, appLaunches: 0, apps: [] };
     }
   }
-  
+
+  // Web preview only — mock data so the UI is reviewable
   return generateMockData();
 };
 
