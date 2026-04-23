@@ -130,19 +130,22 @@ export function RiseAlarmEditor({ open, onClose, onSave, initialData, isEditing 
 
     if (isLocal) {
       const localAlarms = JSON.parse(localStorage.getItem('local_alarms') || '[]');
-      const updatedAlarm = {...alarm, id: alarmId, is_local: true};
+      const updatedAlarm = { ...alarm, id: alarmId, is_local: true, is_enabled: true };
 
       if (isEditing) {
         const index = localAlarms.findIndex((a: AlarmData) => a.id === alarm.id);
         if (index >= 0) localAlarms[index] = updatedAlarm;
+        else localAlarms.push(updatedAlarm);
       } else {
         localAlarms.push(updatedAlarm);
       }
       localStorage.setItem('local_alarms', JSON.stringify(localAlarms));
-      toast.success(isEditing? 'Personal alarm updated!' : 'Personal alarm set! ✅');
+      toast.success(isEditing ? 'Personal alarm updated!' : 'Personal alarm set! ✅');
+      // Notify parent so it can refresh the list
+      onSave({ ...alarm, id: alarmId, is_local: true });
     } else {
-      onSave({...alarm, id: alarmId});
-      toast.success(isEditing? 'Alarm updated!' : 'Alarm created!');
+      onSave({ ...alarm, id: alarmId });
+      toast.success(isEditing ? 'Alarm updated!' : 'Alarm created!');
     }
 
     onClose();
