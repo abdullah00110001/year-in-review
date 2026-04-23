@@ -109,12 +109,12 @@ export function RiseAlarmEditor({ open, onClose, onSave, initialData, isEditing 
     }
 
     const alarmId = alarm.id || crypto.randomUUID();
-    const isLocal = alarm.alarm_type === 'personal' || alarm.alarm_type === 'recovery';
 
     if (isEditing && alarm.id) {
       await cancelAlarmByUuid(alarm.id);
     }
 
+    // Schedule native alarm (works on locked screen via setAlarmClock)
     await scheduleRecurringAlarm(
       alarmId,
       alarm.alarm_time,
@@ -124,30 +124,26 @@ export function RiseAlarmEditor({ open, onClose, onSave, initialData, isEditing 
         body: alarm.intention || 'Time to wake up!',
         missionType: alarm.verification_type as any,
         snoozeMinutes: alarm.snooze_interval_minutes,
-        alarmDbId: isLocal? undefined : alarmId
+        // Always treat alarms as device-local; never tie them to a Supabase row
+        alarmDbId: undefined,
       }
     );
 
-    if (isLocal) {
-      const localAlarms = JSON.parse(localStorage.getItem('local_alarms') || '[]');
-      const updatedAlarm = { ...alarm, id: alarmId, is_local: true, is_enabled: true };
+    // ALWAYS persist to localStorage — alarms live on the device only
+    const localAlarms = JSON.parse(localStorage.getItem('local_alarms') || '[]');
+    const updatedAlarm = { ...alarm, id: alarmId, is_local: true, is_enabled: true };
 
-      if (isEditing) {
-        const index = localAlarms.findIndex((a: AlarmData) => a.id === alarm.id);
-        if (index >= 0) localAlarms[index] = updatedAlarm;
-        else localAlarms.push(updatedAlarm);
-      } else {
-        localAlarms.push(updatedAlarm);
-      }
-      localStorage.setItem('local_alarms', JSON.stringify(localAlarms));
-      toast.success(isEditing ? 'Personal alarm updated!' : 'Personal alarm set! ✅');
-      // Notify parent so it can refresh the list
-      onSave({ ...alarm, id: alarmId, is_local: true });
+    if (isEditing) {
+      const index = localAlarms.findIndex((a: AlarmData) => a.id === alarm.id);
+      if (index >= 0) localAlarms[index] = updatedAlarm;
+      else localAlarms.push(updatedAlarm);
     } else {
-      onSave({ ...alarm, id: alarmId });
-      toast.success(isEditing ? 'Alarm updated!' : 'Alarm created!');
+      localAlarms.push(updatedAlarm);
     }
+    localStorage.setItem('local_alarms', JSON.stringify(localAlarms));
 
+    toast.success(isEditing ? 'Alarm updated!' : 'Alarm set! ✅');
+    onSave({ ...alarm, id: alarmId, is_local: true });
     onClose();
   };
 
