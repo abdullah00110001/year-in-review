@@ -1,9 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
-import { Search, Shield, Smartphone, AlertTriangle, Loader2 } from 'lucide-react';
+import { Search, Smartphone, AlertTriangle, Loader2 } from 'lucide-react';
 import ShieldPlugin from '@/lib/capacitor/shieldPlugin';
 import { isNative } from '@/lib/capacitor/platform';
 import { toast } from 'sonner';
@@ -14,67 +13,83 @@ interface AppInfo {
   usageMinutes?: number;
 }
 
-export function ShieldBlocking() {
+interface ShieldBlockingProps {
+  blockedApps?: string[];
+  onToggleApp?: (pkgName: string) => Promise<void> | void;
+}
+
+export function ShieldBlocking({ blockedApps: blockedAppsProp, onToggleApp }: ShieldBlockingProps = {}) {
   const [searchQuery, setSearchQuery] = useState('');
-  const [blockedApps, setBlockedApps] = useState<string[]>([]);
+  const [blockedApps, setBlockedApps] = useState<string[]>(blockedAppsProp ?? []);
   const [recentApps, setRecentApps] = useState<AppInfo[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // ১. নেটিভ ডাটাবেস থেকে ব্লকড অ্যাপস এবং রিসেন্ট অ্যাপস লোড করা
+  useEffect(() => {
+    if (blockedAppsProp) {
+      setBlockedApps(blockedAppsProp);
+    }
+  }, [blockedAppsProp]);
+
   useEffect(() => {
     const loadShieldData = async () => {
       if (!isNative) {
         setIsLoading(false);
         return;
       }
-      try {
-        // নেটিভ থেকে ব্লক লিস্ট আনা
-        const { apps } = await ShieldPlugin.getBlockedApps();
-        setBlockedApps(apps || []);
 
-        // স্ক্রিন টাইম স্ট্যাটাস থেকে রিসেন্ট অ্যাপস আনা (যাতে ইউজার বুঝতে পারে কোনটা ব্লক করা দরকার)
+      try {
+        if (!blockedAppsProp) {
+          const { apps } = await ShieldPlugin.getBlockedApps();
+          setBlockedApps(apps || []);
+        }
+
         const stats = await ShieldPlugin.getScreenTimeStats();
-        if (stats && stats.apps) {
-          const appsFromStats = stats.apps.map(a => ({
-            packageName: a.packageName,
-            appName: a.appName,
-            usageMinutes: a.usageMinutes
-          }));
-          setRecentApps(appsFromStats);
+        if (stats?.apps) {
+          setRecentApps(
+            stats.apps.map((app) => ({
+              packageName: app.packageName,
+              appName: app.appName,
+              usageMinutes: app.usageMinutes,
+            })),
+          );
         }
       } catch (error) {
-        console.error("Failed to load shield data", error);
+        console.error('Failed to load shield data', error);
       } finally {
         setIsLoading(false);
       }
     };
 
     loadShieldData();
-  }, []);
+  }, [blockedAppsProp]);
 
-  // ২. অ্যাপ ব্লক বা আনব্লক করার লজিক (সরাসরি নেটিভ মেমোরিতে সেভ হবে)
   const toggleAppBlock = async (pkgName: string) => {
     try {
+      if (onToggleApp) {
+        await onToggleApp(pkgName);
+        return;
+      }
+
       let updatedList: string[];
       if (blockedApps.includes(pkgName)) {
-        updatedList = blockedApps.filter(id => id !== pkgName);
+        updatedList = blockedApps.filter((id) => id !== pkgName);
         toast.info(`${pkgName} removed from block list`);
       } else {
         updatedList = [...blockedApps, pkgName];
         toast.success(`${pkgName} is now blocked`);
       }
 
-      // সরাসরি জাভা প্লাগিনে নতুন লিস্ট পাঠানো
       await ShieldPlugin.blockApps({ apps: updatedList });
       setBlockedApps(updatedList);
     } catch (error) {
-      toast.error("Failed to update block list");
+      console.error('Failed to update block list', error);
+      toast.error('Failed to update block list');
     }
   };
 
-  const filteredApps = recentApps.filter(app => 
+  const filteredApps = recentApps.filter((app) =>
     app.appName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    app.packageName.toLowerCase().includes(searchQuery.toLowerCase())
+    app.packageName.toLowerCase().includes(searchQuery.toLowerCase()),
   );
 
   if (isLoading) {
@@ -109,9 +124,9 @@ export function ShieldBlocking() {
         ) : (
           filteredApps.map((app) => (
             <Card key={app.packageName} className={`bg-white/5 border-white/10 transition-all ${blockedApps.includes(app.packageName) ? 'border-rose-500/50 bg-rose-500/5' : ''}`}>
-              <CardContent className="p-4 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 rounded-xl bg-indigo-500/10 flex items-center justify-center">
+              <CardContent className="p-4 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="h-10 w-10 rounded-xl bg-indigo-500/10 flex items-center justify-center shrink-0">
                     <Smartphone className="h-5 w-5 text-indigo-400" />
                   </div>
                   <div className="min-w-0">
@@ -119,7 +134,7 @@ export function ShieldBlocking() {
                     <p className="text-[10px] text-white/30 truncate">{app.packageName}</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-4 shrink-0">
                   {app.usageMinutes !== undefined && (
                     <span className="text-[10px] font-mono text-white/40">{app.usageMinutes}m</span>
                   )}
@@ -139,7 +154,7 @@ export function ShieldBlocking() {
         <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-start gap-3 mt-6">
           <AlertTriangle className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
           <div className="text-xs text-amber-200/80 leading-relaxed">
-            <strong>Shield is Active:</strong> You have {blockedApps.length} apps restricted. 
+            <strong>Shield is Active:</strong> You have {blockedApps.length} apps restricted.
             Accessibility service will block these apps as soon as they are launched.
           </div>
         </div>
