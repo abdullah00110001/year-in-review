@@ -16,11 +16,16 @@ import { Card, CardContent } from '@/components/ui/card';
 import { scheduleRecurringAlarm, cancelAlarmByUuid, initializeAlarmChannel } from '@/lib/capacitor/nativeAlarm';
 import { cancelNativeAlarmShots, canScheduleExactAlarms } from '@/lib/capacitor/riseAlarmBridge';
 import { isNative } from '@/lib/capacitor/platform';
-import { PermissionOnboarding } from '@/components/mobile/PermissionOnboarding';
-import { Dialog } from '@capacitor/dialog';
-import { Device } from '@capacitor/device';
-import { Preferences } from '@capacitor/preferences';
-import { LocalNotifications } from '@capacitor/local-notifications';
+import { App } from '@capacitor/app';
+
+// 🟢 New Imports for Sequential Permissions
+import { 
+  getAllPermissions,
+  requestNotificationPermission,
+  requestExactAlarmPermission,
+  requestOverlayPermission,
+  requestBatteryPermission
+} from '@/lib/capacitor/permissions';
 
 interface RiseAlarm {
   id: string;
@@ -45,7 +50,13 @@ interface RiseStreak {
   is_recovery_mode: boolean;
 }
 
-const PERMISSION_KEY = 'rise_permissions_v2';
+// 🟢 Permission Interface
+interface RisePermissionStatus {
+  notifications: boolean;
+  exactAlarm: boolean;
+  overlay: boolean;
+  battery: boolean;
+}
 
 export default function RisePage() {
   const { user } = useAuth();
@@ -54,73 +65,52 @@ export default function RisePage() {
   const [streak, setStreak] = useState<RiseStreak | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [nextAlarm, setNextAlarm] = useState<{ time: string; countdown: string } | null>(null);
-  void nextAlarm;
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingAlarm, setEditingAlarm] = useState<RiseAlarm | null>(null);
-  const [permOpen, setPermOpen] = useState(false);
+
+  // 🟢 Permission State
+  const [permissions, setPermissions] = useState<RisePermissionStatus>({
+    notifications: true,
+    exactAlarm: true,
+    overlay: true,
+    battery: true,
+  });
 
   useEffect(() => {
     if (user) {
       loadRiseData();
-      // FIX: Rise এ ঢুকলেই পারমিশন চাইবে
+      
       if (isNative) {
-        requestAllRisePermissions();
+        initializeAlarmChannel(); // Initialize channel silently
+        verifyPermissions();
+
+        // 🟢 Auto-verify when returning from settings
+        const listener = App.addListener('appStateChange', ({ isActive }) => {
+          if (isActive) {
+            verifyPermissions();
+          }
+        });
+
+        return () => {
+          listener.then(l => l.remove());
+        };
       }
     }
   }, [user]);
 
-  // FIX: ফুল পারমিশন ফ্লো
-  const requestAllRisePermissions = async () => {
-    const { value } = await Preferences.get({ key: PERMISSION_KEY });
-    if (value === 'done') return;
-
-    const info = await Device.getInfo();
-    const androidVersion = parseInt(info.osVersion);
-
-    // 1. Notification চ্যানেল বানাও
-    await initializeAlarmChannel();
-
-    // 2. Notification পারমিশন - Android 13+
-    if (androidVersion >= 13) {
-      const notifPerm = await LocalNotifications.requestPermissions();
-      if (notifPerm.display!== 'granted') {
-        await Dialog.alert({
-          title: 'Notification লাগবে',
-          message: 'Alarm বাজার সময় নোটিফিকেশন দেখানোর জন্য Permission দিন।'
-        });
-        return;
-      }
-    }
-
-    // 3. Exact Alarm পারমিশন - Android 12+
-    if (androidVersion >= 12) {
-      const canExact = await canScheduleExactAlarms();
-      if (!canExact) {
-        const { value } = await Dialog.confirm({
-          title: 'Enable Exact Alarms',
-          message: 'Rise Alarm ঠিক টাইমে বাজানোর জন্য "Alarms & reminders" অন করুন। না হলে 10-15 মিনিট লেট হবে।',
-          okButtonTitle: 'Open Settings',
-          cancelButtonTitle: 'Skip'
-        });
-        if (value) {
-          await Dialog.alert({
-            title: 'Settings খুলছে',
-            message: 'Alarms & reminders > Allow setting alarms and reminders অন করুন'
-          });
-        }
-      }
-    }
-
-    // 4. Overlay + Battery
-    if (androidVersion >= 10) {
-      await Dialog.alert({
-        title: 'Full Screen Alarm চালু করুন',
-        message: 'ফোন লক থাকলেও Alarm দেখানোর জন্য:\n1. Settings > Apps > LifeOS > Appear on top অন করুন\n2. Battery > Unrestricted করুন'
+  // 🟢 Function to verify all permissions
+  const verifyPermissions = async () => {
+    try {
+      const status = await getAllPermissions();
+      setPermissions({
+        notifications: status.notifications === 'granted',
+        exactAlarm: status.exactAlarm === 'granted',
+        overlay: status.overlay === 'granted',
+        battery: status.battery === 'granted'
       });
+    } catch (error) {
+      console.error('Error checking permissions:', error);
     }
-
-    await Preferences.set({ key: PERMISSION_KEY, value: 'done' });
-    toast.success('Permissions setup done! 🎉');
   };
 
   useEffect(() => {
@@ -139,14 +129,14 @@ export default function RisePage() {
         alarm_time: a.alarm_time,
         days_of_week: a.days_of_week || [],
         alarm_type: a.alarm_type || 'personal',
-        is_enabled: a.is_enabled!== false,
+        is_enabled: a.is_enabled !== false,
         intention: a.intention || null,
         label: a.label || null,
         verification_type: a.verification_type || 'math',
-        snooze_limit: a.snooze_limit?? 3,
-        snooze_interval_minutes: a.snooze_interval_minutes?? 5,
+        snooze_limit: a.snooze_limit ?? 3,
+        snooze_interval_minutes: a.snooze_interval_minutes ?? 5,
         sound_type: a.sound_type || 'default',
-        vibration_enabled: a.vibration_enabled?? true,
+        vibration_enabled: a.vibration_enabled ?? true,
       }));
     } catch (e) {
       console.warn('Failed to read local alarms', e);
@@ -227,20 +217,15 @@ export default function RisePage() {
   };
 
   const toggleAlarm = async (alarmId: string, enabled: boolean) => {
-    // পারমিশন চেক করো
-    if (enabled) {
-      const canExact = await canScheduleExactAlarms();
-      if (!canExact) {
-        toast.error('Exact Alarm permission লাগবে', {
-          action: { label: 'Enable', onClick: () => requestAllRisePermissions() }
-        });
-        return;
-      }
+    // Safety check - force permissions before turning on an alarm
+    if (enabled && (!permissions.notifications || !permissions.exactAlarm || !permissions.overlay)) {
+      toast.error('Please complete the Rise setup first!');
+      return;
     }
 
     const alarm = alarms.find(a => a.id === alarmId);
     if (!alarm) return;
-    const updated = alarms.map(a => a.id === alarmId? {...a, is_enabled: enabled } : a);
+    const updated = alarms.map(a => a.id === alarmId ? { ...a, is_enabled: enabled } : a);
     setAlarms(updated);
     saveLocalAlarms(updated);
     if (isNative) {
@@ -280,7 +265,7 @@ export default function RisePage() {
 
   const handleDeleteAlarm = async (alarmId: string) => {
     const target = alarms.find(a => a.id === alarmId);
-    const remaining = alarms.filter(a => a.id!== alarmId);
+    const remaining = alarms.filter(a => a.id !== alarmId);
     setAlarms(remaining);
     saveLocalAlarms(remaining);
     if (isNative) {
@@ -296,7 +281,7 @@ export default function RisePage() {
     const copy: RiseAlarm = {
      ...alarm,
       id: crypto.randomUUID(),
-      label: alarm.label? `${alarm.label} (copy)` : null,
+      label: alarm.label ? `${alarm.label} (copy)` : null,
       is_enabled: false,
     };
     const next = [...alarms, copy];
@@ -304,6 +289,75 @@ export default function RisePage() {
     saveLocalAlarms(next);
     toast.success('Alarm duplicated');
   };
+
+  // 🟢 LOGIC FOR SEQUENTIAL POPUP (Specific to Rise)
+  const getActivePermissionRequest = () => {
+    if (!permissions.notifications) {
+      return {
+        step: "Step 1 of 4",
+        title: "Notifications",
+        icon: "🔔",
+        description: "Rise needs notification access to wake you up properly and show snooze options.",
+        action: async () => {
+          try {
+            await requestNotificationPermission();
+            verifyPermissions(); // Prompt is immediate, verify right away
+          } catch (e) {
+            toast.error("Failed to request permission.");
+          }
+        }
+      };
+    }
+    if (!permissions.exactAlarm) {
+      return {
+        step: "Step 2 of 4",
+        title: "Exact Alarms",
+        icon: "⏰",
+        description: "Crucial for waking you up at the exact minute without any Android delays.",
+        action: async () => {
+          try {
+            await requestExactAlarmPermission();
+          } catch (e) {
+            toast.error("Failed to open Settings.");
+          }
+        }
+      };
+    }
+    if (!permissions.overlay) {
+      return {
+        step: "Step 3 of 4",
+        title: "Full Screen Alarm",
+        icon: "📱",
+        description: "Allows the alarm screen to wake up your device and appear even when your phone is locked.",
+        action: async () => {
+          try {
+            await requestOverlayPermission();
+          } catch (e) {
+            toast.error("Failed to open Settings.");
+          }
+        }
+      };
+    }
+    if (!permissions.battery) {
+      return {
+        step: "Step 4 of 4",
+        title: "Run in Background",
+        icon: "🔋",
+        description: "Ensures your phone's battery saver doesn't accidentally kill your morning alarm.",
+        action: async () => {
+          try {
+            await requestBatteryPermission();
+          } catch (e) {
+            toast.error("Failed to open Settings.");
+          }
+        }
+      };
+    }
+    return null; // All permissions granted!
+  };
+
+  const activePermission = getActivePermissionRequest();
+  const isBlockingUI = activePermission !== null;
 
   if (isLoading) {
     return (
@@ -318,74 +372,103 @@ export default function RisePage() {
   }
 
   return (
-    <div className="min-h-screen bg-background pb-20">
-      <RiseHeader streak={streak?.current_streak || 0} />
-      <div className="px-4 mt-4">
-        {activeTab === 'alarms' && (
-          <div className="space-y-3">
-            {alarms.length === 0? (
-              <Card>
-                <CardContent className="py-8 text-center">
-                  <Sunrise className="h-12 w-12 mx-auto mb-3 text-muted-foreground/50" />
-                  <h3 className="font-semibold mb-1">No Alarms Set</h3>
-                  <p className="text-sm text-muted-foreground">Create an alarm to start your disciplined mornings</p>
-                </CardContent>
-              </Card>
-            ) : (
-              alarms.map((alarm) => (
-                <RiseAlarmCard
-                  key={alarm.id}
-                  alarm={alarm}
-                  onToggle={toggleAlarm}
-                  onEdit={handleEditAlarm}
-                  onDelete={handleDeleteAlarm}
-                  onDuplicate={handleDuplicateAlarm}
-                />
-              ))
-            )}
-            <Button
-              onClick={handleCreateAlarm}
-              className="fixed bottom-24 right-4 h-14 w-14 rounded-full shadow-lg bg-rose-500 hover:bg-rose-600"
-              size="icon"
+    <div className="min-h-screen bg-background pb-20 relative">
+      
+      {/* 🟢 THE SEQUENTIAL POPUP UI */}
+      {isBlockingUI && (
+        <div className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-md flex items-center justify-center p-6">
+          <div className="bg-background w-full max-w-sm rounded-3xl shadow-2xl overflow-hidden p-8 text-center animate-in zoom-in-95 duration-200">
+            <span className="text-xs font-bold uppercase tracking-wider text-primary mb-4 block">
+              {activePermission.step}
+            </span>
+            <div className="w-24 h-24 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-6">
+              <span className="text-5xl">{activePermission.icon}</span>
+            </div>
+            <h2 className="text-2xl font-extrabold mb-3">{activePermission.title}</h2>
+            <p className="text-muted-foreground text-sm mb-8 leading-relaxed">
+              {activePermission.description}
+            </p>
+            <button 
+              onClick={activePermission.action}
+              className="w-full py-4 bg-primary text-primary-foreground rounded-2xl font-bold text-lg shadow-lg active:scale-95 transition-all"
             >
-              <Plus className="h-6 w-6" />
-            </Button>
+              Grant Permission
+            </button>
           </div>
-        )}
-        {activeTab === 'group' && <RiseGroupWake />}
-        {activeTab === 'community' && <CommunityWakeFeed />}
-        {activeTab === 'reports' && <RiseReports />}
-        {activeTab === 'settings' && <RiseSettings />}
+        </div>
+      )}
+
+      {/* Main UI - Blurred/Disabled until setup is complete */}
+      <div className={`transition-opacity duration-300 ${isBlockingUI ? 'opacity-20 pointer-events-none' : 'opacity-100'}`}>
+        <RiseHeader streak={streak?.current_streak || 0} />
+        
+        <div className="px-4 mt-4">
+          {activeTab === 'alarms' && (
+            <div className="space-y-3">
+              {alarms.length === 0 ? (
+                <Card>
+                  <CardContent className="py-8 text-center">
+                    <Sunrise className="h-12 w-12 mx-auto mb-3 text-muted-foreground/50" />
+                    <h3 className="font-semibold mb-1">No Alarms Set</h3>
+                    <p className="text-sm text-muted-foreground">Create an alarm to start your disciplined mornings</p>
+                  </CardContent>
+                </Card>
+              ) : (
+                alarms.map((alarm) => (
+                  <RiseAlarmCard
+                    key={alarm.id}
+                    alarm={alarm}
+                    onToggle={toggleAlarm}
+                    onEdit={handleEditAlarm}
+                    onDelete={handleDeleteAlarm}
+                    onDuplicate={handleDuplicateAlarm}
+                  />
+                ))
+              )}
+              <Button
+                onClick={handleCreateAlarm}
+                className="fixed bottom-24 right-4 h-14 w-14 rounded-full shadow-lg bg-rose-500 hover:bg-rose-600"
+                size="icon"
+              >
+                <Plus className="h-6 w-6" />
+              </Button>
+            </div>
+          )}
+          {activeTab === 'group' && <RiseGroupWake />}
+          {activeTab === 'community' && <CommunityWakeFeed />}
+          {activeTab === 'reports' && <RiseReports />}
+          {activeTab === 'settings' && <RiseSettings />}
+        </div>
+        
+        <RiseAlarmEditor
+          open={editorOpen}
+          onClose={() => {
+            setEditorOpen(false);
+            setEditingAlarm(null);
+          }}
+          onSave={handleSaveAlarm}
+          initialData={
+            editingAlarm
+             ? {
+                  alarm_time: editingAlarm.alarm_time,
+                  days_of_week: editingAlarm.days_of_week,
+                  alarm_type: editingAlarm.alarm_type,
+                  intention: editingAlarm.intention || '',
+                  label: editingAlarm.label || '',
+                  verification_type: editingAlarm.verification_type,
+                  snooze_limit: editingAlarm.snooze_limit,
+                  snooze_interval_minutes: editingAlarm.snooze_interval_minutes || 5,
+                  sound_type: editingAlarm.sound_type || 'default',
+                  vibration_enabled: editingAlarm.vibration_enabled ?? true,
+                  volume: 80,
+                  gentle_wakeup_seconds: 30
+                }
+              : undefined
+          }
+          isEditing={!!editingAlarm}
+        />
+        <RiseBottomNav activeTab={activeTab} onTabChange={setActiveTab} />
       </div>
-      <RiseAlarmEditor
-        open={editorOpen}
-        onClose={() => {
-          setEditorOpen(false);
-          setEditingAlarm(null);
-        }}
-        onSave={handleSaveAlarm}
-        initialData={
-          editingAlarm
-           ? {
-                alarm_time: editingAlarm.alarm_time,
-                days_of_week: editingAlarm.days_of_week,
-                alarm_type: editingAlarm.alarm_type,
-                intention: editingAlarm.intention || '',
-                label: editingAlarm.label || '',
-                verification_type: editingAlarm.verification_type,
-                snooze_limit: editingAlarm.snooze_limit,
-                snooze_interval_minutes: editingAlarm.snooze_interval_minutes || 5,
-                sound_type: editingAlarm.sound_type || 'default',
-                vibration_enabled: editingAlarm.vibration_enabled?? true,
-                volume: 80,
-                gentle_wakeup_seconds: 30
-              }
-            : undefined
-        }
-        isEditing={!!editingAlarm}
-      />
-      <PermissionOnboarding open={permOpen} onClose={() => setPermOpen(false)} feature="rise" />
-      <RiseBottomNav activeTab={activeTab} onTabChange={setActiveTab} />
     </div>
   );
 }

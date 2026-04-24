@@ -7,11 +7,16 @@ import android.os.Bundle;
 import android.view.WindowManager;
 
 import com.getcapacitor.BridgeActivity;
+import com.mylifeos.app.plugins.ShieldPlugin; // 🟢 শিল্ড প্লাগিন ইমপোর্ট করা হলো
 
 public class MainActivity extends BridgeActivity {
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
+        
+        // 🟢 এই সেই ম্যাজিক লাইন, যেটা আপনার পারমিশন বাটনগুলোকে জ্যান্ত করবে!
+        registerPlugin(ShieldPlugin.class);
+
         // Honour show-on-lockscreen + turn-screen-on so that when an
         // alarm fires (RiseAlarmReceiver -> startActivity) the activity
         // appears even on a locked device on Android 8.1+.
