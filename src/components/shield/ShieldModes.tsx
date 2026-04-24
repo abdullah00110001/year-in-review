@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
@@ -7,76 +7,99 @@ import ShieldPlugin from '@/lib/capacitor/shieldPlugin';
 import { isNative } from '@/lib/capacitor/platform';
 import { toast } from 'sonner';
 
-interface ModeState {
-  mode: string;
-  strict: boolean;
+type StrictnessMode = 'normal' | 'lock' | 'strict';
+
+interface ShieldModesProps {
+  activeMode?: StrictnessMode;
+  onModeChange?: (mode: StrictnessMode) => void;
+  disciplineScore?: number | null;
 }
 
-export function ShieldModes() {
-  const [currentMode, setCurrentMode] = useState<string>('normal');
+export function ShieldModes({ activeMode, onModeChange, disciplineScore }: ShieldModesProps = {}) {
+  const [currentMode, setCurrentMode] = useState<StrictnessMode>('normal');
   const [isStrict, setIsStrict] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState(true);
 
-  // ১. নেটিভ মেমোরি থেকে বর্তমান মোড লোড করা
+  const isControlled = activeMode !== undefined;
+  const resolvedMode = isControlled ? activeMode : currentMode;
+
   useEffect(() => {
     const loadMode = async () => {
       if (!isNative) {
         setIsLoading(false);
         return;
       }
+
       try {
         const data = await ShieldPlugin.getCurrentMode();
-        setCurrentMode(data.mode || 'normal');
-        setIsStrict(data.strict || false);
+        const nativeMode = (data.mode || 'normal') as StrictnessMode;
+        setCurrentMode(nativeMode);
+        setIsStrict(Boolean(data.strict));
       } catch (error) {
-        console.error("Failed to load shield mode", error);
+        console.error('Failed to load shield mode', error);
       } finally {
         setIsLoading(false);
       }
     };
+
     loadMode();
   }, []);
 
-  // ২. ফোকাস বা স্লিপ মোড চেঞ্জ করা
+  useEffect(() => {
+    if (activeMode) {
+      setCurrentMode(activeMode);
+      setIsStrict(activeMode === 'strict');
+    }
+  }, [activeMode]);
+
+  const modeDescription = useMemo(() => {
+    if (disciplineScore == null) return null;
+    return `Discipline score: ${disciplineScore}`;
+  }, [disciplineScore]);
+
+  const applyMode = (mode: StrictnessMode) => {
+    setCurrentMode(mode);
+    setIsStrict(mode === 'strict');
+    onModeChange?.(mode);
+  };
+
   const toggleMode = async (modeName: 'focus' | 'sleep') => {
     try {
-      if (currentMode === modeName) {
-        // মোড অফ করা হচ্ছে
+      if (resolvedMode === modeName) {
         await ShieldPlugin.deactivateMode();
-        setCurrentMode('normal');
-        toast.info("Shield returned to Normal Mode");
-      } else {
-        // নতুন মোড অন করা হচ্ছে
-        if (modeName === 'focus') {
-          await ShieldPlugin.activateFocusMode();
-          toast.success("Focus Mode Active: Social Media Blocked");
-        } else {
-          await ShieldPlugin.activateSleepMode();
-          toast.success("Sleep Mode Active: Late Night Apps Blocked");
-        }
-        setCurrentMode(modeName);
+        applyMode('normal');
+        toast.info('Shield returned to Normal Mode');
+        return;
       }
+
+      if (modeName === 'focus') {
+        await ShieldPlugin.activateFocusMode();
+        toast.success('Focus Mode Active: Social Media Blocked');
+      } else {
+        await ShieldPlugin.activateSleepMode();
+        toast.success('Sleep Mode Active: Late Night Apps Blocked');
+      }
+
+      applyMode(modeName === 'focus' ? 'lock' : 'normal');
+      setCurrentMode(modeName as StrictnessMode);
     } catch (error) {
       toast.error(`Failed to activate ${modeName} mode`);
     }
   };
 
-  // ৩. স্ট্রিক্ট মোড (Strict Mode) অন/অফ করা
-  const toggleStrictMode = async () => {
+  const toggleStrictMode = async (checked: boolean) => {
     try {
-      if (isStrict) {
-        // স্ট্রিক্ট মোড অফ করার চেষ্টা (যদি পাসওয়ার্ড বা অন্য লজিক থাকে, তবে সেটা এখানে বসবে)
-        toast.warning("Disabling Strict Mode. Please wait...");
-        // যদি আপনার জাভা ফাইলে deactivateStrictMode না থাকে, তবে আমরা deactivateMode কল করতে পারি বা আলাদা লজিক বানাতে পারি
-        setIsStrict(false);
-        toast.info("Strict Mode Disabled");
-      } else {
-        await ShieldPlugin.activateStrictMode();
-        setIsStrict(true);
-        toast.success("Strict Mode Activated: Shield cannot be bypassed!");
+      if (!checked) {
+        applyMode('normal');
+        toast.info('Strict Mode Disabled');
+        return;
       }
+
+      await ShieldPlugin.activateStrictMode();
+      applyMode('strict');
+      toast.success('Strict Mode Activated: Shield cannot be bypassed!');
     } catch (error) {
-      toast.error("Failed to toggle Strict Mode");
+      toast.error('Failed to toggle Strict Mode');
     }
   };
 
@@ -90,68 +113,68 @@ export function ShieldModes() {
 
   return (
     <div className="space-y-3 mt-6">
-      <h3 className="text-sm font-medium text-white/60 px-1">Quick Modes</h3>
+      <div className="px-1">
+        <h3 className="text-sm font-medium text-white/60">Quick Modes</h3>
+        {modeDescription && <p className="text-xs text-white/40 mt-1">{modeDescription}</p>}
+      </div>
 
-      {/* Focus Mode Card */}
-      <Card className={`bg-white/5 border-white/10 transition-all ${currentMode === 'focus' ? 'border-indigo-500/50 bg-indigo-500/10' : ''}`}>
+      <Card className={`bg-white/5 border-white/10 transition-all ${resolvedMode === 'lock' ? 'border-indigo-500/50 bg-indigo-500/10' : ''}`}>
         <CardContent className="p-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className={`p-2 rounded-lg ${currentMode === 'focus' ? 'bg-indigo-500/20' : 'bg-white/5'}`}>
-                <Brain className={`h-5 w-5 ${currentMode === 'focus' ? 'text-indigo-400' : 'text-white/40'}`} />
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className={`p-2 rounded-lg ${resolvedMode === 'lock' ? 'bg-indigo-500/20' : 'bg-white/5'}`}>
+                <Brain className={`h-5 w-5 ${resolvedMode === 'lock' ? 'text-indigo-400' : 'text-white/40'}`} />
               </div>
-              <div>
+              <div className="min-w-0">
                 <p className="font-medium text-sm">Focus Mode</p>
                 <p className="text-[10px] text-white/40">Blocks FB, Insta, TikTok, YouTube</p>
               </div>
             </div>
-            <Button 
-              variant={currentMode === 'focus' ? "default" : "outline"} 
+            <Button
+              variant={resolvedMode === 'lock' ? 'default' : 'outline'}
               size="sm"
-              className={currentMode === 'focus' ? "bg-indigo-500 hover:bg-indigo-600 text-white" : "text-white/60"}
+              className={resolvedMode === 'lock' ? 'bg-indigo-500 hover:bg-indigo-600 text-white' : 'text-white/60'}
               onClick={() => toggleMode('focus')}
               disabled={isStrict}
             >
-              {currentMode === 'focus' ? 'Active' : 'Enable'}
+              {resolvedMode === 'lock' ? 'Active' : 'Enable'}
             </Button>
           </div>
         </CardContent>
       </Card>
 
-      {/* Sleep Mode Card */}
-      <Card className={`bg-white/5 border-white/10 transition-all ${currentMode === 'sleep' ? 'border-purple-500/50 bg-purple-500/10' : ''}`}>
+      <Card className={`bg-white/5 border-white/10 transition-all ${resolvedMode === 'normal' ? 'border-purple-500/50 bg-purple-500/10' : ''}`}>
         <CardContent className="p-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className={`p-2 rounded-lg ${currentMode === 'sleep' ? 'bg-purple-500/20' : 'bg-white/5'}`}>
-                <Moon className={`h-5 w-5 ${currentMode === 'sleep' ? 'text-purple-400' : 'text-white/40'}`} />
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className={`p-2 rounded-lg ${resolvedMode === 'normal' ? 'bg-purple-500/20' : 'bg-white/5'}`}>
+                <Moon className={`h-5 w-5 ${resolvedMode === 'normal' ? 'text-purple-400' : 'text-white/40'}`} />
               </div>
-              <div>
+              <div className="min-w-0">
                 <p className="font-medium text-sm">Sleep Mode</p>
                 <p className="text-[10px] text-white/40">Blocks social media + Reddit, Twitter</p>
               </div>
             </div>
-            <Button 
-              variant={currentMode === 'sleep' ? "default" : "outline"} 
+            <Button
+              variant={resolvedMode === 'normal' ? 'default' : 'outline'}
               size="sm"
-              className={currentMode === 'sleep' ? "bg-purple-500 hover:bg-purple-600 text-white" : "text-white/60"}
+              className={resolvedMode === 'normal' ? 'bg-purple-500 hover:bg-purple-600 text-white' : 'text-white/60'}
               onClick={() => toggleMode('sleep')}
               disabled={isStrict}
             >
-              {currentMode === 'sleep' ? 'Active' : 'Enable'}
+              {resolvedMode === 'normal' ? 'Active' : 'Enable'}
             </Button>
           </div>
         </CardContent>
       </Card>
 
-      {/* Strict Mode Switch */}
       <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 mt-4">
-        <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center justify-between mb-2 gap-3">
           <div className="flex items-center gap-2 text-amber-500 font-medium text-sm">
             <Lock className="h-4 w-4" /> Strict Mode
           </div>
-          <Switch 
-            checked={isStrict} 
+          <Switch
+            checked={isStrict}
             onCheckedChange={toggleStrictMode}
             className="data-[state=checked]:bg-amber-500"
           />
