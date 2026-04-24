@@ -1,12 +1,9 @@
 import { Capacitor } from '@capacitor/core';
 import { toast } from 'sonner';
-import { openNativeAppSettings } from '@/lib/capacitor/riseAlarmBridge';
 
 /**
  * Opens the OS-level app settings page so the user can manually
  * grant a permission that they previously denied.
- *
- * Uses dynamic imports so missing optional plugins never break the bundle.
  */
 export async function openAppSettings(): Promise<void> {
   if (!Capacitor.isNativePlatform()) {
@@ -14,24 +11,11 @@ export async function openAppSettings(): Promise<void> {
     return;
   }
 
-  const platform = Capacitor.getPlatform();
-
-  if (platform === 'android') {
-    try {
-      await openNativeAppSettings();
-      return;
-    } catch (e) {
-      console.warn('[openAppSettings] Native Android settings failed:', e);
-    }
-  }
-
-  // Strategy 1: Use Browser plugin with platform-specific URI
   try {
     const { Browser } = await import('@capacitor/browser');
-    if (platform === 'ios') {
-      await Browser.open({ url: 'app-settings:' });
-      return;
-    }
+    // 'app-settings:' URI ক্যাপাসিটরে Android এবং iOS দুটিতেই কাজ করে
+    await Browser.open({ url: 'app-settings:' });
+    return;
   } catch (e) {
     console.warn('[openAppSettings] Browser open failed:', e);
   }
