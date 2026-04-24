@@ -2,73 +2,99 @@ package com.mylifeos.app.shield;
 
 import android.content.Context;
 import android.content.SharedPreferences;
-import android.util.Log;
+import org.json.JSONObject;
 
-import org.json.JSONArray;
-import org.json.JSONException;
-
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
+import java.util.Map;
 import java.util.Set;
 
 public class ShieldPreferences {
-    private static final String TAG = "ShieldPreferences";
-    private static final String PREFS_NAME = "ShieldPrefs";
-    private static final String KEY_BLOCKED_APPS = "blocked_apps";
-    private static final String KEY_IS_ENABLED = "shield_enabled";
-
+    private static final String PREF_NAME = "ShieldPrefs";
     private SharedPreferences prefs;
 
     public ShieldPreferences(Context context) {
-        // MODE_PRIVATE নিশ্চিত করে যে অন্য কোনো অ্যাপ এই ডাটা চুরি করতে পারবে না
-        prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        prefs = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE);
     }
 
     // ==========================================
-    // 🛡️ শিল্ড অন/অফ কন্ট্রোল
+    // 🛡️ Basic Shield Toggles (আগে থেকে ছিল)
     // ==========================================
-
     public boolean isEnabled() {
-        return prefs.getBoolean(KEY_IS_ENABLED, false);
+        return prefs.getBoolean("is_enabled", false);
     }
 
     public void setEnabled(boolean enabled) {
-        prefs.edit().putBoolean(KEY_IS_ENABLED, enabled).apply();
-        Log.d(TAG, "Shield Master Switch is now: " + (enabled ? "ON" : "OFF"));
+        prefs.edit().putBoolean("is_enabled", enabled).apply();
     }
 
-    // ==========================================
-    // 📱 অ্যাপ ব্লকিং ডাটাবেস (JSON Bridge)
-    // ==========================================
-
-    /**
-     * ডাটাবেস থেকে ব্লক করা অ্যাপের লিস্ট নিয়ে আসবে।
-     * রিয়েক্ট JSON হিসেবে সেভ করে, তাই আমরা JSON পার্স করে Set এ কনভার্ট করছি।
-     */
     public Set<String> getBlockedApps() {
-        Set<String> apps = new HashSet<>();
-        String json = prefs.getString(KEY_BLOCKED_APPS, "[]");
-        try {
-            JSONArray array = new JSONArray(json);
-            for (int i = 0; i < array.length(); i++) {
-                apps.add(array.getString(i));
-            }
-        } catch (JSONException e) {
-            Log.e(TAG, "Failed to parse blocked apps JSON", e);
-        }
-        return apps;
+        return prefs.getStringSet("blocked_apps", new HashSet<>());
     }
 
-    /**
-     * জাভা বা নেটিভ সার্ভিস থেকে নতুন ব্লক লিস্ট সেভ করার মেথড।
-     * এটা Set কে আবার JSON এ কনভার্ট করে সেভ করে যাতে রিয়েক্ট পড়তে পারে।
-     */
     public void setBlockedApps(Set<String> apps) {
-        JSONArray array = new JSONArray();
-        for (String app : apps) {
-            array.put(app);
+        prefs.edit().putStringSet("blocked_apps", apps).apply();
+    }
+
+    // ==========================================
+    // 🧠 Modes & Strict Mode (যেগুলোর জন্য ক্র্যাশ করছিল)
+    // ==========================================
+    public boolean isStrictMode() {
+        return prefs.getBoolean("strict_mode", false);
+    }
+
+    public void setStrictMode(boolean strictMode) {
+        prefs.edit().putBoolean("strict_mode", strictMode).apply();
+    }
+
+    public String getCurrentMode() {
+        return prefs.getString("current_mode", "normal");
+    }
+
+    public void setCurrentMode(String mode) {
+        prefs.edit().putString("current_mode", mode).apply();
+    }
+
+    // ==========================================
+    // ⏱️ Time Limits (যেগুলোর জন্য ক্র্যাশ করছিল)
+    // ==========================================
+    public Map<String, Integer> getTimeLimits() {
+        Map<String, Integer> map = new HashMap<>();
+        String jsonString = prefs.getString("time_limits", "{}");
+        try {
+            JSONObject json = new JSONObject(jsonString);
+            Iterator<String> keys = json.keys();
+            while (keys.hasNext()) {
+                String key = keys.next();
+                map.put(key, json.getInt(key));
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
         }
-        // apply() ব্যাকগ্রাউন্ডে সেভ করে, তাই অ্যাপ ফ্রিজ হয় না
-        prefs.edit().putString(KEY_BLOCKED_APPS, array.toString()).apply();
-        Log.d(TAG, "Updated Blocked Apps List: " + apps.size() + " apps restricted.");
+        return map;
+    }
+
+    public void setTimeLimits(Map<String, Integer> limits) {
+        try {
+            JSONObject json = new JSONObject();
+            for (Map.Entry<String, Integer> entry : limits.entrySet()) {
+                json.put(entry.getKey(), entry.getValue());
+            }
+            prefs.edit().putString("time_limits", json.toString()).apply();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    // ==========================================
+    // 📅 Reset Dates (যেগুলোর জন্য ক্র্যাশ করছিল)
+    // ==========================================
+    public String getLastResetDate() {
+        return prefs.getString("last_reset_date", "");
+    }
+
+    public void setLastResetDate(String date) {
+        prefs.edit().putString("last_reset_date", date).apply();
     }
 }
