@@ -21,7 +21,6 @@ import {
   requestEmergencyBypass
 } from '@/lib/capacitor/nativeShield';
 
-// 🟢 Updated imports to match your EXACT permissions.ts file
 import { 
   getAllPermissions,
   requestUsageStatsPermission,
@@ -88,7 +87,6 @@ export default function ShieldPage() {
     accessibility: true,
     battery: true,
   });
-  const [showPermissionModal, setShowPermissionModal] = useState(false);
 
   const [strictnessMode, setStrictnessMode] = useState<StrictnessMode>('normal');
   
@@ -119,6 +117,7 @@ export default function ShieldPage() {
 
         const listener = App.addListener('appStateChange', ({ isActive }) => {
           if (isActive) {
+            // When user returns from Settings, re-check automatically
             verifyPermissions();
           }
         });
@@ -130,23 +129,15 @@ export default function ShieldPage() {
     }
   }, [user]);
 
-  // 🟢 Updated verifyPermissions to use your exact functions
   const verifyPermissions = async () => {
     try {
       const status = await getAllPermissions();
-      
       setPermissions({
         usageAccess: status.usageStats === 'granted',
         overlay: status.overlay === 'granted',
         accessibility: status.accessibility === 'granted',
         battery: status.battery === 'granted'
       });
-      
-      if (status.usageStats !== 'granted' || status.overlay !== 'granted' || status.accessibility !== 'granted') {
-        setShowPermissionModal(true);
-      } else {
-        setShowPermissionModal(false);
-      }
     } catch (error) {
       console.error('Error checking permissions:', error);
     }
@@ -319,8 +310,9 @@ export default function ShieldPage() {
   };
 
   const startSession = async (profile: DisciplineProfile) => {
-    if (showPermissionModal) {
-      toast.error('Please grant all required permissions first!');
+    // Prevent start if ANY critical permission is missing
+    if (!permissions.usageAccess || !permissions.overlay || !permissions.accessibility) {
+      toast.error('Please complete the Shield setup first!');
       return;
     }
     
@@ -461,6 +453,74 @@ export default function ShieldPage() {
     return 'Good Evening';
   };
 
+  // 🟢 LOGIC FOR SEQUENTIAL POPUP
+  const getActivePermissionRequest = () => {
+    if (!permissions.usageAccess) {
+      return {
+        step: "Step 1 of 4",
+        title: "Usage Access",
+        icon: "📊",
+        description: "Shield needs to know when you open a distracting app so it can block it.",
+        action: async () => {
+          try {
+            await requestUsageStatsPermission();
+          } catch (e) {
+            toast.error("Failed to open Settings automatically.");
+          }
+        }
+      };
+    }
+    if (!permissions.overlay) {
+      return {
+        step: "Step 2 of 4",
+        title: "Overlay Permission",
+        icon: "🛑",
+        description: "Allow Shield to draw the 'Blocked' screen over your distracting apps.",
+        action: async () => {
+          try {
+            await requestOverlayPermission();
+          } catch (e) {
+            toast.error("Failed to open Settings automatically.");
+          }
+        }
+      };
+    }
+    if (!permissions.accessibility) {
+      return {
+        step: "Step 3 of 4",
+        title: "Accessibility",
+        icon: "👁️",
+        description: "Crucial for Strict Mode to prevent you from uninstalling or bypassing the block.",
+        action: async () => {
+          try {
+            await requestAccessibilityPermission();
+          } catch (e) {
+            toast.error("Failed to open Settings automatically.");
+          }
+        }
+      };
+    }
+    if (!permissions.battery) {
+      return {
+        step: "Step 4 of 4",
+        title: "Run in Background",
+        icon: "🔋",
+        description: "Ensures your phone's battery saver doesn't accidentally kill Shield while you are focusing.",
+        action: async () => {
+          try {
+            await requestBatteryPermission();
+          } catch (e) {
+            toast.error("Failed to open Settings automatically.");
+          }
+        }
+      };
+    }
+    return null; // All permissions granted!
+  };
+
+  const activePermission = getActivePermissionRequest();
+  const isBlockingUI = activePermission !== null;
+
   if (subPage === 'block-screen') {
     return (
       <ShieldBlockScreen 
@@ -487,141 +547,99 @@ export default function ShieldPage() {
   return (
     <div className="min-h-screen bg-background pb-24 relative">
       
-      {showPermissionModal && (
-        <div className="absolute inset-0 z-50 bg-background/95 backdrop-blur-sm flex flex-col pt-10 px-6 h-screen overflow-y-auto">
-          <div className="text-center mb-8 mt-10">
-            <div className="w-20 h-20 bg-primary/20 rounded-full flex items-center justify-center mx-auto mb-4">
-              <span className="text-4xl">🛡️</span>
+      {/* 🟢 THE SEQUENTIAL POPUP UI */}
+      {isBlockingUI && (
+        <div className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-md flex items-center justify-center p-6">
+          <div className="bg-background w-full max-w-sm rounded-3xl shadow-2xl overflow-hidden p-8 text-center animate-in zoom-in-95 duration-200">
+            <span className="text-xs font-bold uppercase tracking-wider text-primary mb-4 block">
+              {activePermission.step}
+            </span>
+            <div className="w-24 h-24 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-6">
+              <span className="text-5xl">{activePermission.icon}</span>
             </div>
-            <h2 className="text-2xl font-bold mb-2">Shield Requires Setup</h2>
-            <p className="text-muted-foreground text-sm">
-              To powerfully block apps and track your screen time, Shield needs the following core permissions.
+            <h2 className="text-2xl font-extrabold mb-3">{activePermission.title}</h2>
+            <p className="text-muted-foreground text-sm mb-8 leading-relaxed">
+              {activePermission.description}
             </p>
-          </div>
-
-          <div className="space-y-4 pb-20">
-            {/* 🟢 Updated onClick Handlers */}
-            <div className={`p-4 rounded-xl border ${permissions.usageAccess ? 'bg-green-500/10 border-green-500/50' : 'bg-card border-border'}`}>
-              <div className="flex justify-between items-center mb-1">
-                <h3 className="font-semibold text-lg">📊 Usage Access</h3>
-                {permissions.usageAccess && <span className="text-green-500 font-bold">✓ Granted</span>}
-              </div>
-              <p className="text-sm text-muted-foreground mb-3">Required to track screen time and detect when you open a blocked app.</p>
-              {!permissions.usageAccess && (
-                <button onClick={requestUsageStatsPermission} className="w-full py-2 bg-primary text-primary-foreground rounded-lg font-medium">
-                  Grant Permission
-                </button>
-              )}
-            </div>
-
-            <div className={`p-4 rounded-xl border ${permissions.overlay ? 'bg-green-500/10 border-green-500/50' : 'bg-card border-border'}`}>
-              <div className="flex justify-between items-center mb-1">
-                <h3 className="font-semibold text-lg">🛑 Overlay Permission</h3>
-                {permissions.overlay && <span className="text-green-500 font-bold">✓ Granted</span>}
-              </div>
-              <p className="text-sm text-muted-foreground mb-3">Required to show the "Blocked" screen over other apps.</p>
-              {!permissions.overlay && (
-                <button onClick={requestOverlayPermission} className="w-full py-2 bg-primary text-primary-foreground rounded-lg font-medium">
-                  Grant Permission
-                </button>
-              )}
-            </div>
-
-            <div className={`p-4 rounded-xl border ${permissions.accessibility ? 'bg-green-500/10 border-green-500/50' : 'bg-card border-border'}`}>
-              <div className="flex justify-between items-center mb-1">
-                <h3 className="font-semibold text-lg">👁️ Accessibility</h3>
-                {permissions.accessibility && <span className="text-green-500 font-bold">✓ Granted</span>}
-              </div>
-              <p className="text-sm text-muted-foreground mb-3">Required to prevent bypassing the block and to enforce Strict Mode.</p>
-              {!permissions.accessibility && (
-                <button onClick={requestAccessibilityPermission} className="w-full py-2 bg-primary text-primary-foreground rounded-lg font-medium">
-                  Grant Permission
-                </button>
-              )}
-            </div>
-
-            <div className={`p-4 rounded-xl border ${permissions.battery ? 'bg-green-500/10 border-green-500/50' : 'bg-card border-border'}`}>
-              <div className="flex justify-between items-center mb-1">
-                <h3 className="font-semibold text-lg">🔋 Run in Background</h3>
-                {permissions.battery && <span className="text-green-500 font-bold">✓ Granted</span>}
-              </div>
-              <p className="text-sm text-muted-foreground mb-3">Ensures Android doesn't kill the Shield when your phone is locked.</p>
-              {!permissions.battery && (
-                <button onClick={requestBatteryPermission} className="w-full py-2 bg-primary text-primary-foreground rounded-lg font-medium">
-                  Grant Permission
-                </button>
-              )}
-            </div>
+            <button 
+              onClick={activePermission.action}
+              className="w-full py-4 bg-primary text-primary-foreground rounded-2xl font-bold text-lg shadow-lg active:scale-95 transition-all"
+            >
+              Grant Permission
+            </button>
           </div>
         </div>
       )}
 
-      <ShieldHeader />
-      
-      <div className={`px-4 py-4 space-y-4 ${showPermissionModal ? 'opacity-50 pointer-events-none' : ''}`}>
-        {activeTab === 'dashboard' && (
-          <>
-            <div className="mb-2">
-              <p className="text-sm text-muted-foreground">Welcome back</p>
-              <h1 className="text-2xl font-bold">{getGreeting()}</h1>
-            </div>
+      {/* Main UI - Only fully visible and clickable if permissions are granted */}
+      <div className={`transition-opacity duration-300 ${isBlockingUI ? 'opacity-20 pointer-events-none' : 'opacity-100'}`}>
+        <ShieldHeader />
+        
+        <div className="px-4 py-4 space-y-4">
+          {activeTab === 'dashboard' && (
+            <>
+              <div className="mb-2">
+                <p className="text-sm text-muted-foreground">Welcome back</p>
+                <h1 className="text-2xl font-bold">{getGreeting()}</h1>
+              </div>
 
-            <ShieldUsageStats onViewDetails={() => handleTabChange('analytics')} />
+              <ShieldUsageStats onViewDetails={() => handleTabChange('analytics')} />
 
-            <ShieldFocusTimer 
-              isSessionActive={!!activeSession}
-              onStartBreak={handleBreakStart}
-              disabled={!!activeSession}
+              <ShieldFocusTimer 
+                isSessionActive={!!activeSession}
+                onStartBreak={handleBreakStart}
+                disabled={!!activeSession}
+              />
+
+              <ShieldProfilesSection
+                profiles={profiles}
+                onActivate={startSession}
+                activeSession={activeSession}
+                onRefresh={loadShieldData}
+              />
+
+              <ShieldQuickActions
+                blockedAppsCount={allBlockedApps.length}
+                blockedSitesCount={allBlockedWebsites.length}
+                blockedKeywordsCount={allBlockedKeywords.length}
+                reelsBlockEnabled={reelsBlockEnabled}
+                adultBlockEnabled={adultBlockEnabled}
+                onReelsToggle={handleReelsToggle}
+                onAdultToggle={handleAdultToggle}
+                onManageApps={() => handleTabChange('modes')}
+                onManageSites={() => handleTabChange('modes')}
+                onManageKeywords={() => handleTabChange('modes')}
+              />
+            </>
+          )}
+
+          {activeTab === 'modes' && (
+            <ShieldModes
+              activeMode={strictnessMode}
+              onModeChange={handleModeChange}
+              disciplineScore={disciplineScore?.current_score}
             />
+          )}
 
-            <ShieldProfilesSection
-              profiles={profiles}
-              onActivate={startSession}
-              activeSession={activeSession}
-              onRefresh={loadShieldData}
+          {activeTab === 'analytics' && (
+            <ShieldAnalytics disciplineScore={disciplineScore} />
+          )}
+
+          {activeTab === 'account' && (
+            <ShieldAccountability />
+          )}
+
+          {activeTab === 'settings' && (
+            <ShieldSettings 
+              settings={settings}
+              onSettingChange={handleSettingChange}
+              onNavigate={handleNavigate}
             />
+          )}
+        </div>
 
-            <ShieldQuickActions
-              blockedAppsCount={allBlockedApps.length}
-              blockedSitesCount={allBlockedWebsites.length}
-              blockedKeywordsCount={allBlockedKeywords.length}
-              reelsBlockEnabled={reelsBlockEnabled}
-              adultBlockEnabled={adultBlockEnabled}
-              onReelsToggle={handleReelsToggle}
-              onAdultToggle={handleAdultToggle}
-              onManageApps={() => handleTabChange('modes')}
-              onManageSites={() => handleTabChange('modes')}
-              onManageKeywords={() => handleTabChange('modes')}
-            />
-          </>
-        )}
-
-        {activeTab === 'modes' && (
-          <ShieldModes
-            activeMode={strictnessMode}
-            onModeChange={handleModeChange}
-            disciplineScore={disciplineScore?.current_score}
-          />
-        )}
-
-        {activeTab === 'analytics' && (
-          <ShieldAnalytics disciplineScore={disciplineScore} />
-        )}
-
-        {activeTab === 'account' && (
-          <ShieldAccountability />
-        )}
-
-        {activeTab === 'settings' && (
-          <ShieldSettings 
-            settings={settings}
-            onSettingChange={handleSettingChange}
-            onNavigate={handleNavigate}
-          />
-        )}
+        <ShieldBottomNav activeTab={activeTab} onTabChange={handleTabChange} />
       </div>
-
-      <ShieldBottomNav activeTab={activeTab} onTabChange={handleTabChange} />
     </div>
   );
 }
