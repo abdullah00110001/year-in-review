@@ -19,7 +19,7 @@ public class ShieldPreferences {
     }
 
     // ==========================================
-    // 🛡️ Basic Shield Toggles (আগে থেকে ছিল)
+    // 🛡️ Basic Shield Toggles
     // ==========================================
     public boolean isEnabled() {
         return prefs.getBoolean("is_enabled", false);
@@ -38,7 +38,7 @@ public class ShieldPreferences {
     }
 
     // ==========================================
-    // 🧠 Modes & Strict Mode (যেগুলোর জন্য ক্র্যাশ করছিল)
+    // 🧠 Modes & Strict Mode
     // ==========================================
     public boolean isStrictMode() {
         return prefs.getBoolean("strict_mode", false);
@@ -57,7 +57,7 @@ public class ShieldPreferences {
     }
 
     // ==========================================
-    // ⏱️ Time Limits (যেগুলোর জন্য ক্র্যাশ করছিল)
+    // ⏱️ Time Limits
     // ==========================================
     public Map<String, Integer> getTimeLimits() {
         Map<String, Integer> map = new HashMap<>();
@@ -88,13 +88,18 @@ public class ShieldPreferences {
     }
 
     // ==========================================
-    // 📅 Reset Dates (যেগুলোর জন্য ক্র্যাশ করছিল)
+    // 📅 Reset Dates
     // ==========================================
     public String getLastResetDate() {
         return prefs.getString("last_reset_date", "");
     }
 
     public void setLastResetDate(String date) {
+        prefs.edit().putString("last_reset_date", date).apply();
+    }
+
+    // ✅ ShieldService.java এর রিকোয়েস্ট অনুযায়ী এই মেথডটি যোগ করা হলো
+    public void updateLastResetDate(String date) {
         prefs.edit().putString("last_reset_date", date).apply();
     }
 }
