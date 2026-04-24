@@ -5,7 +5,6 @@ import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { RiseBottomNav } from '@/components/rise/RiseBottomNav';
-
 import { RiseHeader } from '@/components/rise/RiseHeader';
 import { RiseAlarmCard } from '@/components/rise/RiseAlarmCard';
 import { RiseAlarmEditor } from '@/components/rise/RiseAlarmEditor';
@@ -394,3 +393,4 @@ export default function RisePage() {
       <RiseBottomNav activeTab={activeTab} onTabChange={setActiveTab} />
     </div>
   );
+}
