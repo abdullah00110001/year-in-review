@@ -14,12 +14,21 @@ import { ShieldUsageStats } from '@/components/shield/ShieldUsageStats';
 import { ShieldFocusTimer } from '@/components/shield/ShieldFocusTimer';
 import { ShieldQuickActions } from '@/components/shield/ShieldQuickActions';
 import { isNative } from '@/lib/capacitor/platform';
+import { App } from '@capacitor/app'; 
 import { 
   startShieldSession as startNativeSession, 
   endShieldSession as endNativeSession,
   requestEmergencyBypass
 } from '@/lib/capacitor/nativeShield';
-import { requestShieldPermissions } from '@/lib/capacitor/permissions';
+
+// 🟢 Updated imports to match your EXACT permissions.ts file
+import { 
+  getAllPermissions,
+  requestUsageStatsPermission,
+  requestOverlayPermission,
+  requestAccessibilityPermission,
+  requestBatteryPermission
+} from '@/lib/capacitor/permissions';
 
 type StrictnessMode = 'normal' | 'lock' | 'strict';
 type SubPage = 'main' | 'block-screen';
@@ -57,6 +66,13 @@ interface ShieldSession {
   bypass_attempts: number;
 }
 
+interface PermissionStatus {
+  usageAccess: boolean;
+  overlay: boolean;
+  accessibility: boolean;
+  battery: boolean;
+}
+
 export default function ShieldPage() {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -66,10 +82,16 @@ export default function ShieldPage() {
   const [activeSession, setActiveSession] = useState<ShieldSession | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   
-  // Strictness mode - persisted to discipline_scores
+  const [permissions, setPermissions] = useState<PermissionStatus>({
+    usageAccess: true, 
+    overlay: true,
+    accessibility: true,
+    battery: true,
+  });
+  const [showPermissionModal, setShowPermissionModal] = useState(false);
+
   const [strictnessMode, setStrictnessMode] = useState<StrictnessMode>('normal');
   
-  // Settings state - persisted to app_settings
   const [settings, setSettings] = useState({
     pauseDurationEnabled: true,
     blockSplitScreen: false,
@@ -79,10 +101,8 @@ export default function ShieldPage() {
     pomodoroBreak: true,
   });
   
-  // Block screen selection
   const [selectedBlockScreen, setSelectedBlockScreen] = useState('default');
 
-  // Derived from profiles - aggregate all blocked items across all profiles
   const allBlockedApps = [...new Set(profiles.flatMap(p => p.blocked_apps))];
   const allBlockedWebsites = [...new Set(profiles.flatMap(p => p.blocked_websites))];
   const allBlockedKeywords = [...new Set(profiles.flatMap(p => p.blocked_keywords))];
@@ -93,12 +113,44 @@ export default function ShieldPage() {
     if (user) {
       loadShieldData();
       loadSettings();
-      // Request native permissions on mount
+      
       if (isNative) {
-        requestShieldPermissions().catch(console.error);
+        verifyPermissions();
+
+        const listener = App.addListener('appStateChange', ({ isActive }) => {
+          if (isActive) {
+            verifyPermissions();
+          }
+        });
+
+        return () => {
+          listener.then(l => l.remove());
+        };
       }
     }
   }, [user]);
+
+  // 🟢 Updated verifyPermissions to use your exact functions
+  const verifyPermissions = async () => {
+    try {
+      const status = await getAllPermissions();
+      
+      setPermissions({
+        usageAccess: status.usageStats === 'granted',
+        overlay: status.overlay === 'granted',
+        accessibility: status.accessibility === 'granted',
+        battery: status.battery === 'granted'
+      });
+      
+      if (status.usageStats !== 'granted' || status.overlay !== 'granted' || status.accessibility !== 'granted') {
+        setShowPermissionModal(true);
+      } else {
+        setShowPermissionModal(false);
+      }
+    } catch (error) {
+      console.error('Error checking permissions:', error);
+    }
+  };
 
   const loadShieldData = async () => {
     if (!user) return;
@@ -211,7 +263,6 @@ export default function ShieldPage() {
 
   const createDefaultProfiles = async () => {
     if (!user) return;
-
     const defaultProfiles = [
       {
         user_id: user.id,
@@ -268,6 +319,11 @@ export default function ShieldPage() {
   };
 
   const startSession = async (profile: DisciplineProfile) => {
+    if (showPermissionModal) {
+      toast.error('Please grant all required permissions first!');
+      return;
+    }
+    
     if (!user) return;
 
     const now = new Date();
@@ -292,7 +348,6 @@ export default function ShieldPage() {
       return;
     }
 
-    // Start native shield session for background protection
     if (isNative && data) {
       await startNativeSession({
         id: data.id,
@@ -323,7 +378,6 @@ export default function ShieldPage() {
     if (!user || !activeSession) return;
 
     try {
-      // End native shield session
       if (isNative) {
         await endNativeSession(reason, user.id);
       }
@@ -363,7 +417,6 @@ export default function ShieldPage() {
 
   const handleReelsToggle = async (enabled: boolean) => {
     if (!user) return;
-    // Update all profiles' block_infinite_content
     for (const profile of profiles) {
       await supabase
         .from('discipline_profiles')
@@ -408,7 +461,6 @@ export default function ShieldPage() {
     return 'Good Evening';
   };
 
-  // Render block screen sub-page
   if (subPage === 'block-screen') {
     return (
       <ShieldBlockScreen 
@@ -433,31 +485,95 @@ export default function ShieldPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background pb-24">
-      {/* Header */}
+    <div className="min-h-screen bg-background pb-24 relative">
+      
+      {showPermissionModal && (
+        <div className="absolute inset-0 z-50 bg-background/95 backdrop-blur-sm flex flex-col pt-10 px-6 h-screen overflow-y-auto">
+          <div className="text-center mb-8 mt-10">
+            <div className="w-20 h-20 bg-primary/20 rounded-full flex items-center justify-center mx-auto mb-4">
+              <span className="text-4xl">🛡️</span>
+            </div>
+            <h2 className="text-2xl font-bold mb-2">Shield Requires Setup</h2>
+            <p className="text-muted-foreground text-sm">
+              To powerfully block apps and track your screen time, Shield needs the following core permissions.
+            </p>
+          </div>
+
+          <div className="space-y-4 pb-20">
+            {/* 🟢 Updated onClick Handlers */}
+            <div className={`p-4 rounded-xl border ${permissions.usageAccess ? 'bg-green-500/10 border-green-500/50' : 'bg-card border-border'}`}>
+              <div className="flex justify-between items-center mb-1">
+                <h3 className="font-semibold text-lg">📊 Usage Access</h3>
+                {permissions.usageAccess && <span className="text-green-500 font-bold">✓ Granted</span>}
+              </div>
+              <p className="text-sm text-muted-foreground mb-3">Required to track screen time and detect when you open a blocked app.</p>
+              {!permissions.usageAccess && (
+                <button onClick={requestUsageStatsPermission} className="w-full py-2 bg-primary text-primary-foreground rounded-lg font-medium">
+                  Grant Permission
+                </button>
+              )}
+            </div>
+
+            <div className={`p-4 rounded-xl border ${permissions.overlay ? 'bg-green-500/10 border-green-500/50' : 'bg-card border-border'}`}>
+              <div className="flex justify-between items-center mb-1">
+                <h3 className="font-semibold text-lg">🛑 Overlay Permission</h3>
+                {permissions.overlay && <span className="text-green-500 font-bold">✓ Granted</span>}
+              </div>
+              <p className="text-sm text-muted-foreground mb-3">Required to show the "Blocked" screen over other apps.</p>
+              {!permissions.overlay && (
+                <button onClick={requestOverlayPermission} className="w-full py-2 bg-primary text-primary-foreground rounded-lg font-medium">
+                  Grant Permission
+                </button>
+              )}
+            </div>
+
+            <div className={`p-4 rounded-xl border ${permissions.accessibility ? 'bg-green-500/10 border-green-500/50' : 'bg-card border-border'}`}>
+              <div className="flex justify-between items-center mb-1">
+                <h3 className="font-semibold text-lg">👁️ Accessibility</h3>
+                {permissions.accessibility && <span className="text-green-500 font-bold">✓ Granted</span>}
+              </div>
+              <p className="text-sm text-muted-foreground mb-3">Required to prevent bypassing the block and to enforce Strict Mode.</p>
+              {!permissions.accessibility && (
+                <button onClick={requestAccessibilityPermission} className="w-full py-2 bg-primary text-primary-foreground rounded-lg font-medium">
+                  Grant Permission
+                </button>
+              )}
+            </div>
+
+            <div className={`p-4 rounded-xl border ${permissions.battery ? 'bg-green-500/10 border-green-500/50' : 'bg-card border-border'}`}>
+              <div className="flex justify-between items-center mb-1">
+                <h3 className="font-semibold text-lg">🔋 Run in Background</h3>
+                {permissions.battery && <span className="text-green-500 font-bold">✓ Granted</span>}
+              </div>
+              <p className="text-sm text-muted-foreground mb-3">Ensures Android doesn't kill the Shield when your phone is locked.</p>
+              {!permissions.battery && (
+                <button onClick={requestBatteryPermission} className="w-full py-2 bg-primary text-primary-foreground rounded-lg font-medium">
+                  Grant Permission
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       <ShieldHeader />
       
-      {/* Content Area */}
-      <div className="px-4 py-4 space-y-4">
+      <div className={`px-4 py-4 space-y-4 ${showPermissionModal ? 'opacity-50 pointer-events-none' : ''}`}>
         {activeTab === 'dashboard' && (
           <>
-            {/* Welcome Message */}
             <div className="mb-2">
               <p className="text-sm text-muted-foreground">Welcome back</p>
               <h1 className="text-2xl font-bold">{getGreeting()}</h1>
             </div>
 
-            {/* Usage Stats */}
             <ShieldUsageStats onViewDetails={() => handleTabChange('analytics')} />
 
-            {/* Focus Timer / Take a Break */}
             <ShieldFocusTimer 
               isSessionActive={!!activeSession}
               onStartBreak={handleBreakStart}
               disabled={!!activeSession}
             />
 
-            {/* Profiles Section */}
             <ShieldProfilesSection
               profiles={profiles}
               onActivate={startSession}
@@ -465,7 +581,6 @@ export default function ShieldPage() {
               onRefresh={loadShieldData}
             />
 
-            {/* Quick Actions - now from real data */}
             <ShieldQuickActions
               blockedAppsCount={allBlockedApps.length}
               blockedSitesCount={allBlockedWebsites.length}
@@ -506,7 +621,6 @@ export default function ShieldPage() {
         )}
       </div>
 
-      {/* Bottom Navigation */}
       <ShieldBottomNav activeTab={activeTab} onTabChange={handleTabChange} />
     </div>
   );

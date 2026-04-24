@@ -321,11 +321,6 @@ export default function RisePage() {
     <div className="min-h-screen bg-background pb-20">
       <RiseHeader streak={streak?.current_streak || 0} />
       <div className="px-4 mt-4">
-        {isNative && (
-          <Button variant="outline" size="sm" className="mb-3 w-full" onClick={requestAllRisePermissions}>
-            Setup Alarm Permissions
-          </Button>
-        )}
         {activeTab === 'alarms' && (
           <div className="space-y-3">
             {alarms.length === 0? (
