@@ -98,12 +98,8 @@ export function RiseAlarmEditor({ open, onClose, onSave, initialData, isEditing 
 
   const handleSave = async () => {
     if (!permissionsOk) {
-      const granted = await requestAllAlarmPermissions();
-      if (!granted) {
-        toast.error('Enable permissions from Settings for alarms to work');
-        return;
-      }
-      setPermissionsOk(true);
+      toast.warning('Please enable exact alarm permissions for perfect timing!');
+      requestAllAlarmPermissions();
     }
 
     const alarmId = alarm.id || crypto.randomUUID();
@@ -173,22 +169,7 @@ export function RiseAlarmEditor({ open, onClose, onSave, initialData, isEditing 
 
           <ScrollArea className="flex-1">
             <div className="p-4 space-y-6">
-              {!permissionsOk && (
-                <div className="bg-destructive/10 border border-destructive rounded-xl p-3">
-                  <p className="text-sm mb-2">Alarms need permissions to work when phone is locked</p>
-                  <Button
-                    size="sm"
-                    variant="destructive"
-                    onClick={async () => {
-                      const granted = await requestAllAlarmPermissions();
-                      setPermissionsOk(granted);
-                      if (granted) toast.success('Permissions granted!');
-                    }}
-                  >
-                    Grant Permissions
-                  </Button>
-                </div>
-              )}
+              
 
               <div className="flex items-center gap-3 cursor-pointer" onClick={() => setShowLabelInput(true)}>
                 <span className="text-2xl">🌟</span>

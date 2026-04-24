@@ -2,91 +2,93 @@ package com.mylifeos.app.shield;
 
 import android.app.Activity;
 import android.content.Intent;
-import android.content.pm.ApplicationInfo;
-import android.content.pm.PackageManager;
+import android.graphics.Color;
+import android.graphics.Typeface;
 import android.os.Bundle;
-import android.view.View;
+import android.view.Gravity;
 import android.widget.Button;
-import android.widget.ImageView;
+import android.widget.LinearLayout;
 import android.widget.TextView;
-import com.mylifeos.app.R;
 
 public class ShieldBlockActivity extends Activity {
-    private String blockedPackage;
-    private String reason;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_shield_block);
 
-        Intent intent = getIntent();
-        blockedPackage = intent.getStringExtra("blocked_package");
-        reason = intent.getStringExtra("reason");
-
-        // ফিক্স 1: blockedPackage null হলে অ্যাক্টিভিটি বন্ধ করে দাও
-        if (blockedPackage == null || blockedPackage.isEmpty()) {
-            goToHome();
-            return;
+        // সার্ভিস থেকে পাঠানো ব্লকড অ্যাপের নাম রিসিভ করা
+        String pkgName = getIntent().getStringExtra("BLOCKED_PACKAGE");
+        if (pkgName == null) {
+            pkgName = "this restricted app";
         }
 
-        setupUI();
+        // ==========================================
+        // 🎨 ডাইনামিক UI ডিজাইন (কোনো XML লাগবে না)
+        // ==========================================
+        
+        // মেইন ব্যাকগ্রাউন্ড (Dark Slate Color)
+        LinearLayout layout = new LinearLayout(this);
+        layout.setOrientation(LinearLayout.VERTICAL);
+        layout.setGravity(Gravity.CENTER);
+        layout.setBackgroundColor(Color.parseColor("#0F172A")); // bg-slate-900
+        layout.setPadding(80, 80, 80, 80);
+
+        // 🛡️ টাইটেল টেক্সট
+        TextView title = new TextView(this);
+        title.setText("🛡️ SHIELD IS ACTIVE");
+        title.setTextSize(28);
+        title.setTextColor(Color.WHITE);
+        title.setTypeface(null, Typeface.BOLD);
+        title.setGravity(Gravity.CENTER);
+
+        // 📝 সাবটাইটেল (কোন অ্যাপ ব্লকড)
+        TextView subtitle = new TextView(this);
+        subtitle.setText("Stay Focused!\nYou are restricted from using:\n\n" + pkgName);
+        subtitle.setTextSize(16);
+        subtitle.setTextColor(Color.parseColor("#94A3B8")); // text-slate-400
+        subtitle.setGravity(Gravity.CENTER);
+        subtitle.setPadding(0, 40, 0, 100);
+
+        // 🚪 গো হোম বাটন (Force Exit)
+        Button homeBtn = new Button(this);
+        homeBtn.setText("Go Back Home");
+        homeBtn.setBackgroundColor(Color.parseColor("#6366F1")); // bg-indigo-500
+        homeBtn.setTextColor(Color.WHITE);
+        homeBtn.setTextSize(16);
+        homeBtn.setPadding(40, 30, 40, 30);
+        homeBtn.setOnClickListener(v -> forceUserToHome());
+
+        // সবকিছু লেআউটে যুক্ত করা
+        layout.addView(title);
+        layout.addView(subtitle);
+        layout.addView(homeBtn);
+
+        setContentView(layout);
     }
 
-    private void setupUI() {
-        ImageView iconView = findViewById(R.id.block_icon);
-        TextView appNameView = findViewById(R.id.block_app_name);
-        TextView reasonView = findViewById(R.id.block_reason);
-        Button homeBtn = findViewById(R.id.block_home_btn);
-        Button closeBtn = findViewById(R.id.block_close_btn);
+    // ==========================================
+    // 🔒 ব্লাক-প্রুফ সিকিউরিটি লজিক
+    // ==========================================
 
-        try {
-            PackageManager pm = getPackageManager();
-            ApplicationInfo appInfo = pm.getApplicationInfo(blockedPackage, 0);
-            iconView.setImageDrawable(pm.getApplicationIcon(appInfo));
-            appNameView.setText(pm.getApplicationLabel(appInfo));
-        } catch (Exception e) {
-            // ফিক্স 2: অ্যাপ না পাইলে প্যাকেজ নামই দেখাও
-            iconView.setImageResource(android.R.drawable.ic_lock_lock);
-            appNameView.setText(blockedPackage);
-        }
-
-        if ("time_limit".equals(reason)) {
-            reasonView.setText("You have reached your time limit for this app today.\nTake a break and come back tomorrow.");
-        } else {
-            reasonView.setText("This app is blocked by Shield to protect your focus.\nStay on track with your goals.");
-        }
-
-        View.OnClickListener goHome = v -> goToHome();
-        homeBtn.setOnClickListener(goHome);
-        closeBtn.setOnClickListener(goHome);
-    }
-
-    private void goToHome() {
-        // ফিক্স 3: finishAffinity() দিয়ে সব অ্যাক্টিভিটি ক্লিয়ার করো
+    private void forceUserToHome() {
+        // এই ইন্টেন্টটা ইউজারকে সোজা ফোনের লঞ্চারে (হোম স্ক্রিন) পাঠিয়ে দেবে
         Intent startMain = new Intent(Intent.ACTION_MAIN);
         startMain.addCategory(Intent.CATEGORY_HOME);
-        startMain.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+        startMain.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         startActivity(startMain);
-        finishAffinity();
+        finish(); // ব্লক স্ক্রিন বন্ধ করে দেওয়া (যেহেতু ইউজার অলরেডি হোমে চলে গেছে)
     }
 
     @Override
     public void onBackPressed() {
-        // ব্যাক বাটন দিয়েও যাতে ব্লকড অ্যাপে যাওয়া না যায়
-        goToHome();
+        // ইউজার ব্যাক বাটন চাপলে ব্লক স্ক্রিন সরবে না, বরং তাকে সোজা হোমে পাঠিয়ে দেবে!
+        forceUserToHome();
     }
-
+    
     @Override
-    protected void onPause() {
-        super.onPause();
-        // ফিক্স 4: ইউজার Recent বাটন চেপে বের হলে এই স্ক্রিন সামনে আনো
-        if (!isFinishing()) {
-            Intent intent = new Intent(this, ShieldBlockActivity.class);
-            intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
-            intent.putExtra("blocked_package", blockedPackage);
-            intent.putExtra("reason", reason);
-            startActivity(intent);
-        }
+    protected void onUserLeaveHint() {
+        super.onUserLeaveHint();
+        // ইউজার যদি হোম বাটন বা রিসেন্ট অ্যাপস বাটন চাপে, তবে আমরা অ্যাক্টিভিটি ক্লোজ করে দেব
+        finish();
     }
 }

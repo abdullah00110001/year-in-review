@@ -1,25 +1,26 @@
 package com.mylifeos.app.plugins;
 
-import android.app.usage.UsageStats;
-import android.app.usage.UsageStatsManager;
 import android.content.Context;
+import android.content.Intent;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
+import android.provider.Settings;
 import android.os.Build;
+import android.net.Uri;
+import android.app.usage.UsageStats;
+import android.app.usage.UsageStatsManager;
 
-import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
+import com.getcapacitor.JSArray;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
 
-import com.mylifeos.app.shield.core.ShieldModeManager;
-import com.mylifeos.app.shield.core.ShieldStatsManager;
 import com.mylifeos.app.shield.ShieldPreferences;
 import com.mylifeos.app.shield.ShieldPermissionHelper;
+import com.mylifeos.app.shield.core.ShieldModeManager;
 
-import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.HashSet;
 import java.util.List;
@@ -30,13 +31,24 @@ public class ShieldPlugin extends Plugin {
 
     private ShieldPreferences preferences;
     private ShieldModeManager modeManager;
-    private ShieldStatsManager statsManager;
+    private ShieldPermissionHelper permissionHelper;
 
     @Override
     public void load() {
         preferences = new ShieldPreferences(getContext());
         modeManager = new ShieldModeManager(getContext());
-        statsManager = new ShieldStatsManager(getContext());
+        permissionHelper = new ShieldPermissionHelper(getContext());
+    }
+
+    // ==========================================
+    // 🛡️ মাস্টার কন্ট্রোল (Enable / Disable)
+    // ==========================================
+
+    @PluginMethod
+    public void isEnabled(PluginCall call) {
+        JSObject ret = new JSObject();
+        ret.put("enabled", preferences.isEnabled());
+        call.resolve(ret);
     }
 
     @PluginMethod
@@ -47,40 +59,53 @@ public class ShieldPlugin extends Plugin {
 
     @PluginMethod
     public void disable(PluginCall call) {
+        if (modeManager.isStrictMode()) {
+            call.reject("Cannot disable during Strict Mode!");
+            return;
+        }
         preferences.setEnabled(false);
         call.resolve();
     }
 
+    // ==========================================
+    // 📱 অ্যাপ ব্লকিং (Block / Unblock)
+    // ==========================================
+
     @PluginMethod
-    public void isEnabled(PluginCall call) {
+    public void getBlockedApps(PluginCall call) {
         JSObject ret = new JSObject();
-        ret.put("enabled", preferences.isEnabled());
+        JSArray appsArray = new JSArray();
+        for (String app : preferences.getBlockedApps()) {
+            appsArray.put(app);
+        }
+        ret.put("apps", appsArray);
         call.resolve(ret);
     }
 
     @PluginMethod
     public void blockApps(PluginCall call) {
-        JSArray apps = call.getArray("apps");
-        if (apps == null) {
-            call.reject("apps array is required");
-            return;
-        }
         try {
-            List<String> appList = apps.toList();
-            Set<String> appSet = new HashSet<>(appList);
-            preferences.setBlockedApps(appSet);
-            preferences.setEnabled(true);
+            JSArray appsArray = call.getArray("apps");
+            Set<String> apps = new HashSet<>();
+            for (int i = 0; i < appsArray.length(); i++) {
+                apps.add(appsArray.getString(i));
+            }
+            preferences.setBlockedApps(apps);
             call.resolve();
         } catch (Exception e) {
-            call.reject("Failed to block apps", e);
+            call.reject("Failed to update block list", e);
         }
     }
 
+    // ==========================================
+    // 🧠 শিল্ড মোডস (Focus / Sleep / Strict)
+    // ==========================================
+
     @PluginMethod
-    public void getBlockedApps(PluginCall call) {
-        Set<String> blocked = preferences.getBlockedApps();
+    public void getCurrentMode(PluginCall call) {
         JSObject ret = new JSObject();
-        ret.put("apps", new JSArray(blocked));
+        ret.put("mode", modeManager.getCurrentMode());
+        ret.put("strict", modeManager.isStrictMode());
         call.resolve(ret);
     }
 
@@ -104,177 +129,123 @@ public class ShieldPlugin extends Plugin {
 
     @PluginMethod
     public void deactivateMode(PluginCall call) {
+        if (modeManager.isStrictMode()) {
+            call.reject("Strict mode is active!");
+            return;
+        }
         modeManager.deactivateMode();
         call.resolve();
     }
 
-    @PluginMethod
-    public void getCurrentMode(PluginCall call) {
-        JSObject ret = new JSObject();
-        ret.put("mode", modeManager.getCurrentMode());
-        ret.put("strict", modeManager.isStrictMode());
-        call.resolve(ret);
-    }
-
-    @PluginMethod
-    public void getStats(PluginCall call) {
-        String packageName = call.getString("packageName");
-        if (packageName == null) {
-            call.reject("packageName is required");
-            return;
-        }
-        JSObject ret = new JSObject();
-        ret.put("blockCount", statsManager.getBlockCount(packageName));
-        ret.put("timeSaved", statsManager.getTimeSaved(packageName));
-        call.resolve(ret);
-    }
+    // ==========================================
+    // 📊 স্ট্যাটাস ও পারমিশন (Stats & Permissions)
+    // ==========================================
 
     @PluginMethod
     public void checkPermissions(PluginCall call) {
         JSObject ret = new JSObject();
-        ret.put("accessibility", ShieldPermissionHelper.isAccessibilityEnabled(getContext()));
-        ret.put("usageStats", ShieldPermissionHelper.hasUsageStatsPermission(getContext()));
-        ret.put("overlay", ShieldPermissionHelper.canDrawOverlays(getContext()));
-        ret.put("battery", ShieldPermissionHelper.isIgnoringBatteryOptimizations(getContext()));
+        ret.put("accessibility", permissionHelper.hasAccessibilityPermission());
+        ret.put("usageStats", permissionHelper.hasUsageStatsPermission());
+        ret.put("overlay", permissionHelper.hasOverlayPermission());
+        ret.put("battery", true); 
         call.resolve(ret);
     }
 
     @PluginMethod
     public void requestAccessibility(PluginCall call) {
-        ShieldPermissionHelper.requestAccessibility(getContext());
+        Intent intent = new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS);
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        getContext().startActivity(intent);
         call.resolve();
     }
 
     @PluginMethod
     public void requestUsageStats(PluginCall call) {
-        ShieldPermissionHelper.requestUsageStats(getContext());
+        Intent intent = new Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS);
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        getContext().startActivity(intent);
         call.resolve();
     }
 
     @PluginMethod
     public void requestOverlay(PluginCall call) {
-        ShieldPermissionHelper.requestOverlay(getContext());
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION);
+            intent.setData(Uri.parse("package:" + getContext().getPackageName()));
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            getContext().startActivity(intent);
+        }
         call.resolve();
     }
 
     @PluginMethod
     public void requestBattery(PluginCall call) {
-        ShieldPermissionHelper.requestIgnoreBattery(getContext());
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            Intent intent = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
+            intent.setData(Uri.parse("package:" + getContext().getPackageName()));
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            getContext().startActivity(intent);
+        }
         call.resolve();
     }
+    
+    // ==========================================
+    // ⏱️ স্ক্রিন টাইম স্ট্যাটাস (Full Ready Code)
+    // ==========================================
 
-    /**
-     * Returns real device usage stats for today via UsageStatsManager.
-     * Requires PACKAGE_USAGE_STATS permission (granted via Settings).
-     *
-     * Response shape: {
-     *   totalMinutes: number,
-     *   totalLaunches: number,
-     *   apps: [{ packageName, appName, usageMinutes, launchCount, lastUsed }, ...]
-     * }
-     */
     @PluginMethod
     public void getScreenTimeStats(PluginCall call) {
-        Context context = getContext();
-        JSObject ret = new JSObject();
-
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) {
-            ret.put("totalMinutes", 0);
-            ret.put("totalLaunches", 0);
-            ret.put("apps", new JSArray());
-            ret.put("error", "API level too low");
-            call.resolve(ret);
-            return;
-        }
-
-        if (!ShieldPermissionHelper.hasUsageStatsPermission(context)) {
-            ret.put("totalMinutes", 0);
-            ret.put("totalLaunches", 0);
-            ret.put("apps", new JSArray());
-            ret.put("error", "PACKAGE_USAGE_STATS not granted");
-            call.resolve(ret);
-            return;
-        }
-
         try {
-            UsageStatsManager usm = (UsageStatsManager) context.getSystemService(Context.USAGE_STATS_SERVICE);
-            if (usm == null) {
-                ret.put("totalMinutes", 0);
-                ret.put("totalLaunches", 0);
-                ret.put("apps", new JSArray());
-                call.resolve(ret);
-                return;
-            }
+            UsageStatsManager usageStatsManager = (UsageStatsManager) getContext().getSystemService(Context.USAGE_STATS_SERVICE);
+            
+            // আজকের দিনের শুরু থেকে এখন পর্যন্ত সময় সেট করা
+            Calendar calendar = Calendar.getInstance();
+            calendar.set(Calendar.HOUR_OF_DAY, 0);
+            calendar.set(Calendar.MINUTE, 0);
+            calendar.set(Calendar.SECOND, 0);
+            long startTime = calendar.getTimeInMillis();
+            long endTime = System.currentTimeMillis();
 
-            // Start of today (local midnight)
-            Calendar cal = Calendar.getInstance();
-            cal.set(Calendar.HOUR_OF_DAY, 0);
-            cal.set(Calendar.MINUTE, 0);
-            cal.set(Calendar.SECOND, 0);
-            cal.set(Calendar.MILLISECOND, 0);
-            long startMs = cal.getTimeInMillis();
-            long endMs = System.currentTimeMillis();
+            List<UsageStats> usageStatsList = usageStatsManager.queryUsageStats(UsageStatsManager.INTERVAL_DAILY, startTime, endTime);
+            PackageManager pm = getContext().getPackageManager();
+            
+            JSArray appsArray = new JSArray();
+            long totalTimeMinutes = 0;
 
-            List<UsageStats> stats = usm.queryUsageStats(
-                UsageStatsManager.INTERVAL_DAILY, startMs, endMs);
-
-            PackageManager pm = context.getPackageManager();
-            long totalMs = 0;
-            int totalLaunches = 0;
-            JSArray apps = new JSArray();
-
-            if (stats != null) {
-                // Aggregate by package (queryUsageStats can return multiple rows per pkg)
-                java.util.Map<String, long[]> agg = new java.util.HashMap<>();
-                for (UsageStats s : stats) {
-                    if (s == null || s.getPackageName() == null) continue;
-                    long t = s.getTotalTimeInForeground();
-                    if (t <= 0) continue;
-                    long[] existing = agg.get(s.getPackageName());
-                    if (existing == null) {
-                        existing = new long[]{0, s.getLastTimeUsed()};
-                        agg.put(s.getPackageName(), existing);
+            if (usageStatsList != null) {
+                for (UsageStats stats : usageStatsList) {
+                    long timeInForeground = stats.getTotalTimeInForeground();
+                    if (timeInForeground > 0) {
+                        long minutes = timeInForeground / (1000 * 60);
+                        if (minutes > 0) {
+                            totalTimeMinutes += minutes;
+                            
+                            JSObject appObj = new JSObject();
+                            String pkgName = stats.getPackageName();
+                            appObj.put("packageName", pkgName);
+                            appObj.put("usageMinutes", minutes);
+                            
+                            // অ্যাপের আসল নাম বের করা (যেমন com.facebook.katana থেকে Facebook)
+                            try {
+                                ApplicationInfo appInfo = pm.getApplicationInfo(pkgName, 0);
+                                appObj.put("appName", pm.getApplicationLabel(appInfo).toString());
+                            } catch (Exception e) {
+                                appObj.put("appName", pkgName); // নাম না পেলে প্যাকেজের নামই দেখাবে
+                            }
+                            
+                            appsArray.put(appObj);
+                        }
                     }
-                    existing[0] += t;
-                    if (s.getLastTimeUsed() > existing[1]) existing[1] = s.getLastTimeUsed();
-                }
-
-                List<java.util.Map.Entry<String, long[]>> sorted = new ArrayList<>(agg.entrySet());
-                sorted.sort((a, b) -> Long.compare(b.getValue()[0], a.getValue()[0]));
-
-                for (java.util.Map.Entry<String, long[]> e : sorted) {
-                    String pkg = e.getKey();
-                    long timeMs = e.getValue()[0];
-                    long lastUsed = e.getValue()[1];
-                    if (timeMs < 60 * 1000) continue; // skip <1 minute
-                    totalMs += timeMs;
-
-                    String appName = pkg;
-                    try {
-                        ApplicationInfo ai = pm.getApplicationInfo(pkg, 0);
-                        appName = pm.getApplicationLabel(ai).toString();
-                    } catch (Exception ignored) {}
-
-                    JSObject app = new JSObject();
-                    app.put("packageName", pkg);
-                    app.put("appName", appName);
-                    app.put("usageMinutes", (int) (timeMs / 60000));
-                    app.put("launchCount", 0); // not directly available without events query
-                    app.put("lastUsed", lastUsed);
-                    apps.put(app);
                 }
             }
 
-            ret.put("totalMinutes", (int) (totalMs / 60000));
-            ret.put("totalLaunches", totalLaunches);
-            ret.put("apps", apps);
+            JSObject ret = new JSObject();
+            ret.put("apps", appsArray);
+            ret.put("totalMinutes", totalTimeMinutes);
             call.resolve(ret);
-        } catch (Exception ex) {
-            ret.put("totalMinutes", 0);
-            ret.put("totalLaunches", 0);
-            ret.put("apps", new JSArray());
-            ret.put("error", ex.getMessage());
-            call.resolve(ret);
+            
+        } catch (Exception e) {
+            call.reject("Failed to get screen time stats", e);
         }
     }
 }

@@ -1,4 +1,4 @@
-import { LocalNotifications } from '@capacitor/local-notifications';
+/* import { LocalNotifications } from '@capacitor/local-notifications';
 import { PushNotifications } from '@capacitor/push-notifications';
 import { isNative, isAndroid } from './platform';
 import Shield from './shieldPlugin';
@@ -296,4 +296,155 @@ export const requestShieldPermissions = async (): Promise<{
   const notifications = await requestNotificationPermission();
   const usageStats = await requestUsageStatsPermission();
   return { notifications, usageStats };
+};
+ */
+ 
+import { Capacitor } from '@capacitor/core';
+import Shield from '@/lib/capacitor/shieldPlugin';
+import { LocalNotifications } from '@capacitor/local-notifications';
+
+const isAndroid = Capacitor.getPlatform() === 'android';
+const isNative = Capacitor.isNativePlatform();
+
+export type PermissionStatus = 'granted' | 'denied' | 'prompt' | 'unknown';
+
+/**
+ * ১. Notification Permission Check
+ */
+export const checkNotificationPermission = async (): Promise<PermissionStatus> => {
+  if (!isNative) return 'granted';
+  try {
+    const status = await LocalNotifications.checkPermissions();
+    return status.display === 'granted' ? 'granted' : 'prompt';
+  } catch (e) {
+    console.error('[Permissions] Notification check failed', e);
+    return 'unknown';
+  }
+};
+
+export const requestNotificationPermission = async (): Promise<PermissionStatus> => {
+  if (!isNative) return 'granted';
+  try {
+    const status = await LocalNotifications.requestPermissions();
+    return status.display === 'granted' ? 'granted' : 'denied';
+  } catch (e) {
+    return 'denied';
+  }
+};
+
+/**
+ * ২. Exact Alarm Permission (Android 12+)
+ */
+export const checkExactAlarmPermission = async (): Promise<PermissionStatus> => {
+  if (!isNative || !isAndroid) return 'granted';
+  try {
+    const { accessibility, usageStats, overlay, battery } = await Shield.checkPermissions();
+    // এখানে ব্যাটারি বা অন্য কোনো হার্ডওয়্যার স্ট্যাটাস দিয়ে লজিক চেক করা হয়
+    return 'prompt'; 
+  } catch (e) {
+    return 'unknown';
+  }
+};
+
+export const requestExactAlarmPermission = async (): Promise<PermissionStatus> => {
+  if (!isNative || !isAndroid) return 'granted';
+  try {
+    // জাভা ব্রিজের মাধ্যমে সেটিংস ওপেন
+    await Shield.requestBattery(); 
+    return 'prompt';
+  } catch (e) {
+    return 'denied';
+  }
+};
+
+/**
+ * ৩. Usage Stats Permission (Stay Focused এর জন্য সবচেয়ে জরুরি)
+ */
+export const checkUsageStatsPermission = async (): Promise<PermissionStatus> => {
+  if (!isNative || !isAndroid) return 'granted';
+  try {
+    const { usageStats } = await Shield.checkPermissions();
+    return usageStats ? 'granted' : 'prompt';
+  } catch (e) {
+    return 'unknown';
+  }
+};
+
+export const requestUsageStatsPermission = async (): Promise<PermissionStatus> => {
+  if (!isNative || !isAndroid) return 'granted';
+  try {
+    await Shield.requestUsageStats();
+    return 'prompt';
+  } catch (e) {
+    return 'denied';
+  }
+};
+
+/**
+ * ৪. Display Over Other Apps (Overlay)
+ */
+export const checkOverlayPermission = async (): Promise<PermissionStatus> => {
+  if (!isNative || !isAndroid) return 'granted';
+  try {
+    const { overlay } = await Shield.checkPermissions();
+    return overlay ? 'granted' : 'prompt';
+  } catch (e) {
+    return 'unknown';
+  }
+};
+
+export const requestOverlayPermission = async (): Promise<PermissionStatus> => {
+  if (!isNative || !isAndroid) return 'granted';
+  try {
+    await Shield.requestOverlay();
+    return 'prompt';
+  } catch (e) {
+    return 'denied';
+  }
+};
+
+/**
+ * ৫. Accessibility Service (Hardcore App Blocking)
+ */
+export const checkAccessibilityPermission = async (): Promise<PermissionStatus> => {
+  if (!isNative || !isAndroid) return 'granted';
+  try {
+    const { accessibility } = await Shield.checkPermissions();
+    return accessibility ? 'granted' : 'prompt';
+  } catch (e) {
+    return 'unknown';
+  }
+};
+
+export const requestAccessibilityPermission = async (): Promise<PermissionStatus> => {
+  if (!isNative || !isAndroid) return 'granted';
+  try {
+    await Shield.requestAccessibility();
+    return 'prompt';
+  } catch (e) {
+    return 'denied';
+  }
+};
+
+/**
+ * ৬. Battery Optimization (Background Stability)
+ */
+export const checkBatteryPermission = async (): Promise<PermissionStatus> => {
+  if (!isNative || !isAndroid) return 'granted';
+  try {
+    const { battery } = await Shield.checkPermissions();
+    return battery ? 'granted' : 'prompt';
+  } catch (e) {
+    return 'unknown';
+  }
+};
+
+export const requestBatteryPermission = async (): Promise<PermissionStatus> => {
+  if (!isNative || !isAndroid) return 'granted';
+  try {
+    await Shield.requestBattery();
+    return 'prompt';
+  } catch (e) {
+    return 'denied';
+  }
 };

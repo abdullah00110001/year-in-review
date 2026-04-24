@@ -96,14 +96,7 @@ export function RiseAlarmList({ alarms, onToggle, onRefresh }: RiseAlarmListProp
 
   const createAlarm = async () => {
     if (!user) return;
-    if (!permissionsOk) {
-      const granted = await requestAllAlarmPermissions();
-      if (!granted) {
-        toast.error('Enable permissions from Settings for alarms to work');
-        return;
-      }
-      setPermissionsOk(true);
-    }
+    
 
     const alarmId = crypto.randomUUID();
     const isLocal = newAlarm.alarm_type === 'personal' || newAlarm.alarm_type === 'recovery';
@@ -231,24 +224,7 @@ export function RiseAlarmList({ alarms, onToggle, onRefresh }: RiseAlarmListProp
 
   return (
     <div className="space-y-4">
-      {!permissionsOk && (
-        <Card className="border-destructive bg-destructive/10">
-          <CardContent className="p-4">
-            <p className="text-sm mb-2">Alarms need permissions to work when phone is locked</p>
-            <Button
-              size="sm"
-              variant="destructive"
-              onClick={async () => {
-                const granted = await requestAllAlarmPermissions();
-                setPermissionsOk(granted);
-                if (granted) toast.success('Permissions granted!');
-              }}
-            >
-              Grant Permissions
-            </Button>
-          </CardContent>
-        </Card>
-      )}
+      
 
       <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
         <DialogTrigger asChild>
