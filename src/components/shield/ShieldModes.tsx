@@ -64,8 +64,9 @@ export function ShieldModes({ activeMode, onModeChange, disciplineScore }: Shiel
   };
 
   const toggleMode = async (modeName: 'focus' | 'sleep') => {
+    const targetMode: StrictnessMode = modeName === 'focus' ? 'lock' : 'strict';
     try {
-      if (resolvedMode === modeName) {
+      if (resolvedMode === targetMode) {
         await ShieldPlugin.deactivateMode();
         applyMode('normal');
         toast.info('Shield returned to Normal Mode');
@@ -80,8 +81,7 @@ export function ShieldModes({ activeMode, onModeChange, disciplineScore }: Shiel
         toast.success('Sleep Mode Active: Late Night Apps Blocked');
       }
 
-      applyMode(modeName === 'focus' ? 'lock' : 'normal');
-      setCurrentMode(modeName as StrictnessMode);
+      applyMode(targetMode);
     } catch (error) {
       toast.error(`Failed to activate ${modeName} mode`);
     }
