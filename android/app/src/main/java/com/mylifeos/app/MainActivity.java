@@ -7,19 +7,20 @@ import android.os.Bundle;
 import android.view.WindowManager;
 
 import com.getcapacitor.BridgeActivity;
-import com.mylifeos.app.plugins.ShieldPlugin; // 🟢 শিল্ড প্লাগিন ইমপোর্ট করা হলো
+import com.mylifeos.app.plugins.ShieldPlugin;
+import com.mylifeos.app.plugins.RiseAlarmPlugin; // 🟢 রাইজ অ্যালার্ম প্লাগিন ইমপোর্ট করা হলো
 
 public class MainActivity extends BridgeActivity {
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
         
-        // 🟢 এই সেই ম্যাজিক লাইন, যেটা আপনার পারমিশন বাটনগুলোকে জ্যান্ত করবে!
+        // 🟢 মেইন গেটে দুই প্লাগিনকেই রেজিস্টার করা হলো
         registerPlugin(ShieldPlugin.class);
+        registerPlugin(RiseAlarmPlugin.class); // 🟢 এই লাইনটা ছাড়া রাইজের বাটন কাজ করবে না
 
         // Honour show-on-lockscreen + turn-screen-on so that when an
-        // alarm fires (RiseAlarmReceiver -> startActivity) the activity
-        // appears even on a locked device on Android 8.1+.
+        // alarm fires, the activity appears even on a locked device.
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
             setShowWhenLocked(true);
             setTurnScreenOn(true);
