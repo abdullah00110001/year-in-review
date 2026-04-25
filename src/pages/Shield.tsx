@@ -556,14 +556,14 @@ export default function ShieldPage() {
   return (
     <div className="min-h-screen bg-background pb-24 relative">
       
-      {/* 🟢 FIXED: THE NEW SEQUENTIAL POPUP UI */}
+      {/* 🟢 FIXED: THE NEW SEQUENTIAL POPUP UI * /}
       {isBlockingUI && (
         <div className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-md flex items-center justify-center p-6">
           <div className="bg-background w-full max-w-sm rounded-3xl shadow-2xl overflow-hidden p-8 text-center animate-in zoom-in-95 duration-200">
             <span className="text-xs font-bold uppercase tracking-wider text-primary mb-4 block">
               {activePermission.step}
             </span>
-            {/* Main Icon Header */}
+            {/* Main Icon Header * /}
             <div className="w-24 h-24 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-6">
               {/* <span className="text-5xl">{activePermission.icon}</span> */} {/* OLD Rendering * /}
               {activePermission.icon} {/* NEW Rendering * /}
