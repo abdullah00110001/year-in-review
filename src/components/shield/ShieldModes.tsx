@@ -75,10 +75,10 @@ export function ShieldModes({ activeMode, onModeChange, disciplineScore }: Shiel
 
       if (modeName === 'focus') {
         await ShieldPlugin.activateFocusMode();
-        toast.success('Focus Mode Active: Social Media Blocked');
+        toast.success('Focus Mode Active');
       } else {
         await ShieldPlugin.activateSleepMode();
-        toast.success('Sleep Mode Active: Late Night Apps Blocked');
+        toast.success('Sleep Mode Active');
       }
 
       applyMode(targetMode);
@@ -127,7 +127,7 @@ export function ShieldModes({ activeMode, onModeChange, disciplineScore }: Shiel
               </div>
               <div className="min-w-0">
                 <p className="font-medium text-sm">Focus Mode</p>
-                <p className="text-[10px] text-white/40">Blocks FB, Insta, TikTok, YouTube</p>
+                <p className="text-[10px] text-white/40">Customized blocking enabled</p>
               </div>
             </div>
             <Button
@@ -152,7 +152,7 @@ export function ShieldModes({ activeMode, onModeChange, disciplineScore }: Shiel
               </div>
               <div className="min-w-0">
                 <p className="font-medium text-sm">Sleep Mode</p>
-                <p className="text-[10px] text-white/40">Blocks social media + Reddit, Twitter</p>
+                <p className="text-[10px] text-white/40">Custom block list active</p>
               </div>
             </div>
             <Button

@@ -1,3 +1,4 @@
+/*
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
@@ -20,6 +21,15 @@ import {
   endShieldSession as endNativeSession,
   requestEmergencyBypass
 } from '@/lib/capacitor/nativeShield';
+
+// 🟢 New Icons Import
+import { 
+  ShieldCheck, 
+  BarChart3, 
+  AlertOctagon, 
+  Accessibility, 
+  BatteryWarning 
+} from 'lucide-react';
 
 import { 
   getAllPermissions,
@@ -101,6 +111,7 @@ export default function ShieldPage() {
   
   const [selectedBlockScreen, setSelectedBlockScreen] = useState('default');
 
+  // 🟢 The logic below automatically calculates these based on actual data
   const allBlockedApps = [...new Set(profiles.flatMap(p => p.blocked_apps))];
   const allBlockedWebsites = [...new Set(profiles.flatMap(p => p.blocked_websites))];
   const allBlockedKeywords = [...new Set(profiles.flatMap(p => p.blocked_keywords))];
@@ -117,7 +128,6 @@ export default function ShieldPage() {
 
         const listener = App.addListener('appStateChange', ({ isActive }) => {
           if (isActive) {
-            // When user returns from Settings, re-check automatically
             verifyPermissions();
           }
         });
@@ -252,6 +262,7 @@ export default function ShieldPage() {
     }
   }, [user]);
 
+  // 🟢 FIXED: Removed all dummy data from default profiles
   const createDefaultProfiles = async () => {
     if (!user) return;
     const defaultProfiles = [
@@ -261,11 +272,11 @@ export default function ShieldPage() {
         icon: '📚',
         description: 'Block distractions while studying',
         strictness_level: 'hard',
-        blocked_apps: ['Instagram', 'TikTok', 'YouTube', 'Facebook'],
-        blocked_websites: ['instagram.com', 'tiktok.com', 'facebook.com'],
-        blocked_keywords: ['shorts', 'reels', 'stories'],
-        block_infinite_content: true,
-        block_adult_content: true,
+        blocked_apps: [], // Empty default lists
+        blocked_websites: [],
+        blocked_keywords: [],
+        block_infinite_content: false,
+        block_adult_content: false,
         default_duration_minutes: 120,
         is_preset: true
       },
@@ -275,11 +286,11 @@ export default function ShieldPage() {
         icon: '💼',
         description: 'Maximum focus for important work',
         strictness_level: 'absolute',
-        blocked_apps: ['All Social Media', 'Games', 'Entertainment'],
-        blocked_websites: ['facebook.com'],
+        blocked_apps: [], // Empty default lists
+        blocked_websites: [],
         blocked_keywords: [],
-        block_infinite_content: true,
-        block_adult_content: true,
+        block_infinite_content: false,
+        block_adult_content: false,
         default_duration_minutes: 180,
         is_preset: true
       }
@@ -310,7 +321,6 @@ export default function ShieldPage() {
   };
 
   const startSession = async (profile: DisciplineProfile) => {
-    // Prevent start if ANY critical permission is missing
     if (!permissions.usageAccess || !permissions.overlay || !permissions.accessibility) {
       toast.error('Please complete the Shield setup first!');
       return;
@@ -362,7 +372,6 @@ export default function ShieldPage() {
       .eq('id', profile.id);
 
     setActiveSession(data);
-    toast.success(`${profile.name} activated! Stay focused 🛡️`);
     loadShieldData();
   };
 
@@ -383,11 +392,9 @@ export default function ShieldPage() {
         .eq('id', activeSession.id);
 
       setActiveSession(null);
-      toast.success('Session ended');
       loadShieldData();
     } catch (error) {
       console.error('Error ending session:', error);
-      toast.error('Failed to end session');
     }
   };
 
@@ -416,7 +423,6 @@ export default function ShieldPage() {
         .eq('id', profile.id);
     }
     loadShieldData();
-    toast.success(enabled ? 'Reels & Shorts blocked' : 'Reels & Shorts unblocked');
   };
 
   const handleAdultToggle = async (enabled: boolean) => {
@@ -428,7 +434,6 @@ export default function ShieldPage() {
         .eq('id', profile.id);
     }
     loadShieldData();
-    toast.success(enabled ? 'Adult content blocked' : 'Adult content filter off');
   };
 
   const handleNavigate = (page: string) => {
@@ -453,13 +458,14 @@ export default function ShieldPage() {
     return 'Good Evening';
   };
 
-  // 🟢 LOGIC FOR SEQUENTIAL POPUP
+  // 🟢 FIXED: Replaced Emojis with beautiful icons & removed eye icon
   const getActivePermissionRequest = () => {
     if (!permissions.usageAccess) {
       return {
         step: "Step 1 of 4",
         title: "Usage Access",
-        icon: "📊",
+        // icon: "📊", // OLD Emoji
+        icon: <BarChart3 className="w-12 h-12 text-primary" />, // NEW Beautiful Icon
         description: "Shield needs to know when you open a distracting app so it can block it.",
         action: async () => {
           try {
@@ -474,7 +480,8 @@ export default function ShieldPage() {
       return {
         step: "Step 2 of 4",
         title: "Overlay Permission",
-        icon: "🛑",
+        // icon: "🛑", // OLD Emoji
+        icon: <AlertOctagon className="w-12 h-12 text-primary" />, // NEW Beautiful Icon
         description: "Allow Shield to draw the 'Blocked' screen over your distracting apps.",
         action: async () => {
           try {
@@ -489,7 +496,8 @@ export default function ShieldPage() {
       return {
         step: "Step 3 of 4",
         title: "Accessibility",
-        icon: "👁️",
+        // icon: "👁️", // OLD "One Eye" Emoji (User hated this!)
+        icon: <Accessibility className="w-12 h-12 text-primary" />, // NEW Proper Icon
         description: "Crucial for Strict Mode to prevent you from uninstalling or bypassing the block.",
         action: async () => {
           try {
@@ -504,7 +512,8 @@ export default function ShieldPage() {
       return {
         step: "Step 4 of 4",
         title: "Run in Background",
-        icon: "🔋",
+        // icon: "🔋", // OLD Emoji
+        icon: <BatteryWarning className="w-12 h-12 text-primary" />, // NEW Beautiful Icon
         description: "Ensures your phone's battery saver doesn't accidentally kill Shield while you are focusing.",
         action: async () => {
           try {
@@ -515,7 +524,7 @@ export default function ShieldPage() {
         }
       };
     }
-    return null; // All permissions granted!
+    return null; // All granted
   };
 
   const activePermission = getActivePermissionRequest();
@@ -547,15 +556,17 @@ export default function ShieldPage() {
   return (
     <div className="min-h-screen bg-background pb-24 relative">
       
-      {/* 🟢 THE SEQUENTIAL POPUP UI */}
+      {/* 🟢 FIXED: THE NEW SEQUENTIAL POPUP UI */}
       {isBlockingUI && (
         <div className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-md flex items-center justify-center p-6">
           <div className="bg-background w-full max-w-sm rounded-3xl shadow-2xl overflow-hidden p-8 text-center animate-in zoom-in-95 duration-200">
             <span className="text-xs font-bold uppercase tracking-wider text-primary mb-4 block">
               {activePermission.step}
             </span>
+            {/* Main Icon Header */}
             <div className="w-24 h-24 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-6">
-              <span className="text-5xl">{activePermission.icon}</span>
+              {/* <span className="text-5xl">{activePermission.icon}</span> */} {/* OLD Rendering * /}
+              {activePermission.icon} {/* NEW Rendering * /}
             </div>
             <h2 className="text-2xl font-extrabold mb-3">{activePermission.title}</h2>
             <p className="text-muted-foreground text-sm mb-8 leading-relaxed">
@@ -571,7 +582,7 @@ export default function ShieldPage() {
         </div>
       )}
 
-      {/* Main UI - Only fully visible and clickable if permissions are granted */}
+      {/* Main UI * /}
       <div className={`transition-opacity duration-300 ${isBlockingUI ? 'opacity-20 pointer-events-none' : 'opacity-100'}`}>
         <ShieldHeader />
         
@@ -599,9 +610,552 @@ export default function ShieldPage() {
               />
 
               <ShieldQuickActions
-                blockedAppsCount={allBlockedApps.length}
-                blockedSitesCount={allBlockedWebsites.length}
-                blockedKeywordsCount={allBlockedKeywords.length}
+                blockedAppsCount={allBlockedApps.length} // Now shows real data
+                blockedSitesCount={allBlockedWebsites.length} // Now shows real data
+                blockedKeywordsCount={allBlockedKeywords.length} // Now shows real data
+                reelsBlockEnabled={reelsBlockEnabled}
+                adultBlockEnabled={adultBlockEnabled}
+                onReelsToggle={handleReelsToggle}
+                onAdultToggle={handleAdultToggle}
+                onManageApps={() => handleTabChange('modes')}
+                onManageSites={() => handleTabChange('modes')}
+                onManageKeywords={() => handleTabChange('modes')}
+              />
+            </>
+          )}
+
+          {activeTab === 'modes' && (
+            <ShieldModes
+              activeMode={strictnessMode}
+              onModeChange={handleModeChange}
+              disciplineScore={disciplineScore?.current_score}
+            />
+          )}
+
+          {activeTab === 'analytics' && (
+            <ShieldAnalytics disciplineScore={disciplineScore} />
+          )}
+
+          {activeTab === 'account' && (
+            <ShieldAccountability />
+          )}
+
+          {activeTab === 'settings' && (
+            <ShieldSettings 
+              settings={settings}
+              onSettingChange={handleSettingChange}
+              onNavigate={handleNavigate}
+            />
+          )}
+        </div>
+
+        <ShieldBottomNav activeTab={activeTab} onTabChange={handleTabChange} />
+      </div>
+    </div>
+  );
+}
+*/
+
+
+import { useState, useEffect, useCallback } from 'react';
+import { useAuth } from '@/hooks/useAuth';
+import { toast } from 'sonner';
+import { ShieldBottomNav } from '@/components/shield/ShieldBottomNav';
+import { ShieldHeader } from '@/components/shield/ShieldHeader';
+import { ShieldProfilesSection } from '@/components/shield/ShieldProfilesSection';
+import { ShieldModes } from '@/components/shield/ShieldModes';
+import { ShieldSettings } from '@/components/shield/ShieldSettings';
+import { ShieldBlockScreen } from '@/components/shield/ShieldBlockScreen';
+import { ShieldAnalytics } from '@/components/shield/ShieldAnalytics';
+import { ShieldAccountability } from '@/components/shield/ShieldAccountability';
+import { ShieldUsageStats } from '@/components/shield/ShieldUsageStats';
+import { ShieldFocusTimer } from '@/components/shield/ShieldFocusTimer';
+import { ShieldQuickActions } from '@/components/shield/ShieldQuickActions';
+import { isNative } from '@/lib/capacitor/platform';
+import { App } from '@capacitor/app'; 
+import { 
+  startShieldSession as startNativeSession, 
+  endShieldSession as endNativeSession,
+  requestEmergencyBypass
+} from '@/lib/capacitor/nativeShield';
+
+// 🟢 Beautiful Icons Import
+import { 
+  ShieldCheck, 
+  BarChart3, 
+  AlertOctagon, 
+  Accessibility, 
+  BatteryWarning 
+} from 'lucide-react';
+
+import { 
+  getAllPermissions,
+  requestUsageStatsPermission,
+  requestOverlayPermission,
+  requestAccessibilityPermission,
+  requestBatteryPermission
+} from '@/lib/capacitor/permissions';
+
+type StrictnessMode = 'normal' | 'lock' | 'strict';
+type SubPage = 'main' | 'block-screen';
+
+interface DisciplineProfile {
+  id: string;
+  name: string;
+  icon: string;
+  description: string | null;
+  strictness_level: string;
+  is_active: boolean;
+  blocked_apps: string[];
+  blocked_websites: string[];
+  blocked_keywords: string[];
+  block_infinite_content: boolean;
+  block_adult_content: boolean;
+  default_duration_minutes: number;
+}
+
+interface DisciplineScore {
+  current_score: number;
+  current_streak_days: number;
+  total_focus_minutes: number;
+  total_time_saved_minutes: number;
+  can_use_absolute_mode: boolean;
+}
+
+interface ShieldSession {
+  id: string;
+  profile_name: string;
+  strictness_level: string;
+  started_at: string;
+  scheduled_end_at: string | null;
+  status: string;
+  bypass_attempts: number;
+}
+
+interface PermissionStatus {
+  usageAccess: boolean;
+  overlay: boolean;
+  accessibility: boolean;
+  battery: boolean;
+}
+
+export default function ShieldPage() {
+  const { user } = useAuth();
+  const [activeTab, setActiveTab] = useState('dashboard');
+  const [subPage, setSubPage] = useState<SubPage>('main');
+  const [profiles, setProfiles] = useState<DisciplineProfile[]>([]);
+  const [disciplineScore, setDisciplineScore] = useState<DisciplineScore | null>(null);
+  const [activeSession, setActiveSession] = useState<ShieldSession | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  
+  const [permissions, setPermissions] = useState<PermissionStatus>({
+    usageAccess: true, 
+    overlay: true,
+    accessibility: true,
+    battery: true,
+  });
+
+  const [strictnessMode, setStrictnessMode] = useState<StrictnessMode>('normal');
+  
+  const [settings, setSettings] = useState({
+    pauseDurationEnabled: true,
+    blockSplitScreen: false,
+    blockPowerOff: false,
+    blockRecentApps: false,
+    lowTimeAlert: true,
+    pomodoroBreak: true,
+  });
+  
+  const [selectedBlockScreen, setSelectedBlockScreen] = useState('default');
+
+  // Logic to calculate these based on actual local data
+  const allBlockedApps = [...new Set(profiles.flatMap(p => p.blocked_apps))];
+  const allBlockedWebsites = [...new Set(profiles.flatMap(p => p.blocked_websites))];
+  const allBlockedKeywords = [...new Set(profiles.flatMap(p => p.blocked_keywords))];
+  const reelsBlockEnabled = profiles.some(p => p.block_infinite_content);
+  const adultBlockEnabled = profiles.some(p => p.block_adult_content);
+
+  useEffect(() => {
+    // 🟢 Load data purely from phone's memory
+    loadShieldDataLocal();
+    loadSettingsLocal();
+    
+    if (isNative) {
+      verifyPermissions();
+
+      const listener = App.addListener('appStateChange', ({ isActive }) => {
+        if (isActive) {
+          verifyPermissions();
+        }
+      });
+
+      return () => {
+        listener.then(l => l.remove());
+      };
+    }
+  }, [user]);
+
+  const verifyPermissions = async () => {
+    try {
+      const status = await getAllPermissions();
+      setPermissions({
+        usageAccess: status.usageStats === 'granted',
+        overlay: status.overlay === 'granted',
+        accessibility: status.accessibility === 'granted',
+        battery: status.battery === 'granted'
+      });
+    } catch (error) {
+      console.error('Error checking permissions:', error);
+    }
+  };
+
+  // 🟢 OFFLINE: Load Profiles & Sessions
+  const loadShieldDataLocal = () => {
+    setIsLoading(true);
+    try {
+      const storedProfiles = localStorage.getItem('shield_profiles');
+      if (storedProfiles) {
+        setProfiles(JSON.parse(storedProfiles));
+      } else {
+        createDefaultProfilesLocal();
+      }
+
+      const storedScore = localStorage.getItem('shield_score');
+      if (storedScore) {
+        setDisciplineScore(JSON.parse(storedScore));
+      } else {
+        setDisciplineScore({ current_score: 0, current_streak_days: 0, total_focus_minutes: 0, total_time_saved_minutes: 0, can_use_absolute_mode: false });
+      }
+
+      const storedSession = localStorage.getItem('shield_active_session');
+      if (storedSession) {
+        setActiveSession(JSON.parse(storedSession));
+      } else {
+        setActiveSession(null);
+      }
+    } catch (error) {
+      console.error('Error loading local data:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // 🟢 OFFLINE: Load Settings
+  const loadSettingsLocal = () => {
+    try {
+      const storedSettings = localStorage.getItem('shield_settings');
+      if (storedSettings) setSettings(JSON.parse(storedSettings));
+
+      const storedMode = localStorage.getItem('shield_strictness_mode');
+      if (storedMode) setStrictnessMode(storedMode as StrictnessMode);
+
+      const storedScreen = localStorage.getItem('shield_block_screen');
+      if (storedScreen) setSelectedBlockScreen(storedScreen);
+    } catch (error) {
+      console.error('Error loading settings:', error);
+    }
+  };
+
+  // 🟢 Generic Local Storage Saver
+  const saveLocalData = (key: string, data: any) => {
+    localStorage.setItem(key, JSON.stringify(data));
+  };
+
+  // 🟢 OFFLINE: Create Default Profiles (Clean Data)
+  const createDefaultProfilesLocal = () => {
+    const defaultProfiles: DisciplineProfile[] = [
+      {
+        id: crypto.randomUUID(), // Generates secure unique ID locally
+        name: 'Study Mode',
+        icon: '📚',
+        description: 'Block distractions while studying',
+        strictness_level: 'hard',
+        is_active: false,
+        blocked_apps: [], 
+        blocked_websites: [],
+        blocked_keywords: [],
+        block_infinite_content: false,
+        block_adult_content: false,
+        default_duration_minutes: 120
+      },
+      {
+        id: crypto.randomUUID(),
+        name: 'Deep Work',
+        icon: '💼',
+        description: 'Maximum focus for important work',
+        strictness_level: 'absolute',
+        is_active: false,
+        blocked_apps: [], 
+        blocked_websites: [],
+        blocked_keywords: [],
+        block_infinite_content: false,
+        block_adult_content: false,
+        default_duration_minutes: 180
+      }
+    ];
+
+    setProfiles(defaultProfiles);
+    saveLocalData('shield_profiles', defaultProfiles);
+  };
+
+  // 🟢 OFFLINE: Start Session
+  const startSession = async (profile: DisciplineProfile) => {
+    if (!permissions.usageAccess || !permissions.overlay || !permissions.accessibility) {
+      toast.error('Please complete the Shield setup first!');
+      return;
+    }
+    
+    const now = new Date();
+    const endTime = new Date();
+    endTime.setMinutes(endTime.getMinutes() + profile.default_duration_minutes);
+
+    const newSession: ShieldSession = {
+      id: crypto.randomUUID(),
+      profile_name: profile.name,
+      strictness_level: profile.strictness_level,
+      started_at: now.toISOString(),
+      scheduled_end_at: endTime.toISOString(),
+      status: 'active',
+      bypass_attempts: 0
+    };
+
+    // Keep native Capacitor bridge intact
+    if (isNative) {
+      await startNativeSession({
+        id: newSession.id,
+        profileId: profile.id,
+        profileName: profile.name,
+        strictnessLevel: profile.strictness_level as any,
+        startedAt: now,
+        scheduledEndAt: endTime,
+        blockedApps: profile.blocked_apps,
+        blockedWebsites: profile.blocked_websites,
+        blockedKeywords: profile.blocked_keywords,
+        blockInfiniteContent: profile.block_infinite_content,
+        blockAdultContent: profile.block_adult_content,
+      }, user?.id || 'local_user');
+    }
+
+    // Save to Local Storage instead of DB
+    const updatedProfiles = profiles.map(p => p.id === profile.id ? { ...p, is_active: true } : p);
+    setProfiles(updatedProfiles);
+    saveLocalData('shield_profiles', updatedProfiles);
+
+    setActiveSession(newSession);
+    saveLocalData('shield_active_session', newSession);
+    
+    toast.success(`${profile.name} activated! Stay focused 🛡️`);
+  };
+
+  // 🟢 OFFLINE: End Session
+  const handleEndSession = async (reason?: string) => {
+    if (!activeSession) return;
+
+    try {
+      if (isNative) {
+        await endNativeSession(reason, user?.id || 'local_user');
+      }
+
+      // Clear from Local Storage
+      setActiveSession(null);
+      localStorage.removeItem('shield_active_session');
+
+      const updatedProfiles = profiles.map(p => ({ ...p, is_active: false }));
+      setProfiles(updatedProfiles);
+      saveLocalData('shield_profiles', updatedProfiles);
+
+      toast.success('Session ended');
+    } catch (error) {
+      console.error('Error ending session:', error);
+    }
+  };
+
+  // 🟢 OFFLINE: Save Settings
+  const handleSettingChange = (key: string, value: boolean) => {
+    const newSettings = { ...settings, [key]: value };
+    setSettings(newSettings);
+    saveLocalData('shield_settings', newSettings);
+  };
+
+  const handleModeChange = (mode: StrictnessMode) => {
+    setStrictnessMode(mode);
+    localStorage.setItem('shield_strictness_mode', mode);
+  };
+
+  const handleBlockScreenChange = (screen: string) => {
+    setSelectedBlockScreen(screen);
+    localStorage.setItem('shield_block_screen', screen);
+  };
+
+  const handleReelsToggle = async (enabled: boolean) => {
+    const updatedProfiles = profiles.map(p => ({ ...p, block_infinite_content: enabled }));
+    setProfiles(updatedProfiles);
+    saveLocalData('shield_profiles', updatedProfiles);
+  };
+
+  const handleAdultToggle = async (enabled: boolean) => {
+    const updatedProfiles = profiles.map(p => ({ ...p, block_adult_content: enabled }));
+    setProfiles(updatedProfiles);
+    saveLocalData('shield_profiles', updatedProfiles);
+  };
+
+  const handleNavigate = (page: string) => {
+    if (page === 'block-screen') {
+      setSubPage(page as SubPage);
+    }
+  };
+
+  const handleTabChange = (tab: string) => {
+    setActiveTab(tab);
+    setSubPage('main');
+  };
+
+  const handleBreakStart = (minutes: number) => {
+    toast.success(`Break started for ${minutes} minutes`);
+  };
+
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'Good Morning';
+    if (hour < 17) return 'Good Afternoon';
+    return 'Good Evening';
+  };
+
+  // 🟢 Beautiful Icons Sequential Setup
+  const getActivePermissionRequest = () => {
+    if (!permissions.usageAccess) {
+      return {
+        step: "Step 1 of 4",
+        title: "Usage Access",
+        icon: <BarChart3 className="w-12 h-12 text-primary" />, 
+        description: "Shield needs to know when you open a distracting app so it can block it.",
+        action: async () => {
+          try { await requestUsageStatsPermission(); } 
+          catch (e) { toast.error("Failed to open Settings automatically."); }
+        }
+      };
+    }
+    if (!permissions.overlay) {
+      return {
+        step: "Step 2 of 4",
+        title: "Overlay Permission",
+        icon: <AlertOctagon className="w-12 h-12 text-primary" />, 
+        description: "Allow Shield to draw the 'Blocked' screen over your distracting apps.",
+        action: async () => {
+          try { await requestOverlayPermission(); } 
+          catch (e) { toast.error("Failed to open Settings automatically."); }
+        }
+      };
+    }
+    if (!permissions.accessibility) {
+      return {
+        step: "Step 3 of 4",
+        title: "Accessibility",
+        icon: <Accessibility className="w-12 h-12 text-primary" />, 
+        description: "Crucial for Strict Mode to prevent you from uninstalling or bypassing the block.",
+        action: async () => {
+          try { await requestAccessibilityPermission(); } 
+          catch (e) { toast.error("Failed to open Settings automatically."); }
+        }
+      };
+    }
+    if (!permissions.battery) {
+      return {
+        step: "Step 4 of 4",
+        title: "Run in Background",
+        icon: <BatteryWarning className="w-12 h-12 text-primary" />, 
+        description: "Ensures your phone's battery saver doesn't accidentally kill Shield while you are focusing.",
+        action: async () => {
+          try { await requestBatteryPermission(); } 
+          catch (e) { toast.error("Failed to open Settings automatically."); }
+        }
+      };
+    }
+    return null; 
+  };
+
+  const activePermission = getActivePermissionRequest();
+  const isBlockingUI = activePermission !== null;
+
+  if (subPage === 'block-screen') {
+    return (
+      <ShieldBlockScreen 
+        onBack={() => setSubPage('main')}
+        selectedScreen={selectedBlockScreen}
+        onSelectScreen={handleBlockScreenChange}
+      />
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background p-4">
+        <div className="animate-pulse space-y-4">
+          <div className="h-20 bg-muted rounded-2xl" />
+          <div className="h-32 bg-muted rounded-2xl" />
+          <div className="h-48 bg-muted rounded-2xl" />
+          <div className="h-64 bg-muted rounded-2xl" />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-background pb-24 relative">
+      
+      {isBlockingUI && (
+        <div className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-md flex items-center justify-center p-6">
+          <div className="bg-background w-full max-w-sm rounded-3xl shadow-2xl overflow-hidden p-8 text-center animate-in zoom-in-95 duration-200">
+            <span className="text-xs font-bold uppercase tracking-wider text-primary mb-4 block">
+              {activePermission.step}
+            </span>
+            <div className="w-24 h-24 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-6">
+              {activePermission.icon} 
+            </div>
+            <h2 className="text-2xl font-extrabold mb-3">{activePermission.title}</h2>
+            <p className="text-muted-foreground text-sm mb-8 leading-relaxed">
+              {activePermission.description}
+            </p>
+            <button 
+              onClick={activePermission.action}
+              className="w-full py-4 bg-primary text-primary-foreground rounded-2xl font-bold text-lg shadow-lg active:scale-95 transition-all"
+            >
+              Grant Permission
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className={`transition-opacity duration-300 ${isBlockingUI ? 'opacity-20 pointer-events-none' : 'opacity-100'}`}>
+        <ShieldHeader />
+        
+        <div className="px-4 py-4 space-y-4">
+          {activeTab === 'dashboard' && (
+            <>
+              <div className="mb-2">
+                <p className="text-sm text-muted-foreground">Welcome back</p>
+                <h1 className="text-2xl font-bold">{getGreeting()}</h1>
+              </div>
+
+              <ShieldUsageStats onViewDetails={() => handleTabChange('analytics')} />
+
+              <ShieldFocusTimer 
+                isSessionActive={!!activeSession}
+                onStartBreak={handleBreakStart}
+                disabled={!!activeSession}
+              />
+
+              <ShieldProfilesSection
+                profiles={profiles}
+                onActivate={startSession}
+                activeSession={activeSession}
+                onRefresh={loadShieldDataLocal}
+              />
+
+              <ShieldQuickActions
+                blockedAppsCount={allBlockedApps.length} 
+                blockedSitesCount={allBlockedWebsites.length} 
+                blockedKeywordsCount={allBlockedKeywords.length} 
                 reelsBlockEnabled={reelsBlockEnabled}
                 adultBlockEnabled={adultBlockEnabled}
                 onReelsToggle={handleReelsToggle}
