@@ -565,7 +565,7 @@ export default function ShieldPage() {
             </span>
             {/* Main Icon Header * /}
             <div className="w-24 h-24 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-6">
-              {/* <span className="text-5xl">{activePermission.icon}</span> */} {/* OLD Rendering * /}
+              {/* <span className="text-5xl">{activePermission.icon}</span> * /} {/* OLD Rendering * /}
               {activePermission.icon} {/* NEW Rendering * /}
             </div>
             <h2 className="text-2xl font-extrabold mb-3">{activePermission.title}</h2>
