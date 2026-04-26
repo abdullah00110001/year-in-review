@@ -74,28 +74,9 @@ public class ShieldPreferences {
     public void setBlockedKeywords(Set<String> keywords) {
         prefs.edit().putStringSet("blocked_keywords", keywords).apply();
     }
-        // ==========================================
-    // 🔑 Emergency Bypass Settings
+
     // ==========================================
-    public String getEmergencyPin() {
-        return prefs.getString("emergency_pin", ""); // ডিফল্ট খালি
-    }
-
-    public void setEmergencyPin(String pin) {
-        prefs.edit().putString("emergency_pin", pin).apply();
-    }
-
-    public boolean isBypassActive() {
-        return prefs.getBoolean("is_bypass_active", false);
-    }
-
-    public void setBypassActive(boolean active) {
-        prefs.edit().putBoolean("is_bypass_active", active).apply();
-    }
-    
-    
-        // ==========================================
-    // 🔑 Emergency Bypass Settings
+    // 🔑 Emergency Bypass Settings - একবারই রাখছি
     // ==========================================
     public String getEmergencyPin() {
         return prefs.getString("emergency_pin", ""); // ডিফল্ট খালি থাকবে
@@ -112,8 +93,6 @@ public class ShieldPreferences {
     public void setBypassActive(boolean active) {
         prefs.edit().putBoolean("is_bypass_active", active).apply();
     }
-
-
 
     // ==========================================
     // 🔒 Hardcore Protection (New)
@@ -180,11 +159,11 @@ public class ShieldPreferences {
             e.printStackTrace();
         }
     }
-        // ==========================================
+
+    // ==========================================
     // 📊 Usage History (Daily Stats)
     // ==========================================
     
-    // প্রতিদিনের টোটাল মিনিট সেভ করা: {"2026-04-25": 120, "2026-04-26": 45}
     public void saveDailyHistory(String date, long totalMinutes) {
         try {
             String historyJson = prefs.getString("usage_history", "{}");
@@ -200,7 +179,6 @@ public class ShieldPreferences {
         return prefs.getString("usage_history", "{}");
     }
 
-    // আজকের দিনের জন্য স্পেসিফিক কাউন্টার
     public long getTodayTotalMinutes() {
         return prefs.getLong("today_minutes", 0);
     }
@@ -222,7 +200,6 @@ public class ShieldPreferences {
 
     public int getAppLimit(String pkg) { return prefs.getInt("limit_" + pkg, 0); }
 
-
     // ==========================================
     // 📅 Reset Dates
     // ==========================================
@@ -237,24 +214,23 @@ public class ShieldPreferences {
     public void updateLastResetDate(String date) {
         prefs.edit().putString("last_reset_date", date).apply();
     }
-        // ==========================================
+
+    // ==========================================
     // ⏱️ Floating Timer Settings
     // ==========================================
     public boolean isFloatingTimerEnabled() { return prefs.getBoolean("floating_timer", false); }
     public void setFloatingTimerEnabled(boolean v) { prefs.edit().putBoolean("floating_timer", v).apply(); }
 
-    public int getFloatingTimerSize() { return prefs.getInt("timer_size", 16); } // Default size 16sp
+    public int getFloatingTimerSize() { return prefs.getInt("timer_size", 16); }
     public void setFloatingTimerSize(int size) { prefs.edit().putInt("timer_size", size).apply(); }
 
-    public float getFloatingTimerOpacity() { return prefs.getFloat("timer_opacity", 0.8f); } // 80% visible
+    public float getFloatingTimerOpacity() { return prefs.getFloat("timer_opacity", 0.8f); }
     public void setFloatingTimerOpacity(float opacity) { prefs.edit().putFloat("timer_opacity", opacity).apply(); }
 
     public boolean isCountdownMode() { return prefs.getBoolean("countdown_mode", false); }
     public void setCountdownMode(boolean v) { prefs.edit().putBoolean("countdown_mode", v).apply(); }
 
-    // Position Memory (যাতে ইউজার যেখানে রাখে সেখানেই থাকে)
     public int getTimerX() { return prefs.getInt("timer_x", 0); }
     public int getTimerY() { return prefs.getInt("timer_y", 100); }
     public void setTimerPosition(int x, int y) { prefs.edit().putInt("timer_x", x).putInt("timer_y", y).apply(); }
-
 }
