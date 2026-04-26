@@ -2,50 +2,33 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- Internet & Network -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
-    <!-- Notifications (Android 13+) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
-    <!-- Rise Alarms -->
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.VIBRATE" />
 
-    <!-- Shield - Usage Stats -->
     <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" tools:ignore="ProtectedPermissions" />
-
-    <!-- Shield - Foreground Service -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
-
-    <!-- Shield - Overlay -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
-
-    <!-- Shield - Battery Optimization -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <uses-permission android:name="android.permission.BIND_DEVICE_ADMIN" tools:ignore="ProtectedPermissions" />
 
-    <!-- Camera (for Rise missions & profile) -->
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
 
-    <!-- Storage for offline data & APK downloads -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="29" />
 
-    <!-- Location (opt-in, requested at button-tap from Settings) -->
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
-
-    <!-- Full-screen alarm intent (Android 14+) -->
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
-
-    <!-- OTA Update: Install APK (Android 8.0+) -->
-    <!-- <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" /> -->
 
     <application
         android:allowBackup="true"
@@ -70,13 +53,14 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-            <!-- Deep link for auth callback -->
+            
             <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="https" android:host="nxvtoviyldffcqbtgriw.supabase.co" />
             </intent-filter>
+            
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
@@ -85,14 +69,8 @@
             </intent-filter>
         </activity>
 
-        <!-- Rise Alarm Receiver -->
-        <receiver
-            android:name="com.mylifeos.app.plugins.RiseAlarmReceiver"
-            android:exported="true"
-            android:enabled="true">
-        </receiver>
-
-        <!-- Boot receiver: re-arms alarms after device reboot or app update -->
+        <receiver android:name="com.mylifeos.app.plugins.RiseAlarmReceiver" android:exported="true" android:enabled="true" />
+        
         <receiver
             android:name="com.mylifeos.app.plugins.BootReceiver"
             android:enabled="true"
@@ -101,19 +79,12 @@
             <intent-filter android:priority="1000">
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
                 <action android:name="android.intent.action.QUICKBOOT_POWERON" />
-                <action android:name="com.htc.intent.action.QUICKBOOT_POWERON" />
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
             </intent-filter>
         </receiver>
 
-        <!-- Shield Foreground Service: enabled, only started after permissions are granted -->
-        <service
-            android:name=".shield.ShieldService"
-            android:enabled="true"
-            android:exported="false"
-            android:foregroundServiceType="dataSync" />
+        <service android:name=".shield.ShieldService" android:enabled="true" android:exported="false" android:foregroundServiceType="dataSync" />
 
-        <!-- Shield Accessibility Service: enabled so user can toggle it from Android Settings -->
         <service
             android:name=".shield.ShieldAccessibilityService"
             android:enabled="true"
@@ -126,20 +97,29 @@
             <meta-data android:name="android.accessibilityservice" android:resource="@xml/accessibility_service_config" />
         </service>
 
-        <!-- Shield Device Admin Receiver: enabled but inert until user activates it -->
+        <service 
+            android:name=".shield.ShieldVpnService"
+            android:permission="android.permission.BIND_VPN_SERVICE"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.net.VpnService" />
+            </intent-filter>
+        </service>
+        <service android:name=".shield.ShieldFloatingService" android:enabled="true" android:exported="false" />
+
         <receiver
             android:name=".shield.ShieldDeviceAdminReceiver"
-            android:enabled="true"
-            android:exported="true"
-            android:permission="android.permission.BIND_DEVICE_ADMIN">
-            <meta-data android:name="android.app.device_admin" android:resource="@xml/device_admin" />
+            android:label="LifeOS Shield Protector"
+            android:description="@string/device_admin_description"
+            android:permission="android.permission.BIND_DEVICE_ADMIN"
+            android:exported="true">
+            <meta-data android:name="android.app.device_admin" android:resource="@xml/device_admin_rules" />
             <intent-filter>
                 <action android:name="android.app.action.DEVICE_ADMIN_ENABLED" />
                 <action android:name="android.app.action.DEVICE_ADMIN_DISABLE_REQUESTED" />
             </intent-filter>
         </receiver>
 
-        <!-- Shield Block Activity: enabled, only launched by Shield services when blocking -->
         <activity
             android:name=".shield.ShieldBlockActivity"
             android:enabled="true"
@@ -154,9 +134,8 @@
             android:authorities="${applicationId}.fileprovider"
             android:exported="false"
             android:grantUriPermissions="true">
-            <meta-data
-                android:name="android.support.FILE_PROVIDER_PATHS"
-                android:resource="@xml/file_paths" />
+            <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/file_paths" />
         </provider>
+
     </application>
 </manifest>

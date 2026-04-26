@@ -2,14 +2,21 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
-import { Ban, Palette, Clock, Columns, Power, AppWindow, AlertTriangle, Bell, ChevronRight, Globe, KeyRound, Timer, Moon, Lock, Vibrate, Volume2, Eye, Download, Upload, Trash2, Info, HelpCircle, MessageSquare, Database, RefreshCw, Zap, BellRing, MonitorSmartphone, ShieldCheck, CheckCircle2, XCircle } from 'lucide-react';
+import { 
+  Ban, Clock, Columns, Power, AppWindow, AlertTriangle, 
+  KeyRound, Timer, Lock, Vibrate, Volume2, Eye, Download, 
+  Upload, Trash2, Database, RefreshCw, Zap, BellRing, 
+  ShieldCheck, CheckCircle2, XCircle, Bell, ChevronRight,
+  ShieldAlert, Activity // 🟢 Added Icon for Floating Timer
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { openAccessibilitySettings, openDeviceAdminSettings, openUsageAccessSettings } from '@/utils/permissions';
 import { Capacitor } from '@capacitor/core';
-import Shield from '@/lib/capacitor/shieldPlugin';
+import ShieldPlugin from '@/lib/capacitor/shieldPlugin';
+import { toast } from 'sonner';
 
 interface SettingItem {
-  icon: typeof Ban;
+  icon: any;
   title: string;
   description: string;
   hasArrow?: boolean;
@@ -29,8 +36,10 @@ interface ShieldSettingsProps {
     blockSplitScreen: boolean;
     blockPowerOff: boolean;
     blockRecentApps: boolean;
+    preventUninstall: boolean;
     lowTimeAlert: boolean;
     pomodoroBreak: boolean;
+    floatingTimer: boolean; // 🟢 Added state for Floating Timer
   };
   onSettingChange: (key: string, value: boolean) => void;
   onNavigate: (page: string) => void;
@@ -58,11 +67,11 @@ export function ShieldSettings({ settings, onSettingChange, onNavigate }: Shield
   const checkPermissionStatus = async () => {
     if (Capacitor.getPlatform() !== 'android') return;
     try {
-      const perms = await Shield.checkPermissions();
+      const perms = await ShieldPlugin.checkPermissions();
       setPermissionStatus({
         accessibility: !!perms.accessibility,
         usageStats: !!perms.usageStats,
-        deviceAdmin: false, // managed via separate flow
+        deviceAdmin: !!perms.deviceAdmin,
         batteryOptimization: !!perms.battery,
       });
     } catch (e) {
@@ -73,9 +82,45 @@ export function ShieldSettings({ settings, onSettingChange, onNavigate }: Shield
   const handleOpenBatterySettings = async () => {
     if (Capacitor.getPlatform() !== 'android') return;
     try {
-      await Shield.requestBattery();
+      await ShieldPlugin.requestBattery();
     } catch (e) {
       console.error('[ShieldSettings] requestBattery failed:', e);
+    }
+  };
+
+  // ==========================================
+  // 🛡️ Advanced Hardcore Blocking Actions
+  // ==========================================
+  const handleToggleHardcore = async (key: string, value: boolean) => {
+    try {
+      onSettingChange(key, value);
+      if (Capacitor.getPlatform() === 'android') {
+        await ShieldPlugin.updateHardcoreSettings({ key, value });
+        if (value) toast.success(`${key.replace('block', 'Block ')} Enabled 🔒`);
+      }
+    } catch (e) {
+      onSettingChange(key, !value);
+      toast.error('Failed to update setting. Please check permissions.');
+    }
+  };
+
+  // 🛡️ Device Admin Toggle (Special Flow)
+  const handleToggleUninstall = async (value: boolean) => {
+    if (value && !permissionStatus.deviceAdmin) {
+      toast.info('Please enable Device Admin permission first.');
+      openDeviceAdminSettings();
+      return;
+    }
+    
+    try {
+      onSettingChange('preventUninstall', value);
+      if (Capacitor.getPlatform() === 'android') {
+        await ShieldPlugin.updateHardcoreSettings({ key: 'preventUninstall', value });
+        if (value) toast.success('Uninstall Prevention Enabled 🛡️');
+      }
+    } catch (e) {
+      onSettingChange('preventUninstall', !value);
+      toast.error('Failed to enable Uninstall Protection.');
     }
   };
 
@@ -89,42 +134,54 @@ export function ShieldSettings({ settings, onSettingChange, onNavigate }: Shield
       iconColor: 'text-rose-500',
       iconBg: 'bg-rose-500/10',
     },
+    // 🟢 Added Floating Timer
+    {
+      icon: Activity,
+      title: 'Floating Timer',
+      description: 'Show an on-screen timer during focus sessions',
+      hasToggle: true,
+      toggleValue: settings.floatingTimer,
+      onToggle: (v) => onSettingChange('floatingTimer', v),
+      iconColor: 'text-teal-500',
+      iconBg: 'bg-teal-500/10',
+    },
     {
       icon: Columns,
       title: 'Block Split Screen',
       description: 'Prevent multitasking to stay focused',
       hasToggle: true,
       toggleValue: settings.blockSplitScreen,
-      onToggle: (value) => onSettingChange('blockSplitScreen', value),
+      onToggle: (v) => handleToggleHardcore('blockSplitScreen', v),
       iconColor: 'text-blue-500',
       iconBg: 'bg-blue-500/10',
     },
     {
       icon: Power,
       title: 'Block Power Off',
-      description: 'Prevent shutdown during focus sessions',
+      description: 'Best-effort prevent shutdown during focus',
       hasToggle: true,
       toggleValue: settings.blockPowerOff,
-      onToggle: (value) => onSettingChange('blockPowerOff', value),
+      onToggle: (v) => handleToggleHardcore('blockPowerOff', v),
       iconColor: 'text-orange-500',
       iconBg: 'bg-orange-500/10',
     },
     {
       icon: AppWindow,
       title: 'Block Recent Apps',
-      description: 'Disable recent apps screen access',
+      description: 'Auto-close recents while focused',
       hasToggle: true,
       toggleValue: settings.blockRecentApps,
-      onToggle: (value) => onSettingChange('blockRecentApps', value),
+      onToggle: (v) => handleToggleHardcore('blockRecentApps', v),
       iconColor: 'text-purple-500',
       iconBg: 'bg-purple-500/10',
     },
     {
       icon: Lock,
       title: 'Prevent Uninstall',
-      description: 'Block app uninstallation during sessions',
+      description: 'Requires Device Admin permission',
       hasToggle: true,
-      toggleValue: false,
+      toggleValue: settings.preventUninstall,
+      onToggle: (v) => handleToggleUninstall(v),
       iconColor: 'text-red-500',
       iconBg: 'bg-red-500/10',
     },
@@ -210,145 +267,119 @@ export function ShieldSettings({ settings, onSettingChange, onNavigate }: Shield
     },
   ];
 
-  const appearanceSettings: SettingItem[] = [
-    {
-      icon: Moon,
-      title: 'Dark Mode',
-      description: 'Use dark theme',
-      hasToggle: true,
-      toggleValue: true,
-      iconColor: 'text-slate-500',
-      iconBg: 'bg-slate-500/10',
-    },
-    {
-      icon: Palette,
-      title: 'Theme Color',
-      description: 'Customize app accent color',
-      hasArrow: true,
-      iconColor: 'text-fuchsia-500',
-      iconBg: 'bg-fuchsia-500/10',
-    },
-    {
-      icon: Globe,
-      title: 'Language',
-      description: 'English',
-      hasArrow: true,
-      iconColor: 'text-emerald-500',
-      iconBg: 'bg-emerald-500/10',
-    },
-  ];
-
   const advancedSettings: SettingItem[] = [
-    {
-      icon: MonitorSmartphone,
-      title: 'Set as Launcher',
-      description: 'Use Focus Shield as your home screen',
-      hasArrow: true,
-      isPremium: true,
-      iconColor: 'text-primary',
-      iconBg: 'bg-primary/10',
-    },
     {
       icon: ShieldCheck,
       title: 'Device Admin',
-      description: permissionStatus.deviceAdmin? 'Enabled - Tap to manage' : 'Tap to enable advanced protection',
+      description: permissionStatus.deviceAdmin ? 'Enabled - Protection Active' : 'Tap to enable advanced protection',
       hasArrow: true,
       onClick: openDeviceAdminSettings,
       iconColor: 'text-green-600',
       iconBg: 'bg-green-600/10',
-      status: permissionStatus.deviceAdmin? 'granted' : 'denied',
+      status: permissionStatus.deviceAdmin ? 'granted' : 'denied',
     },
     {
       icon: KeyRound,
       title: 'Emergency Bypass',
       description: 'Configure emergency access options',
       hasArrow: true,
+      // 🟢 Fixed Emergency Bypass Logic
+      onClick: async () => {
+        const pin = window.prompt("Enter your 4-digit Emergency PIN:");
+        if (!pin) return;
+        try {
+          const res = await ShieldPlugin.triggerEmergencyBypass({ pin });
+          if (res.success) {
+            toast.success("Bypass Activated! All restrictions lifted. 🔓");
+          }
+        } catch (e: any) {
+          toast.error(e.message || "Incorrect PIN!");
+        }
+      },
       iconColor: 'text-red-500',
       iconBg: 'bg-red-500/10',
     },
     {
       icon: Eye,
       title: 'Accessibility Service',
-      description: permissionStatus.accessibility? 'Enabled - Blocking apps works' : 'Tap to enable - Required for app blocking',
+      description: permissionStatus.accessibility ? 'Enabled - Blocking apps works' : 'Tap to enable - Required for app blocking',
       hasArrow: true,
       onClick: openAccessibilitySettings,
       iconColor: 'text-blue-500',
       iconBg: 'bg-blue-500/10',
-      status: permissionStatus.accessibility? 'granted' : 'denied',
+      status: permissionStatus.accessibility ? 'granted' : 'denied',
     },
     {
       icon: Zap,
       title: 'Battery Optimization',
-      description: permissionStatus.batteryOptimization? 'Disabled - App runs in background' : 'Tap to disable for reliable blocking',
+      description: permissionStatus.batteryOptimization ? 'Disabled - App runs in background' : 'Tap to disable for reliable blocking',
       hasArrow: true,
       onClick: handleOpenBatterySettings,
       iconColor: 'text-yellow-500',
       iconBg: 'bg-yellow-500/10',
-      status: permissionStatus.batteryOptimization? 'granted' : 'denied',
+      status: permissionStatus.batteryOptimization ? 'granted' : 'denied',
     },
   ];
 
   const dataSettings: SettingItem[] = [
     {
-      icon: Download,
-      title: 'Backup Data',
-      description: 'Export your settings and history',
-      hasArrow: true,
-      iconColor: 'text-green-500',
-      iconBg: 'bg-green-500/10',
-    },
-    {
-      icon: Upload,
-      title: 'Restore Data',
-      description: 'Import from a backup file',
-      hasArrow: true,
-      iconColor: 'text-blue-500',
-      iconBg: 'bg-blue-500/10',
-    },
-    {
       icon: Database,
       title: 'Usage Statistics',
-      description: permissionStatus.usageStats? 'Enabled - Tap to view detailed data' : 'Tap to enable app usage tracking',
+      description: permissionStatus.usageStats ? 'Enabled - Tracking Active' : 'Tap to enable app usage tracking',
       hasArrow: true,
       onClick: openUsageAccessSettings,
       iconColor: 'text-purple-500',
       iconBg: 'bg-purple-500/10',
-      status: permissionStatus.usageStats? 'granted' : 'denied',
+      status: permissionStatus.usageStats ? 'granted' : 'denied',
     },
     {
       icon: Trash2,
       title: 'Clear History',
       description: 'Delete all usage data',
       hasArrow: true,
+      // 🟢 Clear History Logic Added
+      onClick: async () => {
+        const confirm = window.confirm("Are you sure you want to clear all usage statistics? This cannot be undone.");
+        if (confirm) {
+            try {
+                await ShieldPlugin.clearHistory();
+                toast.success("History cleared successfully! 🗑️");
+            } catch (e) {
+                toast.error("Failed to clear history.");
+            }
+        }
+      },
       iconColor: 'text-red-500',
       iconBg: 'bg-red-500/10',
     },
   ];
 
-  const supportSettings: SettingItem[] = [
+  // 🔴 DANGER ZONE: Safe Uninstall System
+  const dangerZoneSettings: SettingItem[] = [
     {
-      icon: HelpCircle,
-      title: 'Help & FAQ',
-      description: 'Get answers to common questions',
+      icon: ShieldAlert,
+      title: 'Safe Uninstall',
+      description: 'Deactivate protection and uninstall Focus Shield',
       hasArrow: true,
-      iconColor: 'text-sky-500',
-      iconBg: 'bg-sky-500/10',
-    },
-    {
-      icon: MessageSquare,
-      title: 'Send Feedback',
-      description: 'Help us improve the app',
-      hasArrow: true,
-      iconColor: 'text-teal-500',
-      iconBg: 'bg-teal-500/10',
-    },
-    {
-      icon: Info,
-      title: 'About',
-      description: 'Version 1.0.0',
-      hasArrow: true,
-      iconColor: 'text-gray-500',
-      iconBg: 'bg-gray-500/10',
+      onClick: async () => {
+        const isStrict = settings.preventUninstall && permissionStatus.deviceAdmin;
+        
+        const message = isStrict 
+          ? "Warning: Protection is active. You must deactivate settings before uninstalling. Proceed anyway?"
+          : "Are you sure you want to uninstall Focus Shield? All your settings will be lost.";
+
+        const confirm = window.confirm(message);
+        if (confirm) {
+          try {
+            toast.loading("Deactivating and preparing for uninstall...");
+            await ShieldPlugin.requestUninstall();
+          } catch (e: any) {
+            toast.error(e.message || "Uninstall failed. Check if a focus session is active.");
+          }
+        }
+      },
+      iconColor: 'text-red-600',
+      iconBg: 'bg-red-600/10',
     },
   ];
 
@@ -386,15 +417,20 @@ export function ShieldSettings({ settings, onSettingChange, onNavigate }: Shield
         <ChevronRight className="h-5 w-5 text-muted-foreground shrink-0" />
       )}
       {item.hasToggle && (
-        <Switch checked={item.toggleValue} onCheckedChange={item.onToggle} onClick={(e) => e.stopPropagation()} className="shrink-0 data-[state=checked]:bg-primary" />
+        <Switch 
+          checked={item.toggleValue} 
+          onCheckedChange={item.onToggle} 
+          onClick={(e) => e.stopPropagation()} 
+          className="shrink-0 data-[state=checked]:bg-primary" 
+        />
       )}
     </div>
   );
 
   const renderSection = (title: string, items: SettingItem[]) => (
-    <div>
+    <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
       <h2 className="font-semibold text-xs text-muted-foreground mb-2 px-1 uppercase tracking-wider">{title}</h2>
-      <Card className="overflow-hidden border-border/50">
+      <Card className="overflow-hidden border-border/50 shadow-sm">
         <CardContent className="p-0">
           {items.map((item, index) => renderSettingItem(item, index, index === items.length - 1))}
         </CardContent>
@@ -407,10 +443,9 @@ export function ShieldSettings({ settings, onSettingChange, onNavigate }: Shield
       {renderSection('Blocking', blockingSettings)}
       {renderSection('Timer & Alerts', timerSettings)}
       {renderSection('Notifications', notificationSettings)}
-      {renderSection('Appearance', appearanceSettings)}
-      {renderSection('Advanced', advancedSettings)}
+      {renderSection('Advanced Protection', advancedSettings)}
       {renderSection('Data & Privacy', dataSettings)}
-      {renderSection('Support', supportSettings)}
+      {renderSection('Danger Zone', dangerZoneSettings)}
     </div>
   );
 }

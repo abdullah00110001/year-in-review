@@ -6,14 +6,13 @@ import {
   Clock, 
   Shield,
   Flame,
-  Target,
   AlertTriangle,
   CheckCircle2,
   XCircle
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
-import { format, subDays, startOfDay } from 'date-fns';
+import { format, subDays, startOfDay, endOfDay } from 'date-fns';
 
 interface DisciplineScore {
   current_score: number;
@@ -54,46 +53,61 @@ export function ShieldAnalytics({ disciplineScore }: ShieldAnalyticsProps) {
     if (!user) return;
 
     try {
-      // Load last 7 days of sessions
-      const sevenDaysAgo = format(subDays(new Date(), 7), 'yyyy-MM-dd');
+      const today = new Date();
+      // 🟢 ডাইনামিক ডেট: ঠিক ৭ দিন আগের তারিখ বের করা
+      const sevenDaysAgo = subDays(today, 6); 
+      const startDateStr = format(sevenDaysAgo, 'yyyy-MM-dd');
       
       const { data: sessions } = await supabase
         .from('shield_sessions')
         .select('*')
         .eq('user_id', user.id)
-        .gte('started_at', sevenDaysAgo)
+        .gte('started_at', `${startDateStr}T00:00:00`)
         .order('started_at', { ascending: false });
 
-      // Build weekly data from real sessions
-      const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-      const weekData = days.map((day, i) => {
-        const daySessions = (sessions || []).filter(s => new Date(s.started_at).getDay() === i);
+      // 🟢 ডাইনামিক উইকলি চার্ট লজিক
+      const weekData = Array.from({ length: 7 }).map((_, i) => {
+        const targetDate = subDays(today, 6 - i); // ক্রমানুসারে পেছনের দিনগুলো থেকে আজকে পর্যন্ত আসবে
+        const targetDateStr = format(targetDate, 'yyyy-MM-dd');
+        const dayName = format(targetDate, 'EEE'); // 'Sun', 'Mon' ইত্যাদি
+
+        // ঠিক ওই নির্দিষ্ট তারিখের ডাটা ফিল্টার করা
+        const daySessions = (sessions || []).filter(s => s.started_at.startsWith(targetDateStr));
         const completedSessions = daySessions.filter(s => s.status === 'completed');
+        
         const dayScore = daySessions.length > 0 
           ? Math.round((completedSessions.length / daySessions.length) * 100)
           : 0;
-        return { day, score: dayScore, sessions: daySessions.length };
+          
+        return { day: dayName, score: dayScore, sessions: daySessions.length };
       });
+      
       setWeeklyData(weekData);
 
       // Recent activity (last 5 sessions)
       setRecentActivity((sessions || []).slice(0, 5) as SessionLog[]);
 
-      // Bypass attempts
+      // 🟢 Bypass attempts (Today)
+      const todayStartStr = format(startOfDay(today), "yyyy-MM-dd'T'HH:mm:ss");
       const { data: bypassLogs } = await supabase
         .from('shield_bypass_logs')
-        .select('id, created_at')
+        .select('id')
         .eq('user_id', user.id)
-        .gte('created_at', format(startOfDay(new Date()), "yyyy-MM-dd'T'HH:mm:ss"));
+        .gte('created_at', todayStartStr);
 
       setTotalBypassAttempts(bypassLogs?.length || 0);
 
+      // 🟢 Bypass attempts (Yesterday)
+      const yesterday = subDays(today, 1);
+      const yesterdayStartStr = format(startOfDay(yesterday), "yyyy-MM-dd'T'HH:mm:ss");
+      const yesterdayEndStr = format(endOfDay(yesterday), "yyyy-MM-dd'T'HH:mm:ss");
+      
       const { data: yesterdayLogs } = await supabase
         .from('shield_bypass_logs')
         .select('id')
         .eq('user_id', user.id)
-        .gte('created_at', format(startOfDay(subDays(new Date(), 1)), "yyyy-MM-dd'T'HH:mm:ss"))
-        .lt('created_at', format(startOfDay(new Date()), "yyyy-MM-dd'T'HH:mm:ss"));
+        .gte('created_at', yesterdayStartStr)
+        .lt('created_at', yesterdayEndStr);
 
       setYesterdayBypasses(yesterdayLogs?.length || 0);
     } catch (error) {
@@ -134,7 +148,7 @@ export function ShieldAnalytics({ disciplineScore }: ShieldAnalyticsProps) {
   return (
     <div className="space-y-4">
       {/* Discipline Score Card */}
-      <Card className="bg-gradient-to-br from-slate-800 to-slate-900 text-white border-slate-700">
+      <Card className="bg-gradient-to-br from-slate-800 to-slate-900 text-white border-slate-700 shadow-lg">
         <CardHeader className="pb-2">
           <CardTitle className="text-base flex items-center gap-2">
             <Shield className="h-4 w-4" />
@@ -163,7 +177,7 @@ export function ShieldAnalytics({ disciplineScore }: ShieldAnalyticsProps) {
 
       {/* Stats Grid */}
       <div className="grid grid-cols-2 gap-3">
-        <Card>
+        <Card className="shadow-sm">
           <CardContent className="p-4 text-center">
             <Clock className="h-8 w-8 mx-auto mb-2 text-primary" />
             <p className="text-2xl font-bold">
@@ -172,7 +186,7 @@ export function ShieldAnalytics({ disciplineScore }: ShieldAnalyticsProps) {
             <p className="text-xs text-muted-foreground">Total Focus Time</p>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="shadow-sm">
           <CardContent className="p-4 text-center">
             <TrendingUp className="h-8 w-8 mx-auto mb-2 text-emerald-500" />
             <p className="text-2xl font-bold">
@@ -184,14 +198,14 @@ export function ShieldAnalytics({ disciplineScore }: ShieldAnalyticsProps) {
       </div>
 
       {/* Weekly Trend */}
-      <Card>
+      <Card className="shadow-sm">
         <CardHeader className="pb-2">
           <CardTitle className="text-base">Weekly Discipline Trend</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="flex items-end justify-between h-32 gap-1">
-            {weeklyData.map((day) => (
-              <div key={day.day} className="flex-1 flex flex-col items-center gap-1">
+            {weeklyData.map((day, index) => (
+              <div key={`${day.day}-${index}`} className="flex-1 flex flex-col items-center gap-1">
                 <div 
                   className="w-full bg-primary/20 rounded-t-lg transition-all"
                   style={{ height: `${Math.max(day.score, 5)}%` }}
@@ -201,7 +215,7 @@ export function ShieldAnalytics({ disciplineScore }: ShieldAnalyticsProps) {
                     style={{ height: '100%' }}
                   />
                 </div>
-                <p className="text-xs text-muted-foreground">{day.day}</p>
+                <p className="text-[10px] text-muted-foreground font-medium">{day.day}</p>
               </div>
             ))}
           </div>
@@ -211,8 +225,8 @@ export function ShieldAnalytics({ disciplineScore }: ShieldAnalyticsProps) {
         </CardContent>
       </Card>
 
-      {/* Recent Activity - from real data */}
-      <Card>
+      {/* Recent Activity */}
+      <Card className="shadow-sm">
         <CardHeader className="pb-2">
           <CardTitle className="text-base">Recent Activity</CardTitle>
         </CardHeader>
@@ -229,22 +243,22 @@ export function ShieldAnalytics({ disciplineScore }: ShieldAnalyticsProps) {
                 ) : (
                   <XCircle className="h-5 w-5 text-muted-foreground" />
                 )}
-                <div className="flex-1">
-                  <p className="text-sm font-medium">{session.profile_name}</p>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">{session.profile_name}</p>
                   <p className="text-xs text-muted-foreground">
                     {session.status === 'completed' ? 'Completed' : session.status}
                     {session.bypass_attempts > 0 && ` • ${session.bypass_attempts} bypass attempts`}
                   </p>
                 </div>
-                <p className="text-xs text-muted-foreground">{formatSessionTime(session.started_at)}</p>
+                <p className="text-xs text-muted-foreground whitespace-nowrap">{formatSessionTime(session.started_at)}</p>
               </div>
             ))
           )}
         </CardContent>
       </Card>
 
-      {/* Honest Insight - from real data */}
-      <Card className="bg-muted/50">
+      {/* Honest Insight */}
+      <Card className="bg-muted/50 shadow-sm border-dashed">
         <CardContent className="p-4">
           <p className="text-sm text-muted-foreground text-center">
             {totalBypassAttempts > 0 ? (

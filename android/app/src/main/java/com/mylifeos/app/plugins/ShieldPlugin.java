@@ -4,6 +4,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
+import android.net.VpnService; // 🟢 Missing Import Fixed
 import android.provider.Settings;
 import android.os.Build;
 import android.net.Uri;
@@ -19,6 +20,7 @@ import com.getcapacitor.annotation.CapacitorPlugin;
 
 import com.mylifeos.app.shield.ShieldPreferences;
 import com.mylifeos.app.shield.ShieldPermissionHelper;
+import com.mylifeos.app.shield.ShieldVpnService; // 🟢 Missing Import Fixed
 import com.mylifeos.app.shield.core.ShieldModeManager;
 
 import java.util.Calendar;
@@ -94,6 +96,52 @@ public class ShieldPlugin extends Plugin {
             call.resolve();
         } catch (Exception e) {
             call.reject("Failed to update block list", e);
+        }
+    }
+    
+        // ==========================================
+    // 🔑 Emergency Bypass Logic
+    // ==========================================
+
+    @PluginMethod
+    public void setEmergencyPin(PluginCall call) {
+        String pin = call.getString("pin");
+        if (pin == null || pin.length() < 4) {
+            call.reject("PIN must be at least 4 digits");
+            return;
+        }
+        preferences.setEmergencyPin(pin);
+        call.resolve();
+    }
+
+    @PluginMethod
+    public void triggerEmergencyBypass(PluginCall call) {
+        String inputPin = call.getString("pin");
+        String savedPin = preferences.getEmergencyPin();
+
+        // যদি পিন সেট করা না থাকে
+        if (savedPin.isEmpty()) {
+            call.reject("No Emergency PIN set! Please set it in Advanced Settings first.");
+            return;
+        }
+
+        // যদি ইউজারের দেওয়া পিন মিলে যায়
+        if (savedPin.equals(inputPin)) {
+            Log.d("ShieldPlugin", "🔓 EMERGENCY BYPASS ACTIVATED!");
+            
+            // জাদুকরী লজিক: স্ট্রিক্ট মোড, অ্যাপ ব্লক, এবং আনইনস্টল প্রোটেকশন সব ডিজেবল করে দেওয়া হলো
+            preferences.setStrictMode(false);
+            preferences.setEnabled(false);
+            preferences.setPreventUninstall(false);
+            preferences.setBypassActive(true);
+            preferences.setCurrentMode("normal");
+            
+            JSObject ret = new JSObject();
+            ret.put("success", true);
+            call.resolve(ret);
+        } else {
+            // পিন ভুল হলে লাথি দাও
+            call.reject("Incorrect Emergency PIN!");
         }
     }
 
@@ -190,6 +238,133 @@ public class ShieldPlugin extends Plugin {
     }
     
     // ==========================================
+    // 🌐 অ্যাডাল্ট ফিল্টার (VPN Service)
+    // ==========================================
+
+    @PluginMethod
+    public void toggleAdultFilter(PluginCall call) {
+        boolean enable = call.getBoolean("enable", false);
+        
+        Intent vpnIntent = VpnService.prepare(getContext());
+        
+        if (enable) {
+            if (vpnIntent != null) {
+                // ইউজারের পারমিশন লাগবে
+                getActivity().startActivityForResult(vpnIntent, 1001);
+            } else {
+                // অলরেডি পারমিশন দেওয়া আছে, ডাইরেক্ট স্টার্ট করো
+                Intent intent = new Intent(getContext(), ShieldVpnService.class);
+                intent.setAction(ShieldVpnService.ACTION_START);
+                getContext().startService(intent);
+            }
+        } else {
+            // অফ করার কমান্ড
+            Intent intent = new Intent(getContext(), ShieldVpnService.class);
+            intent.setAction(ShieldVpnService.ACTION_STOP);
+            getContext().startService(intent);
+        }
+        
+        call.resolve();
+    }
+        // ==========================================
+    // 🛡️ হার্ডকোর প্রোটেকশন সেটিংস (Power Off, Split Screen, Uninstall)
+    // ==========================================
+    @PluginMethod
+    public void updateHardcoreSettings(PluginCall call) {
+        try {
+            String key = call.getString("key");
+            boolean value = call.getBoolean("value", false);
+
+            if (key == null) {
+                call.reject("Must provide a key");
+                return;
+            }
+
+            // এই সেটিংগুলো ShieldPreferences এ সেভ করা হচ্ছে
+            // যাতে Accessibility Service বা Device Admin Receiver এগুলো রিড করতে পারে
+            switch (key) {
+                case "blockSplitScreen":
+                    preferences.setBlockSplitScreen(value);
+                    break;
+                case "blockPowerOff":
+                    preferences.setBlockPowerOff(value);
+                    break;
+                case "blockRecentApps":
+                    preferences.setBlockRecentApps(value);
+                    break;
+                case "preventUninstall":
+                    // আনইনস্টল ঠেকানোর লজিক আমরা আলাদা DeviceAdminReceiver এ লিখব
+                    preferences.setPreventUninstall(value);
+                    break;
+                default:
+                    call.reject("Unknown settings key: " + key);
+                    return;
+            }
+
+            JSObject ret = new JSObject();
+            ret.put("success", true);
+            call.resolve(ret);
+
+        } catch (Exception e) {
+            call.reject("Error updating hardcore settings", e);
+        }
+    }
+    @PluginMethod
+    public void requestUninstall(PluginCall call) {
+        Context context = getContext();
+        
+        // ১. চেক করা হচ্ছে স্ট্রিক্ট মোড অন কি না
+        if (preferences.isStrictMode()) {
+            call.reject("Cannot uninstall while Strict Mode is active!");
+            return;
+        }
+
+        // ২. ডিভাইস অ্যাডমিন অফ করা (যদি অন থাকে)
+        DevicePolicyManager dpm = (DevicePolicyManager) context.getSystemService(Context.DEVICE_POLICY_SERVICE);
+        ComponentName adminComponent = new ComponentName(context, ShieldDeviceAdminReceiver.class);
+        
+        if (dpm.isAdminActive(adminComponent)) {
+            dpm.removeActiveAdmin(adminComponent);
+        }
+
+        // ৩. আনইনস্টল ইন্টেন্ট কল করা
+        Intent intent = new Intent(Intent.ACTION_DELETE);
+        intent.setData(Uri.parse("package:" + context.getPackageName()));
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        context.startActivity(intent);
+
+        call.resolve();
+    }
+    
+    
+    @PluginMethod
+    public void getDailyHistory(PluginCall call) {
+        try {
+            ShieldPreferences prefs = new ShieldPreferences(getContext());
+            String historyJson = prefs.getFullHistory();
+            
+            JSObject ret = new JSObject();
+            ret.put("history", new JSONObject(historyJson)); // JSON স্ট্রিং পাঠিয়ে দেওয়া হলো
+            call.resolve(ret);
+        } catch (Exception e) {
+            call.reject("Failed to fetch history", e);
+        }
+    }
+
+    @PluginMethod
+    public void updateNotificationSettings(PluginCall call) {
+        String key = call.getString("key");
+        boolean value = call.getBoolean("value", false);
+        
+        if ("vibrate".equals(key)) preferences.setVibrationEnabled(value);
+        if ("sound".equals(key)) preferences.setSoundEnabled(value);
+        if ("lowTimeAlert".equals(key)) preferences.setLowTimeAlert(value);
+        
+        call.resolve();
+    }
+
+    
+    // ==========================================
     // ⏱️ স্ক্রিন টাইম স্ট্যাটাস (Full Ready Code)
     // ==========================================
 
@@ -203,6 +378,7 @@ public class ShieldPlugin extends Plugin {
             calendar.set(Calendar.HOUR_OF_DAY, 0);
             calendar.set(Calendar.MINUTE, 0);
             calendar.set(Calendar.SECOND, 0);
+            calendar.set(Calendar.MILLISECOND, 0); // 🟢 More accurate
             long startTime = calendar.getTimeInMillis();
             long endTime = System.currentTimeMillis();
 
@@ -215,13 +391,17 @@ public class ShieldPlugin extends Plugin {
             if (usageStatsList != null) {
                 for (UsageStats stats : usageStatsList) {
                     long timeInForeground = stats.getTotalTimeInForeground();
-                    if (timeInForeground > 0) {
+                    String pkgName = stats.getPackageName();
+                    
+                    // 🟢 System Launcher ফিল্টার করা (Digital Wellbeing এর মতো একুরেট হতে)
+                    boolean isSystemLauncher = pkgName.contains("launcher") || pkgName.contains("systemui") || pkgName.equals("android");
+                    
+                    if (timeInForeground > 0 && !isSystemLauncher) {
                         long minutes = timeInForeground / (1000 * 60);
                         if (minutes > 0) {
                             totalTimeMinutes += minutes;
                             
                             JSObject appObj = new JSObject();
-                            String pkgName = stats.getPackageName();
                             appObj.put("packageName", pkgName);
                             appObj.put("usageMinutes", minutes);
                             
@@ -248,4 +428,28 @@ public class ShieldPlugin extends Plugin {
             call.reject("Failed to get screen time stats", e);
         }
     }
+    
+    @PluginMethod
+    public void toggleFloatingTimer(PluginCall call) {
+        boolean enable = call.getBoolean("enable", false);
+        preferences.setFloatingTimerEnabled(enable);
+        
+        Intent intent = new Intent(getContext(), ShieldFloatingService.class);
+        if (enable) {
+            getContext().startService(intent);
+        } else {
+            getContext().stopService(intent);
+        }
+        
+        call.resolve();
+    }
+
+    @PluginMethod
+    public void updateFloatingTimerStyle(PluginCall call) {
+        if (call.hasOption("opacity")) preferences.setFloatingTimerOpacity((float) call.getDouble("opacity"));
+        if (call.hasOption("size")) preferences.setFloatingTimerSize(call.getInt("size"));
+        if (call.hasOption("countdown")) preferences.setCountdownMode(call.getBoolean("countdown"));
+        call.resolve();
+    }
+
 }

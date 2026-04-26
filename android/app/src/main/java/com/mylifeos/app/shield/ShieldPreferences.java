@@ -57,7 +57,101 @@ public class ShieldPreferences {
     }
 
     // ==========================================
-    // ⏱️ Time Limits
+    // 🚫 Reels, Keywords & Filters
+    // ==========================================
+    public boolean isReelsBlockEnabled() {
+        return prefs.getBoolean("block_reels", false);
+    }
+
+    public void setReelsBlockEnabled(boolean enabled) {
+        prefs.edit().putBoolean("block_reels", enabled).apply();
+    }
+
+    public Set<String> getBlockedKeywords() {
+        return prefs.getStringSet("blocked_keywords", new HashSet<>());
+    }
+
+    public void setBlockedKeywords(Set<String> keywords) {
+        prefs.edit().putStringSet("blocked_keywords", keywords).apply();
+    }
+        // ==========================================
+    // 🔑 Emergency Bypass Settings
+    // ==========================================
+    public String getEmergencyPin() {
+        return prefs.getString("emergency_pin", ""); // ডিফল্ট খালি
+    }
+
+    public void setEmergencyPin(String pin) {
+        prefs.edit().putString("emergency_pin", pin).apply();
+    }
+
+    public boolean isBypassActive() {
+        return prefs.getBoolean("is_bypass_active", false);
+    }
+
+    public void setBypassActive(boolean active) {
+        prefs.edit().putBoolean("is_bypass_active", active).apply();
+    }
+    
+    
+        // ==========================================
+    // 🔑 Emergency Bypass Settings
+    // ==========================================
+    public String getEmergencyPin() {
+        return prefs.getString("emergency_pin", ""); // ডিফল্ট খালি থাকবে
+    }
+
+    public void setEmergencyPin(String pin) {
+        prefs.edit().putString("emergency_pin", pin).apply();
+    }
+
+    public boolean isBypassActive() {
+        return prefs.getBoolean("is_bypass_active", false);
+    }
+
+    public void setBypassActive(boolean active) {
+        prefs.edit().putBoolean("is_bypass_active", active).apply();
+    }
+
+
+
+    // ==========================================
+    // 🔒 Hardcore Protection (New)
+    // ==========================================
+    public boolean isBlockSplitScreenEnabled() {
+        return prefs.getBoolean("block_split_screen", false);
+    }
+
+    public void setBlockSplitScreen(boolean enabled) {
+        prefs.edit().putBoolean("block_split_screen", enabled).apply();
+    }
+
+    public boolean isBlockPowerOffEnabled() {
+        return prefs.getBoolean("block_power_off", false);
+    }
+
+    public void setBlockPowerOff(boolean enabled) {
+        prefs.edit().putBoolean("block_power_off", enabled).apply();
+    }
+
+    public boolean isBlockRecentAppsEnabled() {
+        return prefs.getBoolean("block_recent_apps", false);
+    }
+
+    public void setBlockRecentApps(boolean enabled) {
+        prefs.edit().putBoolean("block_recent_apps", enabled).apply();
+    }
+
+    public boolean isPreventUninstallEnabled() {
+        return prefs.getBoolean("prevent_uninstall", false);
+    }
+
+    public void setPreventUninstall(boolean enabled) {
+        prefs.edit().putBoolean("prevent_uninstall", enabled).apply();
+    }
+
+    // ==========================================
+    // ⏱️ Time Limits & Stats
     // ==========================================
     public Map<String, Integer> getTimeLimits() {
         Map<String, Integer> map = new HashMap<>();
@@ -86,6 +180,48 @@ public class ShieldPreferences {
             e.printStackTrace();
         }
     }
+        // ==========================================
+    // 📊 Usage History (Daily Stats)
+    // ==========================================
+    
+    // প্রতিদিনের টোটাল মিনিট সেভ করা: {"2026-04-25": 120, "2026-04-26": 45}
+    public void saveDailyHistory(String date, long totalMinutes) {
+        try {
+            String historyJson = prefs.getString("usage_history", "{}");
+            JSONObject history = new JSONObject(historyJson);
+            history.put(date, totalMinutes);
+            prefs.edit().putString("usage_history", history.toString()).apply();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    public String getFullHistory() {
+        return prefs.getString("usage_history", "{}");
+    }
+
+    // আজকের দিনের জন্য স্পেসিফিক কাউন্টার
+    public long getTodayTotalMinutes() {
+        return prefs.getLong("today_minutes", 0);
+    }
+
+    public void setTodayTotalMinutes(long minutes) {
+        prefs.edit().putLong("today_minutes", minutes).apply();
+    }
+    
+    // Notifications Settings
+    public boolean isVibrationEnabled() { return prefs.getBoolean("vibrate_alerts", true); }
+    public void setVibrationEnabled(boolean v) { prefs.edit().putBoolean("vibrate_alerts", v).apply(); }
+
+    public boolean isSoundEnabled() { return prefs.getBoolean("sound_alerts", false); }
+    public void setSoundEnabled(boolean s) { prefs.edit().putBoolean("sound_alerts", s).apply(); }
+
+    // Timer Settings
+    public boolean isLowTimeAlertEnabled() { return prefs.getBoolean("low_time_alert", true); }
+    public void setLowTimeAlert(boolean a) { prefs.edit().putBoolean("low_time_alert", a).apply(); }
+
+    public int getAppLimit(String pkg) { return prefs.getInt("limit_" + pkg, 0); }
+
 
     // ==========================================
     // 📅 Reset Dates
@@ -98,8 +234,27 @@ public class ShieldPreferences {
         prefs.edit().putString("last_reset_date", date).apply();
     }
 
-    // ✅ ShieldService.java এর রিকোয়েস্ট অনুযায়ী এই মেথডটি যোগ করা হলো
     public void updateLastResetDate(String date) {
         prefs.edit().putString("last_reset_date", date).apply();
     }
+        // ==========================================
+    // ⏱️ Floating Timer Settings
+    // ==========================================
+    public boolean isFloatingTimerEnabled() { return prefs.getBoolean("floating_timer", false); }
+    public void setFloatingTimerEnabled(boolean v) { prefs.edit().putBoolean("floating_timer", v).apply(); }
+
+    public int getFloatingTimerSize() { return prefs.getInt("timer_size", 16); } // Default size 16sp
+    public void setFloatingTimerSize(int size) { prefs.edit().putInt("timer_size", size).apply(); }
+
+    public float getFloatingTimerOpacity() { return prefs.getFloat("timer_opacity", 0.8f); } // 80% visible
+    public void setFloatingTimerOpacity(float opacity) { prefs.edit().putFloat("timer_opacity", opacity).apply(); }
+
+    public boolean isCountdownMode() { return prefs.getBoolean("countdown_mode", false); }
+    public void setCountdownMode(boolean v) { prefs.edit().putBoolean("countdown_mode", v).apply(); }
+
+    // Position Memory (যাতে ইউজার যেখানে রাখে সেখানেই থাকে)
+    public int getTimerX() { return prefs.getInt("timer_x", 0); }
+    public int getTimerY() { return prefs.getInt("timer_y", 100); }
+    public void setTimerPosition(int x, int y) { prefs.edit().putInt("timer_x", x).putInt("timer_y", y).apply(); }
+
 }
