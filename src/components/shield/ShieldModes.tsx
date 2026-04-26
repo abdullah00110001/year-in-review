@@ -3,7 +3,9 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
 import { Brain, Moon, Lock, AlertTriangle, Loader2 } from 'lucide-react';
-import ShieldPlugin from '@/lib/capacitor/shieldPlugin';
+
+// 🟢 FIX: Correctly importing Shield
+import Shield from '@/lib/capacitor/shieldPlugin';
 import { isNative } from '@/lib/capacitor/platform';
 import { toast } from 'sonner';
 
@@ -31,7 +33,7 @@ export function ShieldModes({ activeMode, onModeChange, disciplineScore }: Shiel
       }
 
       try {
-        const data = await ShieldPlugin.getCurrentMode();
+        const data = await Shield.getCurrentMode(); // 🟢 Used Shield
         const nativeMode = (data.mode || 'normal') as StrictnessMode;
         setCurrentMode(nativeMode);
         setIsStrict(Boolean(data.strict));
@@ -67,17 +69,17 @@ export function ShieldModes({ activeMode, onModeChange, disciplineScore }: Shiel
     const targetMode: StrictnessMode = modeName === 'focus' ? 'lock' : 'strict';
     try {
       if (resolvedMode === targetMode) {
-        await ShieldPlugin.deactivateMode();
+        await Shield.deactivateMode(); // 🟢 Used Shield
         applyMode('normal');
         toast.info('Shield returned to Normal Mode');
         return;
       }
 
       if (modeName === 'focus') {
-        await ShieldPlugin.activateFocusMode();
+        await Shield.activateFocusMode(); // 🟢 Used Shield
         toast.success('Focus Mode Active');
       } else {
-        await ShieldPlugin.activateSleepMode();
+        await Shield.activateSleepMode(); // 🟢 Used Shield
         toast.success('Sleep Mode Active');
       }
 
@@ -95,7 +97,7 @@ export function ShieldModes({ activeMode, onModeChange, disciplineScore }: Shiel
         return;
       }
 
-      await ShieldPlugin.activateStrictMode();
+      await Shield.activateStrictMode(); // 🟢 Used Shield
       applyMode('strict');
       toast.success('Strict Mode Activated: Shield cannot be bypassed!');
     } catch (error) {

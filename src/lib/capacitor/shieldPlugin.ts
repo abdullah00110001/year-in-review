@@ -48,32 +48,26 @@ export interface ShieldPluginInterface {
   requestBattery(): Promise<void>;
 
   // ==========================================
-  // 🛡️ অ্যাডভান্সড প্রোটেকশন মেথড (The Hardcore Part)
+  // 🛡️ অ্যাডভান্সড প্রোটেকশন মেথড
   // ==========================================
-
-  // ১. অ্যাডাল্ট কন্টেন্ট ফিল্টার (VPN)
   toggleAdultFilter(options: { enable: boolean }): Promise<void>;
-
-  // ২. হার্ডকোর সেটিংস (Power off, Split screen, Recent Apps)
   updateHardcoreSettings(options: { key: string; value: boolean }): Promise<void>;
-
-  // 🔴 ৩. সেফ আনইনস্টল (Safe Uninstall System)
-  // রিঅ্যাক্ট সেটিংস থেকে কল করলে এটি জাভাতে কমান্ড পাঠাবে
   requestUninstall(): Promise<void>;
-  // history
-  getDailyHistory(): Promise<{ history: history
-  //interface update 
+  
+  // 🟢 FIX: History Syntax Error Fixed
+  getDailyHistory(): Promise<{ history: any }>;
+  clearHistory(): Promise<{ success: boolean }>; // Settings এ এটা আমরা ব্যবহার করেছি
+
+  // Interface update 
   updateNotificationSettings(options: { key: string; value: boolean }): Promise<void>;
   
-    // ==========================================
-  // 🔑 Emergency Bypass
+  // ==========================================
+  // 🔑 Emergency Bypass & Floating Timer
   // ==========================================
   setEmergencyPin(options: { pin: string }): Promise<void>;
   triggerEmergencyBypass(options: { pin: string }): Promise<{ success: boolean }>;
-    toggleFloatingTimer(options: { enable: boolean }): Promise<void>;
-  updateFloatingTimerStyle(options: { opacity?: number; size?: number; countdown?: boolean }): Promise<void>;
-
-
+  toggleFloatingTimer(options: { enable: boolean }): Promise<void>;
+  updateFloatingTimerStyle(options: { opacity?: number; size?: number; countdown?: boolean; icon?: string; format?: string; theme?: string }): Promise<void>;
 }
 
 const Shield = registerPlugin<ShieldPluginInterface>('Shield');
