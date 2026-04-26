@@ -1,4 +1,5 @@
 package com.mylifeos.app.shield;
+import com.mylifeos.app.shield.ShieldPreferences;
 
 import android.app.admin.DeviceAdminReceiver;
 import android.app.admin.DevicePolicyManager;

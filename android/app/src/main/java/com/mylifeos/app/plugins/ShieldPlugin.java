@@ -28,6 +28,13 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import android.app.admin.DevicePolicyManager; // 🟢 ফিক্স 1
+import android.content.ComponentName; // 🟢 ফিক্স 2
+import android.util.Log; // 🟢 ফিক্স 3
+import com.mylifeos.app.shield.ShieldDeviceAdminReceiver; // 🟢 ফিক্স 4
+import org.json.JSONObject; // 🟢 ফিক্স 5
+
+
 @CapacitorPlugin(name = "Shield")
 public class ShieldPlugin extends Plugin {
 
