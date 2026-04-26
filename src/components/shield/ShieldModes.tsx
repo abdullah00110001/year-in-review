@@ -3,7 +3,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
 import { Brain, Moon, Lock, AlertTriangle, Loader2 } from 'lucide-react';
-import { Shield } from '@/lib/capacitor/shieldPlugin';
+import Shield from '@/lib/capacitor/shieldPlugin';
 import { isNative } from '@/lib/capacitor/platform';
 import { toast } from 'sonner';
 
