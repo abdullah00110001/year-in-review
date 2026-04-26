@@ -56,7 +56,7 @@ export interface ShieldPluginInterface {
   
   // 🟢 FIX: History Syntax Error Fixed
   getDailyHistory(): Promise<{ history: any }>;
-  clearHistory(): Promise<{ success: boolean }>; // Settings এ এটা আমরা ব্যবহার করেছি
+  clearHistory(): Promise<{ success: boolean }>;
 
   // Interface update 
   updateNotificationSettings(options: { key: string; value: boolean }): Promise<void>;
@@ -70,5 +70,6 @@ export interface ShieldPluginInterface {
   updateFloatingTimerStyle(options: { opacity?: number; size?: number; countdown?: boolean; icon?: string; format?: string; theme?: string }): Promise<void>;
 }
 
-export const Shield = registerPlugin<ShieldPluginInterface>('Shield');
-;
+// 🟢 আগের মতো অরিজিনাল Default Export
+const Shield = registerPlugin<ShieldPluginInterface>('Shield');
+export default Shield;
