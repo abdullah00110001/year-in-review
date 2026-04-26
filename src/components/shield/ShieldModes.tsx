@@ -4,8 +4,8 @@ import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
 import { Brain, Moon, Lock, AlertTriangle, Loader2 } from 'lucide-react';
 
-// 🟢 FIX: Named import used here (Added curly braces {})
-import { Shield } from '@/lib/capacitor/shieldPlugin';
+// 🟢 FIX: ব্র্যাকেট রিমুভ করা হয়েছে!
+import Shield from '@/lib/capacitor/shieldPlugin';
 import { isNative } from '@/lib/capacitor/platform';
 import { toast } from 'sonner';
 
