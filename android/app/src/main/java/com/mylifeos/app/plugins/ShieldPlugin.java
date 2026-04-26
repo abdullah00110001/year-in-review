@@ -467,9 +467,9 @@ public class ShieldPlugin extends Plugin {
 
     @PluginMethod
     public void updateFloatingTimerStyle(PluginCall call) {
-        if (call.hasOption("opacity")) preferences.setFloatingTimerOpacity((float) call.getDouble("opacity"));
-        if (call.hasOption("size")) preferences.setFloatingTimerSize(call.getInt("size"));
-        if (call.hasOption("countdown")) preferences.setCountdownMode(call.getBoolean("countdown"));
-        call.resolve();
-    }
+      if (call.hasOption("opacity")) preferences.setFloatingTimerOpacity(call.getFloat("opacity", 1.0f));
+     if (call.hasOption("size")) preferences.setFloatingTimerSize(call.getInt("size"));
+     if (call.hasOption("countdown")) preferences.setCountdownMode(call.getBoolean("countdown"));
+     call.resolve();
+}
 }
