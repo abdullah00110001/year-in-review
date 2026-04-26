@@ -70,6 +70,5 @@ export interface ShieldPluginInterface {
   updateFloatingTimerStyle(options: { opacity?: number; size?: number; countdown?: boolean; icon?: string; format?: string; theme?: string }): Promise<void>;
 }
 
-const Shield = registerPlugin<ShieldPluginInterface>('Shield');
-
-export default Shield;
+export const Shield = registerPlugin<ShieldPluginInterface>('Shield');
+;

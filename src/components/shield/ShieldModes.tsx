@@ -4,8 +4,8 @@ import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
 import { Brain, Moon, Lock, AlertTriangle, Loader2 } from 'lucide-react';
 
-// 🟢 FIX: Correctly importing Shield
-import Shield from '@/lib/capacitor/shieldPlugin';
+// 🟢 FIX: Named import used here (Added curly braces {})
+import { Shield } from '@/lib/capacitor/shieldPlugin';
 import { isNative } from '@/lib/capacitor/platform';
 import { toast } from 'sonner';
 
@@ -33,7 +33,7 @@ export function ShieldModes({ activeMode, onModeChange, disciplineScore }: Shiel
       }
 
       try {
-        const data = await Shield.getCurrentMode(); // 🟢 Used Shield
+        const data = await Shield.getCurrentMode();
         const nativeMode = (data.mode || 'normal') as StrictnessMode;
         setCurrentMode(nativeMode);
         setIsStrict(Boolean(data.strict));
@@ -69,17 +69,17 @@ export function ShieldModes({ activeMode, onModeChange, disciplineScore }: Shiel
     const targetMode: StrictnessMode = modeName === 'focus' ? 'lock' : 'strict';
     try {
       if (resolvedMode === targetMode) {
-        await Shield.deactivateMode(); // 🟢 Used Shield
+        await Shield.deactivateMode();
         applyMode('normal');
         toast.info('Shield returned to Normal Mode');
         return;
       }
 
       if (modeName === 'focus') {
-        await Shield.activateFocusMode(); // 🟢 Used Shield
+        await Shield.activateFocusMode();
         toast.success('Focus Mode Active');
       } else {
-        await Shield.activateSleepMode(); // 🟢 Used Shield
+        await Shield.activateSleepMode();
         toast.success('Sleep Mode Active');
       }
 
@@ -97,7 +97,7 @@ export function ShieldModes({ activeMode, onModeChange, disciplineScore }: Shiel
         return;
       }
 
-      await Shield.activateStrictMode(); // 🟢 Used Shield
+      await Shield.activateStrictMode();
       applyMode('strict');
       toast.success('Strict Mode Activated: Shield cannot be bypassed!');
     } catch (error) {
