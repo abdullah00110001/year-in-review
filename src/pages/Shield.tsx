@@ -656,8 +656,6 @@ export default function ShieldPage() {
   );
 }
 */
-
-
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
