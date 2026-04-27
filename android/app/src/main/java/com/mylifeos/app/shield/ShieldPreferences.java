@@ -37,6 +37,15 @@ public class ShieldPreferences {
         prefs.edit().putStringSet("blocked_apps", apps).apply();
     }
 
+    // 🟢 অ্যাড করা: Blocked Sites
+    public Set<String> getBlockedSites() { 
+        return prefs.getStringSet("blocked_sites", new HashSet<>()); 
+    }
+
+    public void setBlockedSites(Set<String> sites) { 
+        prefs.edit().putStringSet("blocked_sites", sites).apply(); 
+    }
+
     // ==========================================
     // 🧠 Modes & Strict Mode
     // ==========================================
@@ -76,10 +85,10 @@ public class ShieldPreferences {
     }
 
     // ==========================================
-    // 🔑 Emergency Bypass Settings - একবারই রাখছি
+    // 🔑 Emergency Bypass Settings
     // ==========================================
     public String getEmergencyPin() {
-        return prefs.getString("emergency_pin", ""); // ডিফল্ট খালি থাকবে
+        return prefs.getString("emergency_pin", "");
     }
 
     public void setEmergencyPin(String pin) {
@@ -95,7 +104,7 @@ public class ShieldPreferences {
     }
 
     // ==========================================
-    // 🔒 Hardcore Protection (New)
+    // 🔒 Hardcore Protection
     // ==========================================
     public boolean isBlockSplitScreenEnabled() {
         return prefs.getBoolean("block_split_screen", false);
@@ -213,6 +222,17 @@ public class ShieldPreferences {
 
     public void updateLastResetDate(String date) {
         prefs.edit().putString("last_reset_date", date).apply();
+    }
+
+    // 🟢 অ্যাড করা: Blocked Attempts Counter
+    public int getBlockedAttemptsToday() { 
+        return prefs.getInt("blocked_attempts_" + getLastResetDate(), 0); 
+    }
+
+    public void incrementBlockedAttempts() {
+        String today = getLastResetDate();
+        int current = prefs.getInt("blocked_attempts_" + today, 0);
+        prefs.edit().putInt("blocked_attempts_" + today, current + 1).apply();
     }
 
     // ==========================================

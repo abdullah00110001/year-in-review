@@ -1,6 +1,11 @@
 package com.mylifeos.app.plugins;
 
 import com.mylifeos.app.shield.ShieldFloatingService;
+import com.mylifeos.app.shield.ShieldPreferences;
+import com.mylifeos.app.shield.ShieldPermissionHelper;
+import com.mylifeos.app.shield.ShieldVpnService;
+import com.mylifeos.app.shield.ShieldDeviceAdminReceiver;
+import com.mylifeos.app.shield.core.ShieldModeManager;
 
 import android.content.Context;
 import android.content.Intent;
@@ -12,6 +17,9 @@ import android.os.Build;
 import android.net.Uri;
 import android.app.usage.UsageStats;
 import android.app.usage.UsageStatsManager;
+import android.app.admin.DevicePolicyManager;
+import android.content.ComponentName;
+import android.util.Log;
 
 import com.getcapacitor.JSObject;
 import com.getcapacitor.JSArray;
@@ -19,24 +27,15 @@ import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
-import com.getcapacitor.annotation.ActivityCallback; // 🟢 ফিক্স 1: Activity রেজাল্টের জন্য
+import com.getcapacitor.annotation.ActivityCallback;
 
-import com.mylifeos.app.shield.ShieldPreferences;
-import com.mylifeos.app.shield.ShieldPermissionHelper;
-import com.mylifeos.app.shield.ShieldVpnService;
-import com.mylifeos.app.shield.core.ShieldModeManager;
+import org.json.JSONObject;
+import androidx.activity.result.ActivityResult;
 
 import java.util.Calendar;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-
-import android.app.admin.DevicePolicyManager;
-import android.content.ComponentName;
-import android.util.Log;
-import com.mylifeos.app.shield.ShieldDeviceAdminReceiver;
-import org.json.JSONObject;
-import androidx.activity.result.ActivityResult; // 🟢 ফিক্স 1
 
 @CapacitorPlugin(name = "Shield")
 public class ShieldPlugin extends Plugin {
@@ -71,7 +70,7 @@ public class ShieldPlugin extends Plugin {
 
     @PluginMethod
     public void disable(PluginCall call) {
-        if (modeManager.isStrictMode() && !preferences.isBypassActive()) { // 🟢 ফিক্স 2: Bypass চেক
+        if (modeManager.isStrictMode() && !preferences.isBypassActive()) {
             call.reject("Cannot disable during Strict Mode!");
             return;
         }
@@ -108,7 +107,105 @@ public class ShieldPlugin extends Plugin {
             call.reject("Failed to update block list", e);
         }
     }
-    
+
+    // ==========================================
+    // 🌐 সাইট ব্লকিং (Block Sites)
+    // ==========================================
+
+    @PluginMethod
+    public void getBlockedSites(PluginCall call) {
+        JSObject ret = new JSObject();
+        JSArray arr = new JSArray();
+        for (String s : preferences.getBlockedSites()) arr.put(s);
+        ret.put("sites", arr);
+        call.resolve(ret);
+    }
+
+    @PluginMethod
+    public void blockSites(PluginCall call) {
+        try {
+            JSArray arr = call.getArray("sites");
+            Set<String> set = new HashSet<>();
+            for (int i = 0; i < arr.length(); i++) set.add(arr.getString(i));
+            preferences.setBlockedSites(set);
+            call.resolve();
+        } catch (Exception e) { call.reject("Failed to update sites", e); }
+    }
+
+    // ==========================================
+    // 🔤 কীওয়ার্ড ব্লকিং (Block Keywords)
+    // ==========================================
+
+    @PluginMethod
+    public void getBlockedKeywords(PluginCall call) {
+        JSObject ret = new JSObject();
+        JSArray arr = new JSArray();
+        for (String s : preferences.getBlockedKeywords()) arr.put(s);
+        ret.put("keywords", arr);
+        call.resolve(ret);
+    }
+
+    @PluginMethod
+    public void blockKeywords(PluginCall call) {
+        try {
+            JSArray arr = call.getArray("keywords");
+            Set<String> set = new HashSet<>();
+            for (int i = 0; i < arr.length(); i++) set.add(arr.getString(i));
+            preferences.setBlockedKeywords(set);
+            call.resolve();
+        } catch (Exception e) { call.reject("Failed to update keywords", e); }
+    }
+
+    // ==========================================
+    // 📦 সব ইনস্টলড অ্যাপ লিস্ট
+    // ==========================================
+
+    @PluginMethod
+    public void getInstalledApps(PluginCall call) {
+        try {
+            PackageManager pm = getContext().getPackageManager();
+            Intent launcherIntent = new Intent(Intent.ACTION_MAIN, null);
+            launcherIntent.addCategory(Intent.CATEGORY_LAUNCHER);
+            List<android.content.pm.ResolveInfo> resolved = pm.queryIntentActivities(launcherIntent, 0);
+
+            JSArray apps = new JSArray();
+            String myPkg = getContext().getPackageName();
+            for (android.content.pm.ResolveInfo ri : resolved) {
+                String pkg = ri.activityInfo.packageName;
+                if (pkg == null || pkg.equals(myPkg)) continue;
+
+                JSObject app = new JSObject();
+                app.put("packageName", pkg);
+                try {
+                    ApplicationInfo ai = pm.getApplicationInfo(pkg, 0);
+                    app.put("appName", pm.getApplicationLabel(ai).toString());
+                    app.put("isSystem", (ai.flags & ApplicationInfo.FLAG_SYSTEM) != 0);
+                } catch (Exception e) {
+                    app.put("appName", pkg);
+                    app.put("isSystem", false);
+                }
+                apps.put(app);
+            }
+
+            JSObject ret = new JSObject();
+            ret.put("apps", apps);
+            call.resolve(ret);
+        } catch (Exception e) {
+            call.reject("Failed to list installed apps", e);
+        }
+    }
+
+    // ==========================================
+    // 📊 ব্লক স্ট্যাটস
+    // ==========================================
+
+    @PluginMethod
+    public void getBlockStats(PluginCall call) {
+        JSObject ret = new JSObject();
+        ret.put("blockedAttemptsToday", preferences.getBlockedAttemptsToday());
+        call.resolve(ret);
+    }
+
     // ==========================================
     // 🔑 Emergency Bypass Logic
     // ==========================================
@@ -183,7 +280,7 @@ public class ShieldPlugin extends Plugin {
 
     @PluginMethod
     public void deactivateMode(PluginCall call) {
-        if (modeManager.isStrictMode() && !preferences.isBypassActive()) { // 🟢 ফিক্স 2
+        if (modeManager.isStrictMode() && !preferences.isBypassActive()) {
             call.reject("Strict mode is active!");
             return;
         }
@@ -254,7 +351,6 @@ public class ShieldPlugin extends Plugin {
         
         if (enable) {
             if (vpnIntent != null) {
-                // 🟢 ফিক্স 1: Capacitor এর ActivityCallback ইউজ করো
                 startActivityForResult(call, vpnIntent, "vpnCallback");
             } else {
                 Intent intent = new Intent(getContext(), ShieldVpnService.class);
@@ -270,7 +366,6 @@ public class ShieldPlugin extends Plugin {
         }
     }
 
-    // 🟢 ফিক্স 1: VPN পারমিশন রেজাল্ট হ্যান্ডেল
     @ActivityCallback
     private void vpnCallback(PluginCall call, ActivityResult result) {
         if (result.getResultCode() == android.app.Activity.RESULT_OK) {
@@ -328,7 +423,6 @@ public class ShieldPlugin extends Plugin {
     public void requestUninstall(PluginCall call) {
         Context context = getContext();
         
-        // 🟢 ফিক্স 2: Bypass Active হলে uninstall করতে দেও
         if (preferences.isStrictMode() && !preferences.isBypassActive()) {
             call.reject("Cannot uninstall while Strict Mode is active!");
             return;
@@ -367,7 +461,6 @@ public class ShieldPlugin extends Plugin {
     public void updateNotificationSettings(PluginCall call) {
         String key = call.getString("key");
         
-        // 🟢 ফিক্স 4: null চেক
         if (key == null) {
             call.reject("Key cannot be null");
             return;
@@ -388,7 +481,6 @@ public class ShieldPlugin extends Plugin {
 
     @PluginMethod
     public void getScreenTimeStats(PluginCall call) {
-        // 🟢 ফিক্স 3: পারমিশন চেক
         if (!permissionHelper.hasUsageStatsPermission()) {
             call.reject("Usage Stats permission not granted");
             return;
@@ -467,9 +559,9 @@ public class ShieldPlugin extends Plugin {
 
     @PluginMethod
     public void updateFloatingTimerStyle(PluginCall call) {
-      if (call.hasOption("opacity")) preferences.setFloatingTimerOpacity(call.getFloat("opacity", 1.0f));
-     if (call.hasOption("size")) preferences.setFloatingTimerSize(call.getInt("size"));
-     if (call.hasOption("countdown")) preferences.setCountdownMode(call.getBoolean("countdown"));
-     call.resolve();
-}
+        if (call.hasOption("opacity")) preferences.setFloatingTimerOpacity(call.getFloat("opacity", 1.0f));
+        if (call.hasOption("size")) preferences.setFloatingTimerSize(call.getInt("size", 16));
+        if (call.hasOption("countdown")) preferences.setCountdownMode(call.getBoolean("countdown", false));
+        call.resolve();
+    }
 }

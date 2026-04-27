@@ -18,8 +18,8 @@ import { cancelNativeAlarmShots, canScheduleExactAlarms } from '@/lib/capacitor/
 import { isNative } from '@/lib/capacitor/platform';
 import { App } from '@capacitor/app';
 
-// 🟢 New Imports for Sequential Permissions
-import { 
+// � New Imports for Sequential Permissions
+import {
   getAllPermissions,
   requestNotificationPermission,
   requestExactAlarmPermission,
@@ -50,7 +50,7 @@ interface RiseStreak {
   is_recovery_mode: boolean;
 }
 
-// 🟢 Permission Interface
+// � Permission Interface
 interface RisePermissionStatus {
   notifications: boolean;
   exactAlarm: boolean;
@@ -68,7 +68,7 @@ export default function RisePage() {
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingAlarm, setEditingAlarm] = useState<RiseAlarm | null>(null);
 
-  // 🟢 Permission State
+  // � Permission State
   const [permissions, setPermissions] = useState<RisePermissionStatus>({
     notifications: true,
     exactAlarm: true,
@@ -79,12 +79,12 @@ export default function RisePage() {
   useEffect(() => {
     if (user) {
       loadRiseData();
-      
+
       if (isNative) {
         initializeAlarmChannel(); // Initialize channel silently
         verifyPermissions();
 
-        // 🟢 Auto-verify when returning from settings
+        // � Auto-verify when returning from settings
         const listener = App.addListener('appStateChange', ({ isActive }) => {
           if (isActive) {
             verifyPermissions();
@@ -98,7 +98,7 @@ export default function RisePage() {
     }
   }, [user]);
 
-  // 🟢 Function to verify all permissions
+  // � Function to verify all permissions
   const verifyPermissions = async () => {
     try {
       const status = await getAllPermissions();
@@ -244,7 +244,7 @@ export default function RisePage() {
         );
       } else {
         await cancelAlarmByUuid(alarmId);
-        await cancelNativeAlarmShots(alarmId, alarm.alarm_time, alarm.days_of_week);
+        await cancelNativeAlarmShots(alarmId);
       }
     }
   };
@@ -271,7 +271,7 @@ export default function RisePage() {
     if (isNative) {
       await cancelAlarmByUuid(alarmId);
       if (target) {
-        await cancelNativeAlarmShots(alarmId, target.alarm_time, target.days_of_week);
+        await cancelNativeAlarmShots(alarmId);
       }
     }
     toast.success('Alarm deleted');
@@ -290,7 +290,7 @@ export default function RisePage() {
     toast.success('Alarm duplicated');
   };
 
-  // 🟢 LOGIC FOR SEQUENTIAL POPUP (Specific to Rise)
+  // � LOGIC FOR SEQUENTIAL POPUP (Specific to Rise)
   const getActivePermissionRequest = () => {
     if (!permissions.notifications) {
       return {
@@ -373,8 +373,8 @@ export default function RisePage() {
 
   return (
     <div className="min-h-screen bg-background pb-20 relative">
-      
-      {/* 🟢 THE SEQUENTIAL POPUP UI */}
+
+      {/* � THE SEQUENTIAL POPUP UI */}
       {isBlockingUI && (
         <div className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-md flex items-center justify-center p-6">
           <div className="bg-background w-full max-w-sm rounded-3xl shadow-2xl overflow-hidden p-8 text-center animate-in zoom-in-95 duration-200">
@@ -388,7 +388,7 @@ export default function RisePage() {
             <p className="text-muted-foreground text-sm mb-8 leading-relaxed">
               {activePermission.description}
             </p>
-            <button 
+            <button
               onClick={activePermission.action}
               className="w-full py-4 bg-primary text-primary-foreground rounded-2xl font-bold text-lg shadow-lg active:scale-95 transition-all"
             >
@@ -401,7 +401,7 @@ export default function RisePage() {
       {/* Main UI - Blurred/Disabled until setup is complete */}
       <div className={`transition-opacity duration-300 ${isBlockingUI ? 'opacity-20 pointer-events-none' : 'opacity-100'}`}>
         <RiseHeader streak={streak?.current_streak || 0} />
-        
+
         <div className="px-4 mt-4">
           {activeTab === 'alarms' && (
             <div className="space-y-3">
@@ -439,7 +439,7 @@ export default function RisePage() {
           {activeTab === 'reports' && <RiseReports />}
           {activeTab === 'settings' && <RiseSettings />}
         </div>
-        
+
         <RiseAlarmEditor
           open={editorOpen}
           onClose={() => {

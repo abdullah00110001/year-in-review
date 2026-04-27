@@ -1,4 +1,3 @@
-/*
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
@@ -15,23 +14,23 @@ import { ShieldUsageStats } from '@/components/shield/ShieldUsageStats';
 import { ShieldFocusTimer } from '@/components/shield/ShieldFocusTimer';
 import { ShieldQuickActions } from '@/components/shield/ShieldQuickActions';
 import { isNative } from '@/lib/capacitor/platform';
-import { App } from '@capacitor/app'; 
-import { 
-  startShieldSession as startNativeSession, 
+import { App } from '@capacitor/app';
+import {
+  startShieldSession as startNativeSession,
   endShieldSession as endNativeSession,
   requestEmergencyBypass
 } from '@/lib/capacitor/nativeShield';
 
-// 🟢 New Icons Import
-import { 
-  ShieldCheck, 
-  BarChart3, 
-  AlertOctagon, 
-  Accessibility, 
-  BatteryWarning 
+// � New Icons Import
+import {
+  ShieldCheck,
+  BarChart3,
+  AlertOctagon,
+  Accessibility,
+  BatteryWarning
 } from 'lucide-react';
 
-import { 
+import {
   getAllPermissions,
   requestUsageStatsPermission,
   requestOverlayPermission,
@@ -90,16 +89,16 @@ export default function ShieldPage() {
   const [disciplineScore, setDisciplineScore] = useState<DisciplineScore | null>(null);
   const [activeSession, setActiveSession] = useState<ShieldSession | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  
+
   const [permissions, setPermissions] = useState<PermissionStatus>({
-    usageAccess: true, 
+    usageAccess: true,
     overlay: true,
     accessibility: true,
     battery: true,
   });
 
   const [strictnessMode, setStrictnessMode] = useState<StrictnessMode>('normal');
-  
+
   const [settings, setSettings] = useState({
     pauseDurationEnabled: true,
     blockSplitScreen: false,
@@ -108,10 +107,10 @@ export default function ShieldPage() {
     lowTimeAlert: true,
     pomodoroBreak: true,
   });
-  
+
   const [selectedBlockScreen, setSelectedBlockScreen] = useState('default');
 
-  // 🟢 The logic below automatically calculates these based on actual data
+  // � The logic below automatically calculates these based on actual data
   const allBlockedApps = [...new Set(profiles.flatMap(p => p.blocked_apps))];
   const allBlockedWebsites = [...new Set(profiles.flatMap(p => p.blocked_websites))];
   const allBlockedKeywords = [...new Set(profiles.flatMap(p => p.blocked_keywords))];
@@ -122,7 +121,7 @@ export default function ShieldPage() {
     if (user) {
       loadShieldData();
       loadSettings();
-      
+
       if (isNative) {
         verifyPermissions();
 
@@ -262,7 +261,7 @@ export default function ShieldPage() {
     }
   }, [user]);
 
-  // 🟢 FIXED: Removed all dummy data from default profiles
+  // � FIXED: Removed all dummy data from default profiles
   const createDefaultProfiles = async () => {
     if (!user) return;
     const defaultProfiles = [
@@ -325,7 +324,7 @@ export default function ShieldPage() {
       toast.error('Please complete the Shield setup first!');
       return;
     }
-    
+
     if (!user) return;
 
     const now = new Date();
@@ -385,7 +384,7 @@ export default function ShieldPage() {
 
       await supabase
         .from('shield_sessions')
-        .update({ 
+        .update({
           status: 'completed',
           actual_end_at: new Date().toISOString()
         })
@@ -458,7 +457,7 @@ export default function ShieldPage() {
     return 'Good Evening';
   };
 
-  // 🟢 FIXED: Replaced Emojis with beautiful icons & removed eye icon
+  // � FIXED: Replaced Emojis with beautiful icons & removed eye icon
   const getActivePermissionRequest = () => {
     if (!permissions.usageAccess) {
       return {
@@ -532,7 +531,7 @@ export default function ShieldPage() {
 
   if (subPage === 'block-screen') {
     return (
-      <ShieldBlockScreen 
+      <ShieldBlockScreen
         onBack={() => setSubPage('main')}
         selectedScreen={selectedBlockScreen}
         onSelectScreen={handleBlockScreenChange}
@@ -555,8 +554,8 @@ export default function ShieldPage() {
 
   return (
     <div className="min-h-screen bg-background pb-24 relative">
-      
-      {/* 🟢 FIXED: THE NEW SEQUENTIAL POPUP UI * /}
+
+      {/* � FIXED: THE NEW SEQUENTIAL POPUP UI * /}
       {isBlockingUI && (
         <div className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-md flex items-center justify-center p-6">
           <div className="bg-background w-full max-w-sm rounded-3xl shadow-2xl overflow-hidden p-8 text-center animate-in zoom-in-95 duration-200">
@@ -572,7 +571,7 @@ export default function ShieldPage() {
             <p className="text-muted-foreground text-sm mb-8 leading-relaxed">
               {activePermission.description}
             </p>
-            <button 
+            <button
               onClick={activePermission.action}
               className="w-full py-4 bg-primary text-primary-foreground rounded-2xl font-bold text-lg shadow-lg active:scale-95 transition-all"
             >
@@ -585,7 +584,7 @@ export default function ShieldPage() {
       {/* Main UI * /}
       <div className={`transition-opacity duration-300 ${isBlockingUI ? 'opacity-20 pointer-events-none' : 'opacity-100'}`}>
         <ShieldHeader />
-        
+
         <div className="px-4 py-4 space-y-4">
           {activeTab === 'dashboard' && (
             <>
@@ -596,7 +595,7 @@ export default function ShieldPage() {
 
               <ShieldUsageStats onViewDetails={() => handleTabChange('analytics')} />
 
-              <ShieldFocusTimer 
+              <ShieldFocusTimer
                 isSessionActive={!!activeSession}
                 onStartBreak={handleBreakStart}
                 disabled={!!activeSession}
@@ -641,7 +640,7 @@ export default function ShieldPage() {
           )}
 
           {activeTab === 'settings' && (
-            <ShieldSettings 
+            <ShieldSettings
               settings={settings}
               onSettingChange={handleSettingChange}
               onNavigate={handleNavigate}
@@ -671,24 +670,29 @@ import { ShieldAccountability } from '@/components/shield/ShieldAccountability';
 import { ShieldUsageStats } from '@/components/shield/ShieldUsageStats';
 import { ShieldFocusTimer } from '@/components/shield/ShieldFocusTimer';
 import { ShieldQuickActions } from '@/components/shield/ShieldQuickActions';
+import { ShieldReports } from '@/components/shield/ShieldReports';
+import { ShieldGroupsPanel } from '@/components/shield/ShieldGroupsPanel';
+import { BlockAppsPage } from '@/components/shield/pages/BlockAppsPage';
+import { BlockSitesPage } from '@/components/shield/pages/BlockSitesPage';
+import { BlockKeywordsPage } from '@/components/shield/pages/BlockKeywordsPage';
 import { isNative } from '@/lib/capacitor/platform';
-import { App } from '@capacitor/app'; 
-import { 
-  startShieldSession as startNativeSession, 
+import { App } from '@capacitor/app';
+import {
+  startShieldSession as startNativeSession,
   endShieldSession as endNativeSession,
   requestEmergencyBypass
 } from '@/lib/capacitor/nativeShield';
 
-// 🟢 Beautiful Icons Import
-import { 
-  ShieldCheck, 
-  BarChart3, 
-  AlertOctagon, 
-  Accessibility, 
-  BatteryWarning 
+// � Beautiful Icons Import
+import {
+  ShieldCheck,
+  BarChart3,
+  AlertOctagon,
+  Accessibility,
+  BatteryWarning
 } from 'lucide-react';
 
-import { 
+import {
   getAllPermissions,
   requestUsageStatsPermission,
   requestOverlayPermission,
@@ -697,7 +701,7 @@ import {
 } from '@/lib/capacitor/permissions';
 
 type StrictnessMode = 'normal' | 'lock' | 'strict';
-type SubPage = 'main' | 'block-screen';
+type SubPage = 'main' | 'block-screen' | 'block-apps' | 'block-sites' | 'block-keywords';
 
 interface DisciplineProfile {
   id: string;
@@ -747,16 +751,16 @@ export default function ShieldPage() {
   const [disciplineScore, setDisciplineScore] = useState<DisciplineScore | null>(null);
   const [activeSession, setActiveSession] = useState<ShieldSession | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  
+
   const [permissions, setPermissions] = useState<PermissionStatus>({
-    usageAccess: true, 
+    usageAccess: true,
     overlay: true,
     accessibility: true,
     battery: true,
   });
 
   const [strictnessMode, setStrictnessMode] = useState<StrictnessMode>('normal');
-  
+
   const [settings, setSettings] = useState({
     pauseDurationEnabled: true,
     blockSplitScreen: false,
@@ -765,21 +769,25 @@ export default function ShieldPage() {
     lowTimeAlert: true,
     pomodoroBreak: true,
   });
-  
+
   const [selectedBlockScreen, setSelectedBlockScreen] = useState('default');
 
   // Logic to calculate these based on actual local data
-  const allBlockedApps = [...new Set(profiles.flatMap(p => p.blocked_apps))];
-  const allBlockedWebsites = [...new Set(profiles.flatMap(p => p.blocked_websites))];
-  const allBlockedKeywords = [...new Set(profiles.flatMap(p => p.blocked_keywords))];
+  // Pull blocked counts from BOTH legacy profiles and new dedicated storage
+  const newApps: string[] = (() => { try { return JSON.parse(localStorage.getItem('shield_blocked_apps_v2') || '[]'); } catch { return []; } })();
+  const newSites: any[] = (() => { try { return JSON.parse(localStorage.getItem('shield_blocked_sites_v2') || '[]'); } catch { return []; } })();
+  const newKeywords: string[] = (() => { try { return JSON.parse(localStorage.getItem('shield_blocked_keywords_v2') || '[]'); } catch { return []; } })();
+  const allBlockedApps = [...new Set([...profiles.flatMap(p => p.blocked_apps), ...newApps])];
+  const allBlockedWebsites = [...new Set([...profiles.flatMap(p => p.blocked_websites), ...newSites.filter(s => s.active).map(s => s.url)])];
+  const allBlockedKeywords = [...new Set([...profiles.flatMap(p => p.blocked_keywords), ...newKeywords])];
   const reelsBlockEnabled = profiles.some(p => p.block_infinite_content);
   const adultBlockEnabled = profiles.some(p => p.block_adult_content);
 
   useEffect(() => {
-    // 🟢 Load data purely from phone's memory
+    // � Load data purely from phone's memory
     loadShieldDataLocal();
     loadSettingsLocal();
-    
+
     if (isNative) {
       verifyPermissions();
 
@@ -809,7 +817,7 @@ export default function ShieldPage() {
     }
   };
 
-  // 🟢 OFFLINE: Load Profiles & Sessions
+  // � OFFLINE: Load Profiles & Sessions
   const loadShieldDataLocal = () => {
     setIsLoading(true);
     try {
@@ -840,7 +848,7 @@ export default function ShieldPage() {
     }
   };
 
-  // 🟢 OFFLINE: Load Settings
+  // � OFFLINE: Load Settings
   const loadSettingsLocal = () => {
     try {
       const storedSettings = localStorage.getItem('shield_settings');
@@ -856,12 +864,12 @@ export default function ShieldPage() {
     }
   };
 
-  // 🟢 Generic Local Storage Saver
+  // � Generic Local Storage Saver
   const saveLocalData = (key: string, data: any) => {
     localStorage.setItem(key, JSON.stringify(data));
   };
 
-  // 🟢 OFFLINE: Create Default Profiles (Clean Data)
+  // � OFFLINE: Create Default Profiles (Clean Data)
   const createDefaultProfilesLocal = () => {
     const defaultProfiles: DisciplineProfile[] = [
       {
@@ -871,7 +879,7 @@ export default function ShieldPage() {
         description: 'Block distractions while studying',
         strictness_level: 'hard',
         is_active: false,
-        blocked_apps: [], 
+        blocked_apps: [],
         blocked_websites: [],
         blocked_keywords: [],
         block_infinite_content: false,
@@ -885,7 +893,7 @@ export default function ShieldPage() {
         description: 'Maximum focus for important work',
         strictness_level: 'absolute',
         is_active: false,
-        blocked_apps: [], 
+        blocked_apps: [],
         blocked_websites: [],
         blocked_keywords: [],
         block_infinite_content: false,
@@ -898,13 +906,13 @@ export default function ShieldPage() {
     saveLocalData('shield_profiles', defaultProfiles);
   };
 
-  // 🟢 OFFLINE: Start Session
+  // � OFFLINE: Start Session
   const startSession = async (profile: DisciplineProfile) => {
     if (!permissions.usageAccess || !permissions.overlay || !permissions.accessibility) {
       toast.error('Please complete the Shield setup first!');
       return;
     }
-    
+
     const now = new Date();
     const endTime = new Date();
     endTime.setMinutes(endTime.getMinutes() + profile.default_duration_minutes);
@@ -943,11 +951,11 @@ export default function ShieldPage() {
 
     setActiveSession(newSession);
     saveLocalData('shield_active_session', newSession);
-    
+
     toast.success(`${profile.name} activated! Stay focused 🛡️`);
   };
 
-  // 🟢 OFFLINE: End Session
+  // � OFFLINE: End Session
   const handleEndSession = async (reason?: string) => {
     if (!activeSession) return;
 
@@ -970,7 +978,7 @@ export default function ShieldPage() {
     }
   };
 
-  // 🟢 OFFLINE: Save Settings
+  // � OFFLINE: Save Settings
   const handleSettingChange = (key: string, value: boolean) => {
     const newSettings = { ...settings, [key]: value };
     setSettings(newSettings);
@@ -1021,16 +1029,16 @@ export default function ShieldPage() {
     return 'Good Evening';
   };
 
-  // 🟢 Beautiful Icons Sequential Setup
+  // � Beautiful Icons Sequential Setup
   const getActivePermissionRequest = () => {
     if (!permissions.usageAccess) {
       return {
         step: "Step 1 of 4",
         title: "Usage Access",
-        icon: <BarChart3 className="w-12 h-12 text-primary" />, 
+        icon: <BarChart3 className="w-12 h-12 text-primary" />,
         description: "Shield needs to know when you open a distracting app so it can block it.",
         action: async () => {
-          try { await requestUsageStatsPermission(); } 
+          try { await requestUsageStatsPermission(); }
           catch (e) { toast.error("Failed to open Settings automatically."); }
         }
       };
@@ -1039,10 +1047,10 @@ export default function ShieldPage() {
       return {
         step: "Step 2 of 4",
         title: "Overlay Permission",
-        icon: <AlertOctagon className="w-12 h-12 text-primary" />, 
+        icon: <AlertOctagon className="w-12 h-12 text-primary" />,
         description: "Allow Shield to draw the 'Blocked' screen over your distracting apps.",
         action: async () => {
-          try { await requestOverlayPermission(); } 
+          try { await requestOverlayPermission(); }
           catch (e) { toast.error("Failed to open Settings automatically."); }
         }
       };
@@ -1051,10 +1059,10 @@ export default function ShieldPage() {
       return {
         step: "Step 3 of 4",
         title: "Accessibility",
-        icon: <Accessibility className="w-12 h-12 text-primary" />, 
+        icon: <Accessibility className="w-12 h-12 text-primary" />,
         description: "Crucial for Strict Mode to prevent you from uninstalling or bypassing the block.",
         action: async () => {
-          try { await requestAccessibilityPermission(); } 
+          try { await requestAccessibilityPermission(); }
           catch (e) { toast.error("Failed to open Settings automatically."); }
         }
       };
@@ -1063,15 +1071,15 @@ export default function ShieldPage() {
       return {
         step: "Step 4 of 4",
         title: "Run in Background",
-        icon: <BatteryWarning className="w-12 h-12 text-primary" />, 
+        icon: <BatteryWarning className="w-12 h-12 text-primary" />,
         description: "Ensures your phone's battery saver doesn't accidentally kill Shield while you are focusing.",
         action: async () => {
-          try { await requestBatteryPermission(); } 
+          try { await requestBatteryPermission(); }
           catch (e) { toast.error("Failed to open Settings automatically."); }
         }
       };
     }
-    return null; 
+    return null;
   };
 
   const activePermission = getActivePermissionRequest();
@@ -1079,13 +1087,16 @@ export default function ShieldPage() {
 
   if (subPage === 'block-screen') {
     return (
-      <ShieldBlockScreen 
+      <ShieldBlockScreen
         onBack={() => setSubPage('main')}
         selectedScreen={selectedBlockScreen}
         onSelectScreen={handleBlockScreenChange}
       />
     );
   }
+  if (subPage === 'block-apps') return <BlockAppsPage onBack={() => setSubPage('main')} />;
+  if (subPage === 'block-sites') return <BlockSitesPage onBack={() => setSubPage('main')} />;
+  if (subPage === 'block-keywords') return <BlockKeywordsPage onBack={() => setSubPage('main')} />;
 
   if (isLoading) {
     return (
@@ -1102,7 +1113,7 @@ export default function ShieldPage() {
 
   return (
     <div className="min-h-screen bg-background pb-24 relative">
-      
+
       {isBlockingUI && (
         <div className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-md flex items-center justify-center p-6">
           <div className="bg-background w-full max-w-sm rounded-3xl shadow-2xl overflow-hidden p-8 text-center animate-in zoom-in-95 duration-200">
@@ -1110,13 +1121,13 @@ export default function ShieldPage() {
               {activePermission.step}
             </span>
             <div className="w-24 h-24 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-6">
-              {activePermission.icon} 
+              {activePermission.icon}
             </div>
             <h2 className="text-2xl font-extrabold mb-3">{activePermission.title}</h2>
             <p className="text-muted-foreground text-sm mb-8 leading-relaxed">
               {activePermission.description}
             </p>
-            <button 
+            <button
               onClick={activePermission.action}
               className="w-full py-4 bg-primary text-primary-foreground rounded-2xl font-bold text-lg shadow-lg active:scale-95 transition-all"
             >
@@ -1128,7 +1139,7 @@ export default function ShieldPage() {
 
       <div className={`transition-opacity duration-300 ${isBlockingUI ? 'opacity-20 pointer-events-none' : 'opacity-100'}`}>
         <ShieldHeader />
-        
+
         <div className="px-4 py-4 space-y-4">
           {activeTab === 'dashboard' && (
             <>
@@ -1139,7 +1150,7 @@ export default function ShieldPage() {
 
               <ShieldUsageStats onViewDetails={() => handleTabChange('analytics')} />
 
-              <ShieldFocusTimer 
+              <ShieldFocusTimer
                 isSessionActive={!!activeSession}
                 onStartBreak={handleBreakStart}
                 disabled={!!activeSession}
@@ -1153,16 +1164,16 @@ export default function ShieldPage() {
               />
 
               <ShieldQuickActions
-                blockedAppsCount={allBlockedApps.length} 
-                blockedSitesCount={allBlockedWebsites.length} 
-                blockedKeywordsCount={allBlockedKeywords.length} 
+                blockedAppsCount={allBlockedApps.length}
+                blockedSitesCount={allBlockedWebsites.length}
+                blockedKeywordsCount={allBlockedKeywords.length}
                 reelsBlockEnabled={reelsBlockEnabled}
                 adultBlockEnabled={adultBlockEnabled}
                 onReelsToggle={handleReelsToggle}
                 onAdultToggle={handleAdultToggle}
-                onManageApps={() => handleTabChange('modes')}
-                onManageSites={() => handleTabChange('modes')}
-                onManageKeywords={() => handleTabChange('modes')}
+                onManageApps={() => setSubPage('block-apps')}
+                onManageSites={() => setSubPage('block-sites')}
+                onManageKeywords={() => setSubPage('block-keywords')}
               />
             </>
           )}
@@ -1175,16 +1186,16 @@ export default function ShieldPage() {
             />
           )}
 
+          {activeTab === 'reports' && <ShieldReports />}
+
           {activeTab === 'analytics' && (
             <ShieldAnalytics disciplineScore={disciplineScore} />
           )}
 
-          {activeTab === 'account' && (
-            <ShieldAccountability />
-          )}
+          {activeTab === 'groups' && <ShieldGroupsPanel />}
 
           {activeTab === 'settings' && (
-            <ShieldSettings 
+            <ShieldSettings
               settings={settings}
               onSettingChange={handleSettingChange}
               onNavigate={handleNavigate}
