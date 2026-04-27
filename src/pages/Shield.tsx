@@ -686,7 +686,9 @@ import {
   requestEmergencyBypass
 } from '@/lib/capacitor/nativeShield';
 
-// � Beautiful Icons Import
+
+
+// �    Beautiful   Icons       Import  
 import {
   ShieldCheck,
   BarChart3,
@@ -775,8 +777,8 @@ export default function ShieldPage() {
 
   const [selectedBlockScreen, setSelectedBlockScreen] = useState('default');
 
-  // Logic to calculate these based on actual local data
-  // Pull blocked counts from BOTH legacy profiles and new dedicated storage
+  // Logic to calculate these based   on actual local data
+  // Pull blocked counts from BOTH   legacy profiles and new dedicated storage
   const newApps: string[] = (() => { try { return JSON.parse(localStorage.getItem('shield_blocked_apps_v2') || '[]'); } catch { return []; } })();
   const newSites: any[] = (() => { try { return JSON.parse(localStorage.getItem('shield_blocked_sites_v2') || '[]'); } catch { return []; } })();
   const newKeywords: string[] = (() => { try { return JSON.parse(localStorage.getItem('shield_blocked_keywords_v2') || '[]'); } catch { return []; } })();
