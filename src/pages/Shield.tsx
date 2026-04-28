@@ -675,7 +675,7 @@ import { ShieldFocusTimer } from '@/components/shield/ShieldFocusTimer';
 import { ShieldQuickActions } from '@/components/shield/ShieldQuickActions';
 import { ShieldReports } from '@/components/shield/ShieldReports';
 import { ShieldGroupsPanel } from '@/components/shield/ShieldGroupsPanel';
-import { BlockAppsPage } from '@/components/shield/pages/BlockAppsPage';
+import { BlockAppsPage } from '@/components/shield/pages/BlockAppsPage.tsx';
 import { BlockSitesPage } from '@/components/shield/pages/BlockSitesPage';
 import { BlockKeywordsPage } from '@/components/shield/pages/BlockKeywordsPage';
 import { isNative } from '@/lib/capacitor/platform';
