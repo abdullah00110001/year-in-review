@@ -45,7 +45,7 @@ jobs:
       - name: 8. Build Debug APK
         run: |
           cd android
-         ./gradlew assembleDebug --stacktrace --info
+          ./gradlew assembleDebug --stacktrace --info
 
       - name: 9. Run Emulator Tests
         uses: reactivecircus/android-emulator-runner@v2

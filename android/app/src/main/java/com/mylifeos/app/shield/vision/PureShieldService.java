@@ -2,6 +2,7 @@ package com.mylifeos.app.shield.vision;
 
 import android.app.*;
 import android.content.*;
+import android.content.res.AssetFileDescriptor;
 import android.graphics.*;
 import android.hardware.display.DisplayManager;
 import android.hardware.display.VirtualDisplay;
