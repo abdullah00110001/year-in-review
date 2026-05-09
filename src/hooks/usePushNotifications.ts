@@ -3,11 +3,14 @@ import { useAuth } from './useAuth';
 import { isNative } from '@/lib/capacitor/platform';
 import { supabase } from '@/integrations/supabase/client';
 import { showPermissionDeniedToast } from '@/lib/capacitor/openAppSettings';
+import { scheduleRiseAlarm, uuidToNumericId } from '@/lib/capacitor/riseAlarmBridge';
+import { useNavigate } from 'react-router-dom';
 
 type PushPermissionStatus = 'granted' | 'denied' | 'prompt' | 'unknown';
 
 export function usePushNotifications() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const registeredRef = useRef(false);
   const [permissionStatus, setPermissionStatus] = useState<PushPermissionStatus>('unknown');
   const [token, setToken] = useState<string | null>(null);
@@ -127,6 +130,24 @@ export function usePushNotifications() {
 
         const { title, body, data } = notification;
 
+        // Handle WAKE_UP_CALL — schedule a native alarm 5 seconds out
+        if (data?.type === 'WAKE_UP_CALL' && isNative) {
+          try {
+            const wakeUuid = `wakeup-${data.session_id}-${Date.now()}`;
+            const numericId = uuidToNumericId(wakeUuid);
+            await scheduleRiseAlarm(
+              numericId,
+              Date.now() + 5000,
+              title || '⏰ Wake Up Call!',
+              body || 'Someone is calling you to wake up',
+              wakeUuid
+            );
+            console.log('[Push] Scheduled wake-up call alarm', wakeUuid);
+          } catch (e) {
+            console.error('[Push] Failed to schedule wake-up call alarm:', e);
+          }
+        }
+
         // Show as local notification if possible
         if (isNative) {
           try {
@@ -154,6 +175,12 @@ export function usePushNotifications() {
         console.log('[Push] Notification tapped:', action);
         const data = action.notification.data;
         const route = data?.route || data?.url;
+
+        // WAKE_UP_CALL navigates to rise ring - the app resume logic will catch ringing alarm
+        if (data?.type === 'WAKE_UP_CALL') {
+          setTimeout(() => { navigate('/rise'); }, 500);
+          return;
+        }
 
         if (route) {
           setTimeout(() => { window.location.href = route; }, 500);

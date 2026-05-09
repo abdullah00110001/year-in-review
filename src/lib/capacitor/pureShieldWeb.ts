@@ -1,0 +1,77 @@
+import { WebPlugin } from '@capacitor/core';
+import type { PureShieldPluginInterface, PureShieldConfig, PermissionStatus, AdaptiveStatus } from './pureShieldPlugin';
+
+/**
+ * Web stub — used in browser dev environment.
+ * All methods return mock data so the React UI can be developed without a device.
+ */
+export class PureShieldWeb extends WebPlugin implements PureShieldPluginInterface {
+
+  private config: PureShieldConfig = {
+    blurGender:           'FEMALE',
+    blurStyle:            'PIXELATE',
+    confidenceThreshold:  0.72,
+    enabled:              false,
+    pauseOnBatteryBelow20: true,
+  };
+
+  private targetPackages: string[] = [];
+  private running = false;
+
+  async checkPermissions(): Promise<PermissionStatus> {
+    return { overlay: true, projection: false };
+  }
+
+  async requestOverlayPermission() { return { granted: true }; }
+  async requestMediaProjection()   { return { granted: true }; }
+
+  async startPureShield() {
+    this.running = true;
+    console.log('[PureShield Web] Started (mock)');
+    return { started: true };
+  }
+
+  async stopPureShield() {
+    this.running = false;
+    console.log('[PureShield Web] Stopped (mock)');
+  }
+
+  async isRunning() { return { running: this.running }; }
+
+  async setConfig(cfg: Partial<PureShieldConfig>) {
+    this.config = { ...this.config, ...cfg };
+  }
+
+  async getConfig() { return { ...this.config }; }
+
+  async setTargetApps(data: { packages: string[] }) {
+    this.targetPackages = data.packages;
+  }
+
+  async getTargetApps() { return { packages: this.targetPackages }; }
+
+  async getInstalledApps() {
+    return {
+      apps: [
+        { packageName: 'com.instagram.android', appName: 'Instagram' },
+        { packageName: 'com.twitter.android',   appName: 'X (Twitter)' },
+        { packageName: 'com.facebook.katana',   appName: 'Facebook' },
+        { packageName: 'com.zhiliaoapp.musically', appName: 'TikTok' },
+        { packageName: 'com.snapchat.android',  appName: 'Snapchat' },
+        { packageName: 'com.reddit.frontpage',  appName: 'Reddit' },
+        { packageName: 'com.pinterest',         appName: 'Pinterest' },
+        { packageName: 'com.google.android.youtube', appName: 'YouTube' },
+      ]
+    };
+  }
+
+  async getAdaptiveStatus(): Promise<AdaptiveStatus> {
+    return {
+      deviceTier:       'MID',
+      sampleIntervalMs: 700,
+      batteryLevel:     85,
+      thermalStatus:    0,
+      lastInferenceMs:  18,
+    };
+  }
+}

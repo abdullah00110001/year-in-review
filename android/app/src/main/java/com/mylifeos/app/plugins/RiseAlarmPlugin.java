@@ -1,32 +1,59 @@
 package com.mylifeos.app.plugins;
 
 import android.app.AlarmManager;
-import android.app.PendingIntent;
+import android.app.NotificationManager;
 import android.content.Context;
 import android.content.Intent;
+import android.net.Uri;
 import android.os.Build;
 import android.provider.Settings;
+import android.util.Log;
 
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
+import com.mylifeos.app.rise.core.AlarmConstants;
+import com.mylifeos.app.rise.receiver.RiseAlarmReceiver;
+import com.mylifeos.app.rise.recovery.AlarmRecoveryReceiver;
+import com.mylifeos.app.rise.scheduler.RiseAlarmScheduler;
+import com.mylifeos.app.rise.service.AlarmSoundService;
+import com.mylifeos.app.rise.state.AlarmStateManager;
 
-// ⚠️ ফাইলের নামের সাথে মিলিয়ে প্লাগিনের নাম RiseAlarmPlugin করা হলো
+/**
+ * RiseAlarmPlugin — Capacitor bridge।
+ * JS <-> Native Android communication।
+ *
+ * Methods:
+ * ─────────────────────────────────────────────────────
+ * canScheduleExactAlarms()   → permission check
+ * openExactAlarmSettings()   → settings open
+ * scheduleAlarm()            → alarm set করো
+ * cancelAlarm()              → alarm cancel করো
+ * stopRinging()              → alarm বন্ধ করো (mission after)
+ * getRingingAlarmId()        → active alarm UUID পড়ো
+ * clearRingingAlarmId()      → state clear করো
+ * isAlarmRinging()           → ringing কিনা check করো  [NEW]
+ * getSnoozeInfo()            → snooze count + can snooze  [NEW]
+ * getAlarmState()            → full state object  [NEW]
+ * ─────────────────────────────────────────────────────
+ */
 @CapacitorPlugin(name = "RiseAlarmPlugin")
 public class RiseAlarmPlugin extends Plugin {
 
+    private static final String TAG = "RiseAlarmPlugin";
     private AlarmManager alarmManager;
 
     @Override
     public void load() {
         alarmManager = (AlarmManager) getContext().getSystemService(Context.ALARM_SERVICE);
+        Log.d(TAG, "Plugin loaded");
     }
 
-    // ==========================================
-    // 🔐 পারমিশন চেকিং (Android 12+)
-    // ==========================================
+    // ──────────────────────────────────────────────
+    // PERMISSION
+    // ──────────────────────────────────────────────
 
     @PluginMethod
     public void canScheduleExactAlarms(PluginCall call) {
@@ -34,7 +61,6 @@ public class RiseAlarmPlugin extends Plugin {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             ret.put("granted", alarmManager.canScheduleExactAlarms());
         } else {
-            // Android 11 বা তার নিচে এই পারমিশন লাগে না
             ret.put("granted", true);
         }
         call.resolve(ret);
@@ -42,97 +68,196 @@ public class RiseAlarmPlugin extends Plugin {
 
     @PluginMethod
     public void openExactAlarmSettings(PluginCall call) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            Intent intent = new Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM);
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            getContext().startActivity(intent);
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                Intent i = new Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM);
+                i.setData(Uri.parse("package:" + getContext().getPackageName()));
+                i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                getContext().startActivity(i);
+            }
+            call.resolve();
+        } catch (Exception e) {
+            call.reject("openExactAlarmSettings failed", e);
         }
-        call.resolve();
     }
 
-    // ==========================================
-    // ⏰ অ্যালার্ম সেট করা (Set Alarm)
-    // ==========================================
+    /** Battery optimization settings খোলো */
+    @PluginMethod
+    public void openBatterySettings(PluginCall call) {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                Intent i = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
+                i.setData(Uri.parse("package:" + getContext().getPackageName()));
+                i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                getContext().startActivity(i);
+            }
+            call.resolve();
+        } catch (Exception e) {
+            // Fallback
+            try {
+                Intent i = new Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS);
+                i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                getContext().startActivity(i);
+                call.resolve();
+            } catch (Exception e2) {
+                call.reject("openBatterySettings failed", e2);
+            }
+        }
+    }
+
+    /** Battery optimization exempt কিনা check করো */
+    @PluginMethod
+    public void isBatteryOptimizationIgnored(PluginCall call) {
+        JSObject ret = new JSObject();
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                android.os.PowerManager pm =
+                    (android.os.PowerManager) getContext().getSystemService(Context.POWER_SERVICE);
+                boolean ignored = pm != null &&
+                    pm.isIgnoringBatteryOptimizations(getContext().getPackageName());
+                ret.put("ignored", ignored);
+            } else {
+                ret.put("ignored", true);
+            }
+            call.resolve(ret);
+        } catch (Exception e) {
+            ret.put("ignored", false);
+            call.resolve(ret);
+        }
+    }
+
+    // ──────────────────────────────────────────────
+    // SCHEDULE / CANCEL
+    // ──────────────────────────────────────────────
 
     @PluginMethod
     public void scheduleAlarm(PluginCall call) {
-        Integer id = call.getInt("id");
+        Integer id        = call.getInt("id");
         Long timeInMillis = call.getLong("timeInMillis");
-        String title = call.getString("title", "Rise Alarm");
-        String body = call.getString("body", "Time to wake up!");
+        String title      = call.getString("title", "Rise Alarm");
+        String body       = call.getString("body",  "Wake up!");
+        String uuid       = call.getString("uuid");
 
         if (id == null || timeInMillis == null) {
-            call.reject("Must provide id and timeInMillis");
+            call.reject("Missing required: id, timeInMillis");
+            return;
+        }
+        if (uuid == null || uuid.isEmpty()) uuid = String.valueOf(id);
+
+        // Permission check
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+            !alarmManager.canScheduleExactAlarms()) {
+            call.reject("Exact alarm permission not granted. Call openExactAlarmSettings().");
             return;
         }
 
         try {
-            // Android 12+ এর জন্য পারমিশন চেক
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !alarmManager.canScheduleExactAlarms()) {
-                call.reject("Exact alarm permission not granted by user");
-                return;
-            }
+            RiseAlarmScheduler.scheduleAlarm(getContext(), id, timeInMillis, title, body, uuid);
+            Log.d(TAG, "Alarm scheduled: id=" + id + " uuid=" + uuid);
 
-            // RiseAlarmReceiver ক্লাসে সিগন্যাল পাঠানো হবে (এই ফাইলটা আমরা নেক্সটে ফিক্স করব)
-            Intent intent = new Intent(getContext(), RiseAlarmReceiver.class);
-            intent.putExtra("ALARM_ID", id);
-            intent.putExtra("ALARM_TITLE", title);
-            intent.putExtra("ALARM_BODY", body);
-
-            // ⚠️ Android 12+ Crash ফিক্স (FLAG_IMMUTABLE বাধ্যতামূলক)
-            int flags = PendingIntent.FLAG_UPDATE_CURRENT;
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                flags |= PendingIntent.FLAG_IMMUTABLE;
-            }
-
-            PendingIntent pendingIntent = PendingIntent.getBroadcast(
-                    getContext(),
-                    id,
-                    intent,
-                    flags
-            );
-
-            // setAlarmClock ব্যবহার করলে ফোন স্লিপ মোডে থাকলেও কাঁটায় কাঁটায় অ্যালার্ম বাজবে
-            AlarmManager.AlarmClockInfo alarmClockInfo = new AlarmManager.AlarmClockInfo(timeInMillis, pendingIntent);
-            alarmManager.setAlarmClock(alarmClockInfo, pendingIntent);
-
-            call.resolve();
+            JSObject ret = new JSObject();
+            ret.put("success", true);
+            ret.put("id", id);
+            ret.put("uuid", uuid);
+            call.resolve(ret);
         } catch (Exception e) {
-            call.reject("Failed to schedule alarm", e);
+            call.reject("scheduleAlarm failed", e);
         }
     }
-
-    // ==========================================
-    // 🛑 অ্যালার্ম বাতিল করা (Cancel Alarm)
-    // ==========================================
 
     @PluginMethod
     public void cancelAlarm(PluginCall call) {
         Integer id = call.getInt("id");
-        if (id == null) {
-            call.reject("Must provide alarm id");
-            return;
-        }
-
+        if (id == null) { call.reject("Missing id"); return; }
         try {
-            Intent intent = new Intent(getContext(), RiseAlarmReceiver.class);
-            int flags = PendingIntent.FLAG_UPDATE_CURRENT;
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                flags |= PendingIntent.FLAG_IMMUTABLE;
-            }
-
-            PendingIntent pendingIntent = PendingIntent.getBroadcast(
-                    getContext(),
-                    id,
-                    intent,
-                    flags
-            );
-
-            alarmManager.cancel(pendingIntent);
-            pendingIntent.cancel(); // মেমোরি থেকে মুছে ফেলা
+            RiseAlarmScheduler.cancelAlarm(getContext(), id);
+            Log.d(TAG, "Alarm cancelled: id=" + id);
             call.resolve();
         } catch (Exception e) {
-            call.reject("Failed to cancel alarm", e);
+            call.reject("cancelAlarm failed", e);
         }
+    }
+
+    // ──────────────────────────────────────────────
+    // STOP RINGING
+    // ──────────────────────────────────────────────
+
+    @PluginMethod
+    public void stopRinging(PluginCall call) {
+        try {
+            // 1. Sound service stop
+            AlarmSoundService.stop(getContext());
+
+            // 2. Recovery watchdog cancel
+            AlarmRecoveryReceiver.cancel(getContext());
+
+            // 3. All notifications cancel
+            NotificationManager nm =
+                (NotificationManager) getContext().getSystemService(Context.NOTIFICATION_SERVICE);
+            if (nm != null) nm.cancelAll();
+
+            // 4. State clear
+            AlarmStateManager.clearRinging(getContext());
+
+            Log.d(TAG, "stopRinging: complete");
+            call.resolve();
+        } catch (Exception e) {
+            call.reject("stopRinging failed", e);
+        }
+    }
+
+    // ──────────────────────────────────────────────
+    // STATE READS
+    // ──────────────────────────────────────────────
+
+    @PluginMethod
+    public void getRingingAlarmId(PluginCall call) {
+        String uuid = AlarmStateManager.getActiveUuid(getContext());
+        JSObject ret = new JSObject();
+        ret.put("id", uuid != null ? uuid : JSObject.NULL);
+        call.resolve(ret);
+    }
+
+    @PluginMethod
+    public void clearRingingAlarmId(PluginCall call) {
+        AlarmStateManager.clearRinging(getContext());
+        call.resolve();
+    }
+
+    /** [NEW] Alarm রিং হচ্ছে কিনা */
+    @PluginMethod
+    public void isAlarmRinging(PluginCall call) {
+        JSObject ret = new JSObject();
+        ret.put("ringing", AlarmStateManager.isRinging(getContext()));
+        ret.put("uuid",    AlarmStateManager.getActiveUuid(getContext()));
+        call.resolve(ret);
+    }
+
+    /** [NEW] Snooze info */
+    @PluginMethod
+    public void getSnoozeInfo(PluginCall call) {
+        JSObject ret = new JSObject();
+        ret.put("count",    AlarmStateManager.getSnoozeCount(getContext()));
+        ret.put("max",      AlarmStateManager.getSnoozeMax(getContext()));
+        ret.put("canSnooze",AlarmStateManager.canSnooze(getContext()));
+        call.resolve(ret);
+    }
+
+    /** [NEW] Full alarm state — debug / UI sync জন্য */
+    @PluginMethod
+    public void getAlarmState(PluginCall call) {
+        Context ctx = getContext();
+        JSObject ret = new JSObject();
+        ret.put("isRinging",      AlarmStateManager.isRinging(ctx));
+        ret.put("activeUuid",     AlarmStateManager.getActiveUuid(ctx));
+        ret.put("activeId",       AlarmStateManager.getActiveId(ctx));
+        ret.put("missionDone",    AlarmStateManager.isMissionDone(ctx));
+        ret.put("snoozeCount",    AlarmStateManager.getSnoozeCount(ctx));
+        ret.put("snoozeMax",      AlarmStateManager.getSnoozeMax(ctx));
+        ret.put("canSnooze",      AlarmStateManager.canSnooze(ctx));
+        ret.put("triggerTime",    AlarmStateManager.getTriggerTime(ctx));
+        ret.put("durationMinutes",AlarmStateManager.getRingingDurationMinutes(ctx));
+        ret.put("serviceRunning", AlarmSoundService.isRunning);
+        call.resolve(ret);
     }
 }

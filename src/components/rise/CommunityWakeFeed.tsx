@@ -2,8 +2,7 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Switch } from '@/components/ui/switch';
-import { Globe, MapPin, Sunrise, TrendingUp, Shield, Eye, EyeOff, Trophy, Clock } from 'lucide-react';
+import { Globe, MapPin, Sunrise, TrendingUp, Shield, Trophy, Clock } from 'lucide-react';
 import { useGroupSettings } from '@/hooks/useGroupSettings';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
@@ -21,19 +20,16 @@ interface WakeEvent {
   id: string;
   time: string;
   area: string;
-  anonymousName: string;
+  displayName: string;
+  avatarUrl: string | null;
   type: 'fajr' | 'tahajjud' | 'early';
 }
-
-const ANON_NAMES = ['Fajr Runner', 'Night Worshipper', 'Early Bird', 'Sunrise Focus', 'Consistent Starter', 'Quiet Seeker'];
-const anonName = (id: string) => ANON_NAMES[Math.abs(id.split('').reduce((a, c) => a + c.charCodeAt(0), 0)) % ANON_NAMES.length];
 
 export function CommunityWakeFeed() {
   const { user } = useAuth();
   const { settings, updateSettings } = useGroupSettings();
   const [areaStats, setAreaStats] = useState<AreaStat[]>([]);
   const [recentWakes, setRecentWakes] = useState<WakeEvent[]>([]);
-  const [showAnonymous, setShowAnonymous] = useState(true);
   const [stats, setStats] = useState({ awakeToday: 0, totalUsers: 0 });
 
   useEffect(() => {
@@ -58,13 +54,27 @@ export function CommunityWakeFeed() {
         .limit(30);
 
       const rows = ((events as any[]) || []);
-      setRecentWakes(rows.slice(0, 10).map((e) => ({
-        id: e.id,
-        time: formatDistanceToNow(new Date(e.wake_time), { addSuffix: true }),
-        area: e.city || 'Unknown',
-        anonymousName: anonName(e.user_id),
-        type: e.event_type,
-      })));
+      // Fetch real profiles for the users
+      const uniqueIds = Array.from(new Set(rows.map((r: any) => r.user_id)));
+      const profileMap = new Map<string, { full_name: string | null; avatar_url: string | null }>();
+      if (uniqueIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('user_id, full_name, avatar_url')
+          .in('user_id', uniqueIds as any);
+        (profiles ?? []).forEach((p: any) => profileMap.set(p.user_id, { full_name: p.full_name, avatar_url: p.avatar_url }));
+      }
+      setRecentWakes(rows.slice(0, 10).map((e) => {
+        const p = profileMap.get(e.user_id);
+        return {
+          id: e.id,
+          time: formatDistanceToNow(new Date(e.wake_time), { addSuffix: true }),
+          area: e.city || 'Unknown',
+          displayName: p?.full_name || 'Member',
+          avatarUrl: p?.avatar_url || null,
+          type: e.event_type,
+        } as WakeEvent;
+      }));
 
       const byCity: Record<string, number> = {};
       rows.forEach((r) => { byCity[r.city || 'Unknown'] = (byCity[r.city || 'Unknown'] || 0) + 1; });
@@ -100,7 +110,7 @@ export function CommunityWakeFeed() {
         user_id: user.id,
         city: settings.city || null,
         event_type: type,
-        anonymous: showAnonymous,
+        anonymous: false,
       });
       await loadFeed();
     } catch (err) {
@@ -179,14 +189,6 @@ export function CommunityWakeFeed() {
         </Card>
       )}
 
-      <div className="flex items-center justify-between px-1">
-        <div className="flex items-center gap-2">
-          {showAnonymous ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
-          <span className="text-sm">Anonymous feed</span>
-        </div>
-        <Switch checked={showAnonymous} onCheckedChange={setShowAnonymous} />
-      </div>
-
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-sm flex items-center gap-2"><Sunrise className="h-4 w-4 text-primary" />Recent wake activity</CardTitle>
@@ -199,9 +201,15 @@ export function CommunityWakeFeed() {
           ) : recentWakes.map((event) => (
             <div key={event.id} className="flex items-center justify-between p-3 rounded-xl bg-muted/30">
               <div className="flex items-center gap-3">
-                <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center"><Sunrise className="h-4 w-4 text-primary" /></div>
+                {event.avatarUrl ? (
+                  <img src={event.avatarUrl} alt="" className="h-8 w-8 rounded-full object-cover" />
+                ) : (
+                  <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center font-bold text-primary text-xs">
+                    {event.displayName.charAt(0).toUpperCase()}
+                  </div>
+                )}
                 <div>
-                  <p className="text-sm font-medium">{showAnonymous ? event.anonymousName : 'Member'}</p>
+                  <p className="text-sm font-medium">{event.displayName}</p>
                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
                     <MapPin className="h-3 w-3" /><span>{event.area}</span><span>•</span><Clock className="h-3 w-3" /><span>{event.time}</span>
                   </div>

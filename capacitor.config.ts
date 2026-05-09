@@ -20,7 +20,7 @@ const config: CapacitorConfig = {
       launchShowDuration: 2000,
       launchAutoHide: true,
       launchFadeOutDuration: 500,
-      backgroundColor: '#0f172a',
+      backgroundColor: '#0a0a0a',
       androidSplashResourceName: 'splash',
       androidScaleType: 'CENTER_CROP',
       showSpinner: false,
@@ -29,7 +29,7 @@ const config: CapacitorConfig = {
     },
     StatusBar: {
       style: 'DARK',
-      backgroundColor: '#0f172a'
+      backgroundColor: '#0a0a0a'
     },
     LocalNotifications: {
       smallIcon: 'ic_stat_icon',
@@ -49,7 +49,7 @@ const config: CapacitorConfig = {
     allowMixedContent: true,
     captureInput: true,
     webContentsDebuggingEnabled: true,
-    backgroundColor: '#0f172a',
+    backgroundColor: '#0a0a0a',
     buildOptions: {
       keystorePath: undefined,
       keystoreAlias: undefined
@@ -57,7 +57,7 @@ const config: CapacitorConfig = {
   },
   ios: {
     contentInset: 'automatic',
-    backgroundColor: '#0f172a',
+    backgroundColor: '#0a0a0a',
     scheme: 'Life OS'
   }
 };

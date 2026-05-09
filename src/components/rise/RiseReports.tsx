@@ -21,11 +21,20 @@ interface WakeReport {
   dailyData: { day: string; wakeTime: string | null; status: 'on_time' | 'late' | 'missed' }[];
 }
 
+interface SleepReport {
+  avgDuration: string;
+  avgBedTime: string;
+  totalNights: number;
+  avgQuality: number;
+  dailyData: { day: string; minutes: number; quality: number | null }[];
+}
+
 export function RiseReports() {
   const { user } = useAuth();
   const [weekOffset, setWeekOffset] = useState(0);
   const [reportType, setReportType] = useState<'wake' | 'sleep'>('wake');
   const [report, setReport] = useState<WakeReport | null>(null);
+  const [sleepReport, setSleepReport] = useState<SleepReport | null>(null);
 
   const currentWeekStart = startOfWeek(subWeeks(new Date(), -weekOffset), { weekStartsOn: 0 });
   const currentWeekEnd = endOfWeek(currentWeekStart, { weekStartsOn: 0 });
@@ -33,6 +42,7 @@ export function RiseReports() {
   useEffect(() => {
     if (user) {
       loadReportData();
+      loadSleepData();
     }
   }, [user, weekOffset]);
 
@@ -106,6 +116,42 @@ export function RiseReports() {
     }
   };
 
+  const loadSleepData = async () => {
+    if (!user) return;
+    try {
+      const startDate = format(currentWeekStart, 'yyyy-MM-dd');
+      const endDate = format(currentWeekEnd, 'yyyy-MM-dd');
+      const { data: logs } = await (supabase as any)
+        .from('sleep_logs')
+        .select('*')
+        .eq('user_id', user.id)
+        .gte('bed_time', startDate)
+        .lte('bed_time', endDate + 'T23:59:59')
+        .order('bed_time', { ascending: true });
+
+      const arr = (logs || []) as Array<{ bed_time: string; wake_time: string | null; duration_minutes: number | null; quality_rating: number | null }>;
+      const durations = arr.map(l => l.duration_minutes || 0).filter(Boolean);
+      const avgMin = durations.length ? Math.round(durations.reduce((a,b)=>a+b,0)/durations.length) : 0;
+      const bedMinutes = arr.map(l => { const d = new Date(l.bed_time); return d.getHours()*60+d.getMinutes(); });
+      const avgBed = bedMinutes.length ? Math.round(bedMinutes.reduce((a,b)=>a+b,0)/bedMinutes.length) : 0;
+      const qualities = arr.map(l=>l.quality_rating||0).filter(Boolean);
+      const avgQ = qualities.length ? qualities.reduce((a,b)=>a+b,0)/qualities.length : 0;
+
+      setSleepReport({
+        avgDuration: avgMin ? `${Math.floor(avgMin/60)}h ${avgMin%60}m` : '--',
+        avgBedTime: avgMin ? `${Math.floor(avgBed/60)%12 || 12}:${(avgBed%60).toString().padStart(2,'0')} ${avgBed>=720?'PM':'AM'}` : '--:--',
+        totalNights: arr.length,
+        avgQuality: Math.round(avgQ * 10) / 10,
+        dailyData: ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map((day, i) => {
+          const dayLog = arr.find(l => new Date(l.bed_time).getDay() === i);
+          return { day, minutes: dayLog?.duration_minutes || 0, quality: dayLog?.quality_rating || null };
+        }),
+      });
+    } catch (e) {
+      console.error('Error loading sleep data:', e);
+    }
+  };
+
   const getBarHeight = (status: string) => {
     switch (status) {
       case 'on_time': return '100%';
@@ -164,6 +210,49 @@ export function RiseReports() {
         </Button>
       </div>
 
+      {reportType === 'sleep' ? (
+        <>
+          <div className="grid grid-cols-2 gap-3">
+            <Card className="bg-gradient-to-br from-indigo-900/30 to-violet-800/20 border-indigo-500/20">
+              <CardContent className="p-4 text-center">
+                <p className="text-3xl font-bold">{sleepReport?.avgDuration || '--'}</p>
+                <p className="text-xs text-muted-foreground mt-1">Avg. sleep</p>
+              </CardContent>
+            </Card>
+            <Card className="bg-gradient-to-br from-indigo-900/30 to-violet-800/20 border-indigo-500/20">
+              <CardContent className="p-4 text-center">
+                <p className="text-3xl font-bold">{sleepReport?.avgBedTime || '--:--'}</p>
+                <p className="text-xs text-muted-foreground mt-1">Avg. bedtime</p>
+              </CardContent>
+            </Card>
+          </div>
+          <Card>
+            <CardContent className="p-4">
+              <div className="h-40 flex items-end justify-between gap-2">
+                {sleepReport?.dailyData.map((day, i) => {
+                  const pct = day.minutes ? Math.min(100, (day.minutes / 540) * 100) : 5;
+                  return (
+                    <div key={day.day} className="flex-1 flex flex-col items-center gap-2">
+                      <div className="w-full h-32 bg-muted/30 rounded-t-lg relative flex items-end">
+                        <div className={cn('w-full rounded-t-lg transition-all', day.minutes ? 'bg-indigo-500' : 'bg-muted')} style={{ height: `${pct}%` }} />
+                      </div>
+                      <span className={cn('text-xs', i === new Date().getDay() ? 'font-bold text-indigo-400' : 'text-muted-foreground')}>{day.day[0]}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2"><CardTitle className="text-base flex items-center gap-2"><Moon className="h-4 w-4" /> Sleep Summary</CardTitle></CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex items-center justify-between p-3 bg-muted rounded-xl"><span className="text-sm">Nights tracked</span><span className="font-bold">{sleepReport?.totalNights || 0}</span></div>
+              <div className="flex items-center justify-between p-3 bg-muted rounded-xl"><span className="text-sm">Avg. quality</span><span className="font-bold text-indigo-400">{sleepReport?.avgQuality ? `${sleepReport.avgQuality}/5` : '--'}</span></div>
+            </CardContent>
+          </Card>
+        </>
+      ) : (
+      <>
       {/* Stats Cards */}
       <div className="grid grid-cols-2 gap-3">
         <Card className="bg-gradient-to-br from-amber-900/30 to-orange-800/20 border-amber-500/20">
@@ -238,6 +327,8 @@ export function RiseReports() {
           </div>
         </CardContent>
       </Card>
+      </>
+      )}
     </div>
   );
 }

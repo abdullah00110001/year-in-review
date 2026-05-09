@@ -54,62 +54,89 @@ export function ShieldAnalytics({ disciplineScore }: ShieldAnalyticsProps) {
 
     try {
       const today = new Date();
-      // 🟢 ডাইনামিক ডেট: ঠিক ৭ দিন আগের তারিখ বের করা
-      const sevenDaysAgo = subDays(today, 6); 
+      const sevenDaysAgo = subDays(today, 6);
       const startDateStr = format(sevenDaysAgo, 'yyyy-MM-dd');
-      
-      const { data: sessions } = await supabase
-        .from('shield_sessions')
-        .select('*')
-        .eq('user_id', user.id)
-        .gte('started_at', `${startDateStr}T00:00:00`)
-        .order('started_at', { ascending: false });
 
-      // 🟢 ডাইনামিক উইকলি চার্ট লজিক
+      // 🟢 Shield is now local-first — read session history from localStorage
+      // (kept by ShieldPage). Fall back to Supabase for older accounts.
+      let sessions: SessionLog[] = [];
+      try {
+        const localHistory = JSON.parse(localStorage.getItem('shield_session_history') || '[]');
+        if (Array.isArray(localHistory) && localHistory.length > 0) {
+          sessions = localHistory as SessionLog[];
+        }
+      } catch {/* ignore */}
+
+      if (sessions.length === 0) {
+        const { data: dbSessions } = await supabase
+          .from('shield_sessions')
+          .select('*')
+          .eq('user_id', user.id)
+          .gte('started_at', `${startDateStr}T00:00:00`)
+          .order('started_at', { ascending: false });
+        sessions = (dbSessions || []) as SessionLog[];
+      }
+
+      // Currently-active session from local storage (so today's count isn't 0)
+      try {
+        const active = JSON.parse(localStorage.getItem('shield_active_session') || 'null');
+        if (active && active.started_at && !sessions.find(s => s.id === active.id)) {
+          sessions = [active as SessionLog, ...sessions];
+        }
+      } catch {/* ignore */}
+
       const weekData = Array.from({ length: 7 }).map((_, i) => {
-        const targetDate = subDays(today, 6 - i); // ক্রমানুসারে পেছনের দিনগুলো থেকে আজকে পর্যন্ত আসবে
+        const targetDate = subDays(today, 6 - i);
         const targetDateStr = format(targetDate, 'yyyy-MM-dd');
-        const dayName = format(targetDate, 'EEE'); // 'Sun', 'Mon' ইত্যাদি
+        const dayName = format(targetDate, 'EEE');
 
-        // ঠিক ওই নির্দিষ্ট তারিখের ডাটা ফিল্টার করা
-        const daySessions = (sessions || []).filter(s => s.started_at.startsWith(targetDateStr));
+        const daySessions = sessions.filter(s => (s.started_at || '').startsWith(targetDateStr));
         const completedSessions = daySessions.filter(s => s.status === 'completed');
-        
-        const dayScore = daySessions.length > 0 
+
+        const dayScore = daySessions.length > 0
           ? Math.round((completedSessions.length / daySessions.length) * 100)
           : 0;
-          
+
         return { day: dayName, score: dayScore, sessions: daySessions.length };
       });
-      
+
       setWeeklyData(weekData);
+      setRecentActivity(sessions.slice(0, 5));
 
-      // Recent activity (last 5 sessions)
-      setRecentActivity((sessions || []).slice(0, 5) as SessionLog[]);
+      // 🟢 Bypass attempts — local first, then DB fallback
+      let todayBypass = 0;
+      let yBypass = 0;
+      try {
+        const localBypass = JSON.parse(localStorage.getItem('shield_bypass_log') || '[]') as { created_at: string }[];
+        const todayStr = format(today, 'yyyy-MM-dd');
+        const yStr = format(subDays(today, 1), 'yyyy-MM-dd');
+        todayBypass = localBypass.filter(b => (b.created_at || '').startsWith(todayStr)).length;
+        yBypass = localBypass.filter(b => (b.created_at || '').startsWith(yStr)).length;
+      } catch {/* ignore */}
 
-      // 🟢 Bypass attempts (Today)
-      const todayStartStr = format(startOfDay(today), "yyyy-MM-dd'T'HH:mm:ss");
-      const { data: bypassLogs } = await supabase
-        .from('shield_bypass_logs')
-        .select('id')
-        .eq('user_id', user.id)
-        .gte('created_at', todayStartStr);
+      if (todayBypass === 0 && yBypass === 0) {
+        const todayStartStr = format(startOfDay(today), "yyyy-MM-dd'T'HH:mm:ss");
+        const { data: bypassLogs } = await supabase
+          .from('shield_bypass_logs')
+          .select('id')
+          .eq('user_id', user.id)
+          .gte('created_at', todayStartStr);
+        todayBypass = bypassLogs?.length || 0;
 
-      setTotalBypassAttempts(bypassLogs?.length || 0);
+        const yesterday = subDays(today, 1);
+        const yesterdayStartStr = format(startOfDay(yesterday), "yyyy-MM-dd'T'HH:mm:ss");
+        const yesterdayEndStr = format(endOfDay(yesterday), "yyyy-MM-dd'T'HH:mm:ss");
+        const { data: yesterdayLogs } = await supabase
+          .from('shield_bypass_logs')
+          .select('id')
+          .eq('user_id', user.id)
+          .gte('created_at', yesterdayStartStr)
+          .lt('created_at', yesterdayEndStr);
+        yBypass = yesterdayLogs?.length || 0;
+      }
 
-      // 🟢 Bypass attempts (Yesterday)
-      const yesterday = subDays(today, 1);
-      const yesterdayStartStr = format(startOfDay(yesterday), "yyyy-MM-dd'T'HH:mm:ss");
-      const yesterdayEndStr = format(endOfDay(yesterday), "yyyy-MM-dd'T'HH:mm:ss");
-      
-      const { data: yesterdayLogs } = await supabase
-        .from('shield_bypass_logs')
-        .select('id')
-        .eq('user_id', user.id)
-        .gte('created_at', yesterdayStartStr)
-        .lt('created_at', yesterdayEndStr);
-
-      setYesterdayBypasses(yesterdayLogs?.length || 0);
+      setTotalBypassAttempts(todayBypass);
+      setYesterdayBypasses(yBypass);
     } catch (error) {
       console.error('Error loading analytics:', error);
     }

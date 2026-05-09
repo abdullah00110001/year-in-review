@@ -39,17 +39,12 @@
     <!-- Preconnect -->
     <link rel="preconnect" href="https://nxvtoviyldffcqbtgriw.supabase.co" />
 
-    <!-- Prevent flash during startup -->
+    <!-- Prevent white flash during startup — match dark splash background -->
     <style>
       html, body {
-        background-color: hsl(209, 40%, 96%);
+        background-color: #0a0a0a;
         margin: 0;
         padding: 0;
-      }
-      @media (prefers-color-scheme: dark) {
-        html, body {
-          background-color: hsl(215, 30%, 8%);
-        }
       }
       #root:empty {
         display: flex;

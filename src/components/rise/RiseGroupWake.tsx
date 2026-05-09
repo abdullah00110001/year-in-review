@@ -4,6 +4,12 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useGroupSettings } from '@/hooks/useGroupSettings';
 import { useWakeSignal } from '@/hooks/useWakeSignal';
+import { useGroupWakeAlarm } from '@/hooks/useGroupWakeAlarm';
+import { GroupWakeMemberGrid } from '@/components/rise/GroupWakeMemberGrid';
+import { GroupWakeAdminPanel } from '@/components/rise/GroupWakeAdminPanel';
+import { WakeUpCallModal } from '@/components/rise/WakeUpCallModal';
+import { scheduleRecurringAlarm } from '@/lib/capacitor/nativeAlarm';
+import { isNative } from '@/lib/capacitor/platform';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -17,8 +23,8 @@ import { Switch } from '@/components/ui/switch';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Users, BellRing, CheckCircle2, Clock, Moon, Sunrise, Plus, Copy, Crown, UserMinus, Settings, LogOut, ShieldBan, ShieldCheck, MessageCircle, Bell, AlertTriangle, Timer, Ban, ShieldAlert } from 'lucide-react';
-
 type SignalType = 'gentle' | 'urgent' | 'sos';
 
 interface Group {
@@ -77,11 +83,14 @@ export function RiseGroupWake() {
   const [bioText, setBioText] = useState(settings.bio);
   const [dndEnabled, setDndEnabled] = useState(settings.dndEnabled);
   const [dndReason, setDndReason] = useState(settings.dndReason);
+  const [wakeCallTarget, setWakeCallTarget] = useState<{ user_id: string; full_name: string } | null>(null);
+  const [activeTab, setActiveTab] = useState('members');
 
   const selectedGroup = useMemo(() => groups.find((group) => group.id === selectedGroupId) || null, [groups, selectedGroupId]);
   const myMembership = useMemo(() => members.find((member) => member.user_id === user?.id) || null, [members, user?.id]);
   const isAdmin = myMembership?.role === 'admin';
   const isCreator = selectedGroup?.created_by === user?.id;
+  const gw = useGroupWakeAlarm(selectedGroupId || null);
 
   useEffect(() => {
     if (user) {
@@ -484,114 +493,221 @@ export function RiseGroupWake() {
 
           {selectedGroup && (
             <>
-              <Card className="border-primary/20 bg-primary/5">
-                <CardHeader className="pb-2">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-base flex items-center gap-2"><Users className="h-4 w-4" />{selectedGroup.name}</CardTitle>
-                    <Badge variant="outline">{members.length} members</Badge>
-                  </div>
-                  {selectedGroup.description && <CardDescription>{selectedGroup.description}</CardDescription>}
-                </CardHeader>
-                <CardContent>
-                  <div className="flex items-center justify-around py-2">
-                    <div className="text-center"><p className="text-2xl font-bold text-emerald-600">{wakeStatuses.filter((item) => item.status === 'confirmed').length}</p><p className="text-xs text-muted-foreground">Awake</p></div>
-                    <div className="text-center"><p className="text-2xl font-bold text-blue-600">{wakeStatuses.filter((item) => item.status === 'awake').length}</p><p className="text-xs text-muted-foreground">Getting up</p></div>
-                    <div className="text-center"><p className="text-2xl font-bold text-muted-foreground">{Math.max(members.length - wakeStatuses.length, 0)}</p><p className="text-xs text-muted-foreground">Sleeping</p></div>
-                  </div>
-                  <Button className="w-full mt-3" onClick={confirmAwake}><CheckCircle2 className="h-4 w-4 mr-2" />Mark me awake</Button>
-                </CardContent>
-              </Card>
+              <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+                <TabsList className="grid w-full grid-cols-2">
+                  <TabsTrigger value="wake">Wake Alarm</TabsTrigger>
+                  <TabsTrigger value="members">Members</TabsTrigger>
+                </TabsList>
 
-              <div className="space-y-2">
-                <h3 className="text-sm font-medium px-1">Members</h3>
-                {members.map((member) => {
-                  const status = getMemberStatus(member.user_id);
-                  const statusMeta = getStatusMeta(status?.status || null);
-                  const isSelf = member.user_id === user?.id;
-                  const memberIsAdmin = member.role === 'admin';
-                  const blocked = isUserBlocked(member.user_id);
-                  const onCooldown = !isSelf && isOnCooldown(member.user_id);
-                  const cooldownRemaining = !isSelf ? Math.ceil(getRemainingCooldown(member.user_id) / 60000) : 0;
-                  const remoteSettings = memberSettings[member.user_id];
-                  const blockedByMember = !!(user?.id && remoteSettings?.blockedUsers?.includes(user.id));
+                <TabsContent value="wake" className="space-y-4 mt-4">
+                  {/* Admin Panel */}
+                  {(isAdmin || isCreator) && (
+                    <GroupWakeAdminPanel
+                      alarm={gw.alarm}
+                      onSave={async (input) => {
+                        await gw.upsertAlarm(input);
+                        // Also schedule local alarm so it rings on this device
+                        if (isNative && selectedGroupId) {
+                          const alarmId = gw.alarm?.id || crypto.randomUUID();
+                          await scheduleRecurringAlarm(
+                            alarmId,
+                            input.wake_time,
+                            input.days_of_week,
+                            {
+                              title: `${selectedGroup.name} Wake Alarm`,
+                              body: 'Group wake alarm — mission required to dismiss',
+                              missionType: input.mission_type as any,
+                              isGroupAlarm: true,
+                              groupId: selectedGroupId,
+                            }
+                          );
+                          // Store in localStorage so RiseRingScreen can find it
+                          const localAlarms = JSON.parse(localStorage.getItem('local_alarms') || '[]');
+                          const existingIndex = localAlarms.findIndex((a: any) => a.groupId === selectedGroupId);
+                          const newAlarm = {
+                            id: alarmId,
+                            alarm_time: input.wake_time.slice(0, 5),
+                            days_of_week: input.days_of_week,
+                            is_enabled: true,
+                            label: `${selectedGroup.name} Wake`,
+                            intention: 'Group wake alarm — mission required',
+                            verification_type: input.mission_type,
+                            snooze_limit: 3,
+                            snooze_interval_minutes: 5,
+                            groupId: selectedGroupId,
+                            isGroupAlarm: true,
+                          };
+                          if (existingIndex >= 0) localAlarms[existingIndex] = newAlarm;
+                          else localAlarms.push(newAlarm);
+                          localStorage.setItem('local_alarms', JSON.stringify(localAlarms));
+                          window.dispatchEvent(new Event('localAlarmsUpdated'));
+                        }
+                      }}
+                      onDisable={gw.disableAlarm}
+                    />
+                  )}
 
-                  return (
-                    <Card key={member.id} className={cn((blocked || blockedByMember) && 'opacity-60')}>
-                      <CardContent className="p-3">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                            <Avatar className="h-10 w-10"><AvatarFallback>{(member.profile?.full_name || 'U').slice(0, 2).toUpperCase()}</AvatarFallback></Avatar>
-                            <div>
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <p className="font-medium text-sm">{member.profile?.full_name || 'User'}{isSelf ? ' (You)' : ''}</p>
-                                {memberIsAdmin && <Crown className="h-3 w-3 text-primary" />}
-                                {remoteSettings?.dndEnabled && <Badge variant="outline" className="text-xs"><Moon className="h-3 w-3 mr-1" />DND</Badge>}
-                                {blocked && <Ban className="h-3 w-3 text-destructive" />}
-                              </div>
-                              <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
-                                {remoteSettings?.bio && <span>{remoteSettings.bio}</span>}
-                                {status?.confirmed_at && <span className="text-emerald-600">• {format(new Date(status.confirmed_at), 'h:mm a')}</span>}
-                              </div>
-                            </div>
+                  {/* Member Grid */}
+                  {gw.alarm ? (
+                    <>
+                      <Card>
+                        <CardHeader className="pb-2">
+                          <div className="flex items-center justify-between">
+                            <CardTitle className="text-base flex items-center gap-2">
+                              <Sunrise className="h-4 w-4 text-primary" />
+                              {selectedGroup.name} — Wake Status
+                            </CardTitle>
+                            <Badge variant="outline">{gw.statuses.length} checked in</Badge>
                           </div>
-
-                          <div className="flex items-center gap-1">
-                            <Badge variant="outline" className={cn('text-xs', statusMeta.className)}>{statusMeta.icon}<span className="ml-1">{statusMeta.label}</span></Badge>
-
-                            {!isSelf && !blocked && !blockedByMember && !remoteSettings?.dndEnabled && !status?.status && (
-                              onCooldown ? (
-                                <Badge variant="outline" className="text-xs text-muted-foreground"><Timer className="h-3 w-3 mr-1" />{cooldownRemaining}m</Badge>
-                              ) : (
-                                <DropdownMenu open={signalPickerFor === member.user_id} onOpenChange={(open) => setSignalPickerFor(open ? member.user_id : null)}>
-                                  <DropdownMenuTrigger asChild><Button variant="outline" size="sm" disabled={sendingTo === member.user_id}><BellRing className="h-4 w-4" /></Button></DropdownMenuTrigger>
-                                  <DropdownMenuContent align="end" className="w-52">
-                                    <DropdownMenuItem onClick={() => handleSendSignal(member.user_id, 'gentle')}><Bell className="h-4 w-4 mr-2 text-blue-600" />Gentle nudge</DropdownMenuItem>
-                                    <DropdownMenuItem onClick={() => handleSendSignal(member.user_id, 'urgent')}><ShieldAlert className="h-4 w-4 mr-2 text-primary" />Urgent alarm</DropdownMenuItem>
-                                    <DropdownMenuItem onClick={() => handleSendSignal(member.user_id, 'sos')}><AlertTriangle className="h-4 w-4 mr-2 text-destructive" />SOS signal</DropdownMenuItem>
-                                  </DropdownMenuContent>
-                                </DropdownMenu>
-                              )
-                            )}
-
-                            {!isSelf && (
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild><Button variant="ghost" size="sm"><Settings className="h-4 w-4" /></Button></DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                  {(isAdmin || isCreator) && (
-                                    <>
-                                      <DropdownMenuItem onClick={() => toggleAdmin(member)}><Crown className="h-4 w-4 mr-2" />{memberIsAdmin ? 'Remove admin access' : 'Make admin'}</DropdownMenuItem>
-                                      <DropdownMenuSeparator />
-                                    </>
-                                  )}
-                                  <DropdownMenuItem onClick={() => blocked ? unblockUser(member.user_id) : setBlockConfirmUser(member)}>
-                                    {blocked ? <><ShieldCheck className="h-4 w-4 mr-2" />Unblock</> : <><ShieldBan className="h-4 w-4 mr-2 text-destructive" />Block</>}
-                                  </DropdownMenuItem>
-                                  {(isAdmin || isCreator) && (
-                                    <>
-                                      <DropdownMenuSeparator />
-                                      <DropdownMenuItem className="text-destructive" onClick={() => setMemberToRemove(member)}><UserMinus className="h-4 w-4 mr-2" />Remove from group</DropdownMenuItem>
-                                    </>
-                                  )}
-                                </DropdownMenuContent>
-                              </DropdownMenu>
-                            )}
-                          </div>
-                        </div>
+                          <CardDescription>
+                            Alarm at {gw.alarm.wake_time.slice(0, 5)} · Mission: {gw.alarm.mission_type}
+                          </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                          <GroupWakeMemberGrid
+                            members={members.map((m) => ({ user_id: m.user_id, full_name: m.profile?.full_name || null }))}
+                            statuses={gw.statuses}
+                            currentUserId={user?.id || ''}
+                            onSendWakeUp={(m) => setWakeCallTarget(m)}
+                          />
+                          <Button
+                            className="w-full mt-4"
+                            onClick={async () => {
+                              await gw.upsertMyStatus({ status: 'mission_done', mission_completed_at: new Date().toISOString() });
+                              toast.success('Marked as awake');
+                            }}
+                          >
+                            <CheckCircle2 className="h-4 w-4 mr-2" /> Mark me awake
+                          </Button>
+                        </CardContent>
+                      </Card>
+                    </>
+                  ) : (
+                    <Card className="text-center py-8">
+                      <CardContent>
+                        <Sunrise className="h-12 w-12 mx-auto mb-4 text-muted-foreground/50" />
+                        <h3 className="font-semibold mb-2">No wake alarm set</h3>
+                        <p className="text-sm text-muted-foreground">
+                          {isAdmin || isCreator
+                            ? 'Set a group wake alarm so everyone rises together.'
+                            : 'Ask your group admin to set a wake alarm.'}
+                        </p>
                       </CardContent>
                     </Card>
-                  );
-                })}
-              </div>
+                  )}
+                </TabsContent>
 
-              <Card className="bg-muted/30">
-                <CardContent className="p-4 flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Invite code</p>
-                    <p className="text-lg font-mono tracking-widest">{selectedGroup.invite_code}</p>
+                <TabsContent value="members" className="space-y-4 mt-4">
+                  <Card className="border-primary/20 bg-primary/5">
+                    <CardHeader className="pb-2">
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="text-base flex items-center gap-2"><Users className="h-4 w-4" />{selectedGroup.name}</CardTitle>
+                        <Badge variant="outline">{members.length} members</Badge>
+                      </div>
+                      {selectedGroup.description && <CardDescription>{selectedGroup.description}</CardDescription>}
+                    </CardHeader>
+                    <CardContent>
+                      <div className="flex items-center justify-around py-2">
+                        <div className="text-center"><p className="text-2xl font-bold text-emerald-600">{wakeStatuses.filter((item) => item.status === 'confirmed').length}</p><p className="text-xs text-muted-foreground">Awake</p></div>
+                        <div className="text-center"><p className="text-2xl font-bold text-blue-600">{wakeStatuses.filter((item) => item.status === 'awake').length}</p><p className="text-xs text-muted-foreground">Getting up</p></div>
+                        <div className="text-center"><p className="text-2xl font-bold text-muted-foreground">{Math.max(members.length - wakeStatuses.length, 0)}</p><p className="text-xs text-muted-foreground">Sleeping</p></div>
+                      </div>
+                      <Button className="w-full mt-3" onClick={confirmAwake}><CheckCircle2 className="h-4 w-4 mr-2" />Mark me awake</Button>
+                    </CardContent>
+                  </Card>
+
+                  <div className="space-y-2">
+                    <h3 className="text-sm font-medium px-1">Members</h3>
+                    {members.map((member) => {
+                      const status = getMemberStatus(member.user_id);
+                      const statusMeta = getStatusMeta(status?.status || null);
+                      const isSelf = member.user_id === user?.id;
+                      const memberIsAdmin = member.role === 'admin';
+                      const blocked = isUserBlocked(member.user_id);
+                      const onCooldown = !isSelf && isOnCooldown(member.user_id);
+                      const cooldownRemaining = !isSelf ? Math.ceil(getRemainingCooldown(member.user_id) / 60000) : 0;
+                      const remoteSettings = memberSettings[member.user_id];
+                      const blockedByMember = !!(user?.id && remoteSettings?.blockedUsers?.includes(user.id));
+
+                      return (
+                        <Card key={member.id} className={cn((blocked || blockedByMember) && 'opacity-60')}>
+                          <CardContent className="p-3">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-3">
+                                <Avatar className="h-10 w-10"><AvatarFallback>{(member.profile?.full_name || 'U').slice(0, 2).toUpperCase()}</AvatarFallback></Avatar>
+                                <div>
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <p className="font-medium text-sm">{member.profile?.full_name || 'User'}{isSelf ? ' (You)' : ''}</p>
+                                    {memberIsAdmin && <Crown className="h-3 w-3 text-primary" />}
+                                    {remoteSettings?.dndEnabled && <Badge variant="outline" className="text-xs"><Moon className="h-3 w-3 mr-1" />DND</Badge>}
+                                    {blocked && <Ban className="h-3 w-3 text-destructive" />}
+                                  </div>
+                                  <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
+                                    {remoteSettings?.bio && <span>{remoteSettings.bio}</span>}
+                                    {status?.confirmed_at && <span className="text-emerald-600">• {format(new Date(status.confirmed_at), 'h:mm a')}</span>}
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-1">
+                                <Badge variant="outline" className={cn('text-xs', statusMeta.className)}>{statusMeta.icon}<span className="ml-1">{statusMeta.label}</span></Badge>
+
+                                {!isSelf && !blocked && !blockedByMember && !remoteSettings?.dndEnabled && !status?.status && (
+                                  onCooldown ? (
+                                    <Badge variant="outline" className="text-xs text-muted-foreground"><Timer className="h-3 w-3 mr-1" />{cooldownRemaining}m</Badge>
+                                  ) : (
+                                    <DropdownMenu open={signalPickerFor === member.user_id} onOpenChange={(open) => setSignalPickerFor(open ? member.user_id : null)}>
+                                      <DropdownMenuTrigger asChild><Button variant="outline" size="sm" disabled={sendingTo === member.user_id}><BellRing className="h-4 w-4" /></Button></DropdownMenuTrigger>
+                                      <DropdownMenuContent align="end" className="w-52">
+                                        <DropdownMenuItem onClick={() => handleSendSignal(member.user_id, 'gentle')}><Bell className="h-4 w-4 mr-2 text-blue-600" />Gentle nudge</DropdownMenuItem>
+                                        <DropdownMenuItem onClick={() => handleSendSignal(member.user_id, 'urgent')}><ShieldAlert className="h-4 w-4 mr-2 text-primary" />Urgent alarm</DropdownMenuItem>
+                                        <DropdownMenuItem onClick={() => handleSendSignal(member.user_id, 'sos')}><AlertTriangle className="h-4 w-4 mr-2 text-destructive" />SOS signal</DropdownMenuItem>
+                                      </DropdownMenuContent>
+                                    </DropdownMenu>
+                                  )
+                                )}
+
+                                {!isSelf && (
+                                  <DropdownMenu>
+                                    <DropdownMenuTrigger asChild><Button variant="ghost" size="sm"><Settings className="h-4 w-4" /></Button></DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end">
+                                      {(isAdmin || isCreator) && (
+                                        <>
+                                          <DropdownMenuItem onClick={() => toggleAdmin(member)}><Crown className="h-4 w-4 mr-2" />{memberIsAdmin ? 'Remove admin access' : 'Make admin'}</DropdownMenuItem>
+                                          <DropdownMenuSeparator />
+                                        </>
+                                      )}
+                                      <DropdownMenuItem onClick={() => blocked ? unblockUser(member.user_id) : setBlockConfirmUser(member)}>
+                                        {blocked ? <><ShieldCheck className="h-4 w-4 mr-2" />Unblock</> : <><ShieldBan className="h-4 w-4 mr-2 text-destructive" />Block</>}
+                                      </DropdownMenuItem>
+                                      {(isAdmin || isCreator) && (
+                                        <>
+                                          <DropdownMenuSeparator />
+                                          <DropdownMenuItem className="text-destructive" onClick={() => setMemberToRemove(member)}><UserMinus className="h-4 w-4 mr-2" />Remove from group</DropdownMenuItem>
+                                        </>
+                                      )}
+                                    </DropdownMenuContent>
+                                  </DropdownMenu>
+                                )}
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      );
+                    })}
                   </div>
-                  <Button variant="outline" size="sm" onClick={copyInviteCode}><Copy className="h-4 w-4 mr-2" />Copy</Button>
-                </CardContent>
-              </Card>
+
+                  <Card className="bg-muted/30">
+                    <CardContent className="p-4 flex items-center justify-between">
+                      <div>
+                        <p className="text-sm text-muted-foreground">Invite code</p>
+                        <p className="text-lg font-mono tracking-widest">{selectedGroup.invite_code}</p>
+                      </div>
+                      <Button variant="outline" size="sm" onClick={copyInviteCode}><Copy className="h-4 w-4 mr-2" />Copy</Button>
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+              </Tabs>
             </>
           )}
         </>
@@ -631,6 +747,19 @@ export function RiseGroupWake() {
           <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={removeMember} className="bg-destructive text-destructive-foreground">Remove</AlertDialogAction></AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <WakeUpCallModal
+        open={!!wakeCallTarget}
+        onClose={() => setWakeCallTarget(null)}
+        targetName={wakeCallTarget?.full_name || 'Member'}
+        remaining={gw.session ? 2 - (gw.statuses.find((s) => s.user_id === wakeCallTarget?.user_id)?.wake_up_calls_received || 0) : 2}
+        onSend={async (msg) => {
+          if (wakeCallTarget) {
+            await gw.sendWakeUpCall(wakeCallTarget.user_id, msg);
+            setWakeCallTarget(null);
+          }
+        }}
+      />
     </div>
   );
 }

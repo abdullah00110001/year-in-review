@@ -14,6 +14,50 @@ export type Database = {
   }
   public: {
     Tables: {
+      accountability_failures: {
+        Row: {
+          created_at: string
+          group_id: string
+          id: string
+          kind: string
+          message: string | null
+          metadata: Json
+          penalty_points: number
+          severity: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          group_id: string
+          id?: string
+          kind: string
+          message?: string | null
+          metadata?: Json
+          penalty_points?: number
+          severity?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          group_id?: string
+          id?: string
+          kind?: string
+          message?: string | null
+          metadata?: Json
+          penalty_points?: number
+          severity?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "accountability_failures_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "lifeos_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       accountability_group_members: {
         Row: {
           group_id: string
@@ -434,6 +478,47 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: []
+      }
+      challenge_participants: {
+        Row: {
+          challenge_id: string
+          completed: boolean
+          id: string
+          joined_at: string
+          progress_value: number
+          rank: number | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          challenge_id: string
+          completed?: boolean
+          id?: string
+          joined_at?: string
+          progress_value?: number
+          rank?: number | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          challenge_id?: string
+          completed?: boolean
+          id?: string
+          joined_at?: string
+          progress_value?: number
+          rank?: number | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "challenge_participants_challenge_id_fkey"
+            columns: ["challenge_id"]
+            isOneToOne: false
+            referencedRelation: "group_challenges"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       challenges: {
         Row: {
@@ -1203,6 +1288,45 @@ export type Database = {
         }
         Relationships: []
       }
+      focus_sessions: {
+        Row: {
+          created_at: string
+          distracting_minutes: number
+          focus_minutes: number
+          id: string
+          session_date: string
+          status: string | null
+          status_updated_at: string | null
+          top_apps: Json
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          distracting_minutes?: number
+          focus_minutes?: number
+          id?: string
+          session_date?: string
+          status?: string | null
+          status_updated_at?: string | null
+          top_apps?: Json
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          distracting_minutes?: number
+          focus_minutes?: number
+          id?: string
+          session_date?: string
+          status?: string | null
+          status_updated_at?: string | null
+          top_apps?: Json
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       fraud_detection_logs: {
         Row: {
           action_taken: string | null
@@ -1331,6 +1455,355 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: []
+      }
+      group_activity_feed: {
+        Row: {
+          activity_type: string
+          created_at: string
+          group_id: string
+          id: string
+          message: string
+          metadata: Json | null
+          user_id: string | null
+        }
+        Insert: {
+          activity_type: string
+          created_at?: string
+          group_id: string
+          id?: string
+          message: string
+          metadata?: Json | null
+          user_id?: string | null
+        }
+        Update: {
+          activity_type?: string
+          created_at?: string
+          group_id?: string
+          id?: string
+          message?: string
+          metadata?: Json | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "group_activity_feed_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "lifeos_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      group_challenges: {
+        Row: {
+          created_at: string
+          created_by: string
+          description: string | null
+          ends_at: string
+          group_id: string
+          id: string
+          kind: string
+          prize: string | null
+          starts_at: string
+          status: string
+          target_unit: string
+          target_value: number
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          description?: string | null
+          ends_at: string
+          group_id: string
+          id?: string
+          kind: string
+          prize?: string | null
+          starts_at?: string
+          status?: string
+          target_unit?: string
+          target_value?: number
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          ends_at?: string
+          group_id?: string
+          id?: string
+          kind?: string
+          prize?: string | null
+          starts_at?: string
+          status?: string
+          target_unit?: string
+          target_value?: number
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "group_challenges_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "lifeos_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      group_nudges: {
+        Row: {
+          created_at: string
+          group_id: string
+          id: string
+          message: string | null
+          read_at: string | null
+          recipient_id: string
+          sender_id: string
+        }
+        Insert: {
+          created_at?: string
+          group_id: string
+          id?: string
+          message?: string | null
+          read_at?: string | null
+          recipient_id: string
+          sender_id: string
+        }
+        Update: {
+          created_at?: string
+          group_id?: string
+          id?: string
+          message?: string | null
+          read_at?: string | null
+          recipient_id?: string
+          sender_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "group_nudges_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "lifeos_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      group_rooms: {
+        Row: {
+          created_at: string
+          created_by: string
+          description: string | null
+          group_id: string
+          id: string
+          is_active: boolean
+          kind: string
+          name: string
+          scheduled_start: string | null
+          target_minutes: number | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          description?: string | null
+          group_id: string
+          id?: string
+          is_active?: boolean
+          kind?: string
+          name: string
+          scheduled_start?: string | null
+          target_minutes?: number | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          group_id?: string
+          id?: string
+          is_active?: boolean
+          kind?: string
+          name?: string
+          scheduled_start?: string | null
+          target_minutes?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "group_rooms_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "lifeos_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      group_wake_alarms: {
+        Row: {
+          created_at: string
+          created_by: string
+          days_of_week: number[]
+          group_id: string
+          id: string
+          is_active: boolean
+          mission_type: string
+          updated_at: string
+          wake_time: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          days_of_week?: number[]
+          group_id: string
+          id?: string
+          is_active?: boolean
+          mission_type?: string
+          updated_at?: string
+          wake_time: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          days_of_week?: number[]
+          group_id?: string
+          id?: string
+          is_active?: boolean
+          mission_type?: string
+          updated_at?: string
+          wake_time?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "group_wake_alarms_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "lifeos_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      group_wake_calls: {
+        Row: {
+          custom_message: string | null
+          from_user_id: string
+          group_id: string
+          id: string
+          sent_at: string
+          session_id: string
+          to_user_id: string
+        }
+        Insert: {
+          custom_message?: string | null
+          from_user_id: string
+          group_id: string
+          id?: string
+          sent_at?: string
+          session_id: string
+          to_user_id: string
+        }
+        Update: {
+          custom_message?: string | null
+          from_user_id?: string
+          group_id?: string
+          id?: string
+          sent_at?: string
+          session_id?: string
+          to_user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "group_wake_calls_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "group_wake_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      group_wake_member_status: {
+        Row: {
+          created_at: string
+          group_id: string
+          id: string
+          mission_completed_at: string | null
+          session_id: string
+          status: string
+          status_text: string | null
+          status_updated_at: string | null
+          user_id: string
+          wake_up_calls_received: number
+        }
+        Insert: {
+          created_at?: string
+          group_id: string
+          id?: string
+          mission_completed_at?: string | null
+          session_id: string
+          status?: string
+          status_text?: string | null
+          status_updated_at?: string | null
+          user_id: string
+          wake_up_calls_received?: number
+        }
+        Update: {
+          created_at?: string
+          group_id?: string
+          id?: string
+          mission_completed_at?: string | null
+          session_id?: string
+          status?: string
+          status_text?: string | null
+          status_updated_at?: string | null
+          user_id?: string
+          wake_up_calls_received?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "group_wake_member_status_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "group_wake_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      group_wake_sessions: {
+        Row: {
+          created_at: string
+          group_alarm_id: string
+          group_id: string
+          id: string
+          session_date: string
+          triggered_at: string
+        }
+        Insert: {
+          created_at?: string
+          group_alarm_id: string
+          group_id: string
+          id?: string
+          session_date: string
+          triggered_at?: string
+        }
+        Update: {
+          created_at?: string
+          group_alarm_id?: string
+          group_id?: string
+          id?: string
+          session_date?: string
+          triggered_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "group_wake_sessions_group_alarm_id_fkey"
+            columns: ["group_alarm_id"]
+            isOneToOne: false
+            referencedRelation: "group_wake_alarms"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       group_wake_status: {
         Row: {
@@ -1726,6 +2199,77 @@ export type Database = {
           user_id?: string
           week_number?: number
           year_number?: number
+        }
+        Relationships: []
+      }
+      lifeos_group_members: {
+        Row: {
+          group_id: string
+          id: string
+          joined_at: string
+          role: string
+          user_id: string
+        }
+        Insert: {
+          group_id: string
+          id?: string
+          joined_at?: string
+          role?: string
+          user_id: string
+        }
+        Update: {
+          group_id?: string
+          id?: string
+          joined_at?: string
+          role?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lifeos_group_members_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "lifeos_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lifeos_groups: {
+        Row: {
+          created_at: string
+          created_by: string
+          description: string | null
+          goal: string
+          id: string
+          invite_code: string
+          is_public: boolean
+          name: string
+          type: Database["public"]["Enums"]["lifeos_group_type"]
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          description?: string | null
+          goal: string
+          id?: string
+          invite_code?: string
+          is_public?: boolean
+          name: string
+          type: Database["public"]["Enums"]["lifeos_group_type"]
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          goal?: string
+          id?: string
+          invite_code?: string
+          is_public?: boolean
+          name?: string
+          type?: Database["public"]["Enums"]["lifeos_group_type"]
+          updated_at?: string
         }
         Relationships: []
       }
@@ -2612,6 +3156,57 @@ export type Database = {
         }
         Relationships: []
       }
+      room_participants: {
+        Row: {
+          focus_minutes: number
+          group_id: string
+          id: string
+          joined_at: string
+          left_at: string | null
+          room_id: string
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          focus_minutes?: number
+          group_id: string
+          id?: string
+          joined_at?: string
+          left_at?: string | null
+          room_id: string
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          focus_minutes?: number
+          group_id?: string
+          id?: string
+          joined_at?: string
+          left_at?: string | null
+          room_id?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "room_participants_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "lifeos_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "room_participants_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "group_rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       service_logs: {
         Row: {
           beneficiary: string | null
@@ -2819,6 +3414,45 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      sleep_logs: {
+        Row: {
+          bed_time: string | null
+          created_at: string
+          duration_minutes: number | null
+          id: string
+          log_date: string
+          notes: string | null
+          quality_rating: number | null
+          updated_at: string
+          user_id: string
+          wake_time: string | null
+        }
+        Insert: {
+          bed_time?: string | null
+          created_at?: string
+          duration_minutes?: number | null
+          id?: string
+          log_date?: string
+          notes?: string | null
+          quality_rating?: number | null
+          updated_at?: string
+          user_id: string
+          wake_time?: string | null
+        }
+        Update: {
+          bed_time?: string | null
+          created_at?: string
+          duration_minutes?: number | null
+          id?: string
+          log_date?: string
+          notes?: string | null
+          quality_rating?: number | null
+          updated_at?: string
+          user_id?: string
+          wake_time?: string | null
+        }
+        Relationships: []
       }
       small_wins: {
         Row: {
@@ -3276,6 +3910,51 @@ export type Database = {
         }
         Relationships: []
       }
+      user_presence: {
+        Row: {
+          current_group_id: string | null
+          current_room_id: string | null
+          last_seen: string
+          metadata: Json
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          current_group_id?: string | null
+          current_room_id?: string | null
+          last_seen?: string
+          metadata?: Json
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          current_group_id?: string | null
+          current_room_id?: string | null
+          last_seen?: string
+          metadata?: Json
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_presence_current_group_id_fkey"
+            columns: ["current_group_id"]
+            isOneToOne: false
+            referencedRelation: "lifeos_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_presence_current_room_id_fkey"
+            columns: ["current_room_id"]
+            isOneToOne: false
+            referencedRelation: "group_rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_reflections: {
         Row: {
           created_at: string
@@ -3568,6 +4247,42 @@ export type Database = {
         }
         Relationships: []
       }
+      wake_logs: {
+        Row: {
+          created_at: string
+          id: string
+          log_date: string
+          missed: boolean
+          on_time: boolean
+          scheduled_time: string | null
+          streak_days: number
+          user_id: string
+          wake_time: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          log_date?: string
+          missed?: boolean
+          on_time?: boolean
+          scheduled_time?: string | null
+          streak_days?: number
+          user_id: string
+          wake_time?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          log_date?: string
+          missed?: boolean
+          on_time?: boolean
+          scheduled_time?: string | null
+          streak_days?: number
+          user_id?: string
+          wake_time?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -3586,6 +4301,14 @@ export type Database = {
         Returns: boolean
       }
       is_group_member: {
+        Args: { _group_id: string; _user_id: string }
+        Returns: boolean
+      }
+      is_lifeos_group_admin: {
+        Args: { _group_id: string; _user_id: string }
+        Returns: boolean
+      }
+      is_lifeos_group_member: {
         Args: { _group_id: string; _user_id: string }
         Returns: boolean
       }
@@ -3609,6 +4332,7 @@ export type Database = {
         | "referral_bonus"
         | "daily_bonus"
         | "refund"
+      lifeos_group_type: "rise" | "shield"
       pdf_tool_type:
         | "merge"
         | "split"
@@ -3773,6 +4497,7 @@ export const Constants = {
         "daily_bonus",
         "refund",
       ],
+      lifeos_group_type: ["rise", "shield"],
       pdf_tool_type: [
         "merge",
         "split",

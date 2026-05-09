@@ -1,4 +1,4 @@
-import { Sunrise, Flame, ArrowLeft } from 'lucide-react';
+import { Sunrise, Flame, ArrowLeft, Bell } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
@@ -7,33 +7,46 @@ interface RiseHeaderProps {
   streak: number;
 }
 
+/**
+ * RiseHeader — visually mirrors ShieldHeader for cross-feature consistency.
+ * Same layout, same paddings, same control sizes; only the accent color
+ * (amber/orange) and labels differ to keep each feature recognisable.
+ */
 export function RiseHeader({ streak }: RiseHeaderProps) {
   const navigate = useNavigate();
+
   return (
-    <div className="bg-gradient-to-br from-amber-900/60 via-orange-800/40 to-rose-700/30 text-white p-4 pb-6 rounded-b-3xl">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
+    <div className="bg-background border-b border-border px-4 py-3">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0">
           <Button
             variant="ghost"
             size="icon"
             onClick={() => navigate('/')}
-            className="h-9 w-9 rounded-xl bg-white/10 hover:bg-white/20 text-white"
+            className="h-9 w-9 rounded-xl shrink-0"
             aria-label="Back"
           >
             <ArrowLeft className="h-4 w-4" />
           </Button>
-          <div className="h-12 w-12 rounded-2xl bg-amber-500/20 flex items-center justify-center">
-            <Sunrise className="h-6 w-6 text-amber-300" />
+          <div className="h-10 w-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+            <Sunrise className="h-5 w-5" />
           </div>
-          <div>
-            <h1 className="text-xl font-bold">Rise</h1>
-            <p className="text-sm text-white/70">Wake with Purpose</p>
+          <div className="min-w-0">
+            <h1 className="text-base font-bold truncate text-foreground">Rise</h1>
+            <p className="text-xs text-muted-foreground">Wake with Purpose</p>
           </div>
         </div>
-        <Badge variant="outline" className="border-white/20 text-white bg-white/10">
-          <Flame className="h-3 w-3 mr-1 text-orange-400" />
-          {streak} days
-        </Badge>
+
+        <div className="flex items-center gap-2 shrink-0">
+          <Badge variant="secondary" className="bg-primary/10 text-primary text-xs">
+            <Flame className="h-3 w-3 mr-1" />
+            {streak}d
+          </Badge>
+          <Button variant="ghost" size="icon" className="rounded-full relative" aria-label="Notifications">
+            <Bell className="h-5 w-5" />
+            <span className="absolute -top-1 -right-1 h-2 w-2 bg-destructive rounded-full" />
+          </Button>
+        </div>
       </div>
     </div>
   );

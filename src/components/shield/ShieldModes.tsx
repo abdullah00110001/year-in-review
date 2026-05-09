@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
 import { Brain, Moon, Lock, AlertTriangle, Loader2 } from 'lucide-react';
 import Shield from '@/lib/capacitor/shieldPlugin';
 import { isNative } from '@/lib/capacitor/platform';
 import { toast } from 'sonner';
+import { setPresence } from '@/hooks/useLifeosLive';
 
 type StrictnessMode = 'normal' | 'lock' | 'strict';
 
@@ -70,15 +71,18 @@ export function ShieldModes({ activeMode, onModeChange, disciplineScore }: Shiel
         await Shield.deactivateMode();
         applyMode('normal');
         toast.info('Shield returned to Normal Mode');
+        await setPresence({ status: 'idle' });
         return;
       }
 
       if (modeName === 'focus') {
         await Shield.activateFocusMode();
         toast.success('Focus Mode Active');
+        await setPresence({ status: 'shield_focus' });
       } else {
         await Shield.activateSleepMode();
         toast.success('Sleep Mode Active');
+        await setPresence({ status: 'sleeping' });
       }
 
       applyMode(targetMode);
@@ -106,7 +110,7 @@ export function ShieldModes({ activeMode, onModeChange, disciplineScore }: Shiel
   if (isLoading) {
     return (
       <div className="flex justify-center p-4">
-        <Loader2 className="h-6 w-6 animate-spin text-white/40" />
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
       </div>
     );
   }
@@ -114,76 +118,82 @@ export function ShieldModes({ activeMode, onModeChange, disciplineScore }: Shiel
   return (
     <div className="space-y-3 mt-6">
       <div className="px-1">
-        <h3 className="text-sm font-medium text-white/60">Quick Modes</h3>
-        {modeDescription && <p className="text-xs text-white/40 mt-1">{modeDescription}</p>}
+        <h3 className="text-sm font-bold text-foreground">Quick Modes</h3>
+        {modeDescription && <p className="text-xs text-muted-foreground mt-1">{modeDescription}</p>}
       </div>
 
-      <Card className={`bg-white/5 border-white/10 transition-all ${resolvedMode === 'lock' ? 'border-indigo-500/50 bg-indigo-500/10' : ''}`}>
-        <CardContent className="p-4">
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-3 min-w-0">
-              <div className={`p-2 rounded-lg ${resolvedMode === 'lock' ? 'bg-indigo-500/20' : 'bg-white/5'}`}>
-                <Brain className={`h-5 w-5 ${resolvedMode === 'lock' ? 'text-indigo-400' : 'text-white/40'}`} />
-              </div>
-              <div className="min-w-0">
-                <p className="font-medium text-sm">Focus Mode</p>
-                <p className="text-[10px] text-white/40">Customized blocking enabled</p>
-              </div>
-            </div>
-            <Button
-              variant={resolvedMode === 'lock' ? 'default' : 'outline'}
-              size="sm"
-              className={resolvedMode === 'lock' ? 'bg-indigo-500 hover:bg-indigo-600 text-white' : 'text-white/60'}
-              onClick={() => toggleMode('focus')}
-              disabled={isStrict}
-            >
-              {resolvedMode === 'lock' ? 'Active' : 'Enable'}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+      <ModeCard
+        active={resolvedMode === 'lock'}
+        icon={<Brain className="h-4 w-4" />}
+        title="Focus Mode"
+        subtitle="Customized blocking enabled"
+        actionLabel={resolvedMode === 'lock' ? 'Active' : 'Enable'}
+        onAction={() => toggleMode('focus')}
+        disabled={isStrict}
+      />
 
-      <Card className={`bg-white/5 border-white/10 transition-all ${resolvedMode === 'normal' ? 'border-purple-500/50 bg-purple-500/10' : ''}`}>
-        <CardContent className="p-4">
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-3 min-w-0">
-              <div className={`p-2 rounded-lg ${resolvedMode === 'normal' ? 'bg-purple-500/20' : 'bg-white/5'}`}>
-                <Moon className={`h-5 w-5 ${resolvedMode === 'normal' ? 'text-purple-400' : 'text-white/40'}`} />
-              </div>
-              <div className="min-w-0">
-                <p className="font-medium text-sm">Sleep Mode</p>
-                <p className="text-[10px] text-white/40">Custom block list active</p>
-              </div>
-            </div>
-            <Button
-              variant={resolvedMode === 'normal' ? 'default' : 'outline'}
-              size="sm"
-              className={resolvedMode === 'normal' ? 'bg-purple-500 hover:bg-purple-600 text-white' : 'text-white/60'}
-              onClick={() => toggleMode('sleep')}
-              disabled={isStrict}
-            >
-              {resolvedMode === 'normal' ? 'Active' : 'Enable'}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+      <ModeCard
+        active={resolvedMode === 'normal'}
+        icon={<Moon className="h-4 w-4" />}
+        title="Sleep Mode"
+        subtitle="Custom block list active"
+        actionLabel={resolvedMode === 'normal' ? 'Active' : 'Enable'}
+        onAction={() => toggleMode('sleep')}
+        disabled={isStrict}
+      />
 
-      <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 mt-4">
+      <div className="p-4 rounded-xl bg-destructive/10 border border-destructive/30 mt-4">
         <div className="flex items-center justify-between mb-2 gap-3">
-          <div className="flex items-center gap-2 text-amber-500 font-medium text-sm">
-            <Lock className="h-4 w-4" /> Strict Mode
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="p-2 rounded-lg bg-destructive/15 text-destructive">
+              <Lock className="h-4 w-4" />
+            </div>
+            <div className="min-w-0">
+              <p className="font-bold text-sm text-foreground">Strict Mode</p>
+              <p className="text-[10px] text-muted-foreground">Irreversible until tomorrow</p>
+            </div>
           </div>
-          <Switch
-            checked={isStrict}
-            onCheckedChange={toggleStrictMode}
-            className="data-[state=checked]:bg-amber-500"
-          />
+          <Switch checked={isStrict} onCheckedChange={toggleStrictMode} />
         </div>
-        <p className="text-xs text-amber-200/60 leading-relaxed">
-          <AlertTriangle className="inline h-3 w-3 mr-1" />
+        <p className="text-xs text-destructive/90 leading-relaxed flex items-start gap-1.5 mt-2">
+          <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0" />
           When enabled, you cannot disable Shield or change modes until tomorrow.
         </p>
       </div>
     </div>
+  );
+}
+
+interface ModeCardProps {
+  active: boolean;
+  icon: React.ReactNode;
+  title: string;
+  subtitle: string;
+  actionLabel: string;
+  onAction: () => void;
+  disabled?: boolean;
+}
+
+function ModeCard({ active, icon, title, subtitle, actionLabel, onAction, disabled }: ModeCardProps) {
+  return (
+    <Card className={`bg-card border border-border p-4 rounded-xl transition-all ${active ? 'ring-1 ring-primary/40' : ''}`}>
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="p-2 rounded-lg bg-primary/10 text-primary">{icon}</div>
+          <div className="min-w-0">
+            <p className="font-bold text-sm text-foreground">{title}</p>
+            <p className="text-[11px] text-muted-foreground">{subtitle}</p>
+          </div>
+        </div>
+        <Button
+          variant={active ? 'default' : 'outline'}
+          size="sm"
+          onClick={onAction}
+          disabled={disabled}
+        >
+          {actionLabel}
+        </Button>
+      </div>
+    </Card>
   );
 }

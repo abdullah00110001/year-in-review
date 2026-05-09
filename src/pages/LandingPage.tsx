@@ -14,7 +14,12 @@ export default function LandingPage() {
 
   useEffect(() => {
     if (isNative) {
-      navigate(user ? '/dashboard' : '/auth', { replace: true });
+      if (user) {
+        navigate('/dashboard', { replace: true });
+      } else {
+        const seen = localStorage.getItem('hasSeenWelcome') === '1';
+        navigate(seen ? '/auth' : '/welcome', { replace: true });
+      }
       return;
     }
     if (!loading && user) {

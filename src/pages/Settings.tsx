@@ -77,6 +77,10 @@ export default function Settings() {
     { value: 'light', label: t('settings.light') },
     { value: 'dark', label: t('settings.dark') },
     { value: 'amoled', label: 'AMOLED' },
+    { value: 'midnight', label: 'Midnight' },
+    { value: 'forest', label: 'Forest' },
+    { value: 'sunset', label: 'Sunset' },
+    { value: 'mono', label: 'Mono' },
     { value: 'system', label: t('settings.system') },
   ] as const;
 
@@ -161,7 +165,7 @@ export default function Settings() {
                     <CardDescription className="text-caption">{t('settings.theme')}</CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <div className="flex flex-col sm:flex-row gap-2">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                       {themeOptions.map((option) => (
                         <Button key={option.value} variant={theme === option.value ? 'default' : 'outline'} onClick={() => setTheme(option.value)} className="flex-1" size="sm">
                           {option.label}

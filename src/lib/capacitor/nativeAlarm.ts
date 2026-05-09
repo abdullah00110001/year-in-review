@@ -7,7 +7,7 @@ import {
   scheduleNativeAlarmShots,
   cancelNativeAlarmShots,
   canScheduleExactAlarms,
-  ensureNativeAlarmChannel,
+  ensureNativeAlarmChannel, // 👈 এইটা এড করছি
 } from './riseAlarmBridge';
 
 export interface AlarmConfig {
@@ -28,6 +28,7 @@ export type AlarmNotification = LocalNotificationSchema;
 
 const ALARM_STORAGE_KEY = 'scheduled_alarms';
 const RISE_ALARM_CHANNEL_ID = 'rise_alarm_native_v2';
+
 let listenersRegistered = false;
 
 export function uuidToNumericId(value: string): number {
@@ -38,6 +39,21 @@ export function uuidToNumericId(value: string): number {
   }
   return Math.abs(hash) % 100000;
 }
+
+// ==========================
+// 🔔 INIT CHANNEL - এইটা মিসিং ছিল
+// ==========================
+export const initializeAlarmChannel = async (): Promise<void> => {
+  if (!Capacitor.isNativePlatform()) return;
+
+  try {
+    await ensureNativeAlarmChannel();
+    await registerAlarmActions();
+    console.log('[nativeAlarm] Alarm channel initialized successfully');
+  } catch (error) {
+    console.error('[nativeAlarm] Failed to initialize channel', error);
+  }
+};
 
 export async function checkAllAlarmPermissions() {
   if (!Capacitor.isNativePlatform()) {
@@ -64,15 +80,6 @@ export async function requestAllAlarmPermissions(): Promise<boolean> {
 
 export async function requestAlarmPermission(): Promise<boolean> {
   return requestAllAlarmPermissions();
-}
-
-export async function initializeAlarmChannel(): Promise<void> {
-  if (!Capacitor.isNativePlatform()) return;
-  try {
-    await ensureNativeAlarmChannel();
-  } catch (error) {
-    console.error('Failed to initialize alarm channel', error);
-  }
 }
 
 export async function registerAlarmActions(): Promise<void> {
@@ -132,7 +139,6 @@ export async function scheduleAlarm(config: AlarmConfig): Promise<boolean> {
   }
 }
 
-// FIX: Android এ শুধু Native Alarm। ডাবল নোটিফিকেশন বন্ধ।
 export async function scheduleRecurringAlarm(
   uuid: string,
   time: string,

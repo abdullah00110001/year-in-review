@@ -2,6 +2,7 @@ import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
 import "./index.css";
 import { Capacitor } from '@capacitor/core';
+import { SplashScreen } from '@capacitor/splash-screen';
 
 // Global error handlers to prevent app crashes
 window.addEventListener("unhandledrejection", (event) => {
@@ -36,3 +37,10 @@ if ('serviceWorker' in navigator && !Capacitor.isNativePlatform()) {
 }
 
 createRoot(document.getElementById("root")!).render(<App />);
+
+// Hide native splash once React has mounted (small delay so first paint is ready)
+if (Capacitor.isNativePlatform()) {
+  setTimeout(() => {
+    SplashScreen.hide().catch((err) => console.warn('[Splash] hide failed:', err));
+  }, 100);
+}

@@ -2,54 +2,65 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- Internet & Network -->
+    <!-- ================================================
+    🌐 NETWORK
+    ================================================ -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
-    <!-- Notifications (Android 13+) -->
+    <!-- ================================================
+    🔔 NOTIFICATIONS
+    ================================================ -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
-    <!-- Rise Alarms -->
+    <!-- ================================================
+    ⏰ ALARM — CRITICAL
+    ================================================ -->
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+
+    <!-- ================================================
+    🔋 SYSTEM / WAKE
+    ================================================ -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
-    <uses-permission android:name="android.permission.VIBRATE" />
-
-    <!-- Shield needs to enumerate installed apps for the Block Apps picker (Android 11+) -->
-    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES"
-        tools:ignore="QueryAllPackagesPermission" />
-
-    <!-- Shield - Usage Stats -->
-    <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" tools:ignore="ProtectedPermissions" />
-
-    <!-- Shield - Foreground Service -->
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
-
-    <!-- Shield - Overlay -->
-    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
-
-    <!-- Shield - Battery Optimization -->
+    <uses-permission android:name="android.permission.DISABLE_KEYGUARD" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
-    <!-- Camera (for Rise missions & profile) -->
+    <!-- ================================================
+    🔊 AUDIO + HAPTICS
+    ================================================ -->
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+
+    <!-- ================================================
+    📷 CAMERA (Photo mission)
+    ================================================ -->
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
 
-    <!-- Storage for offline data & APK downloads -->
+    <!-- ================================================
+    🛡️ SHIELD (app blocking)
+    ================================================ -->
+    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" tools:ignore="QueryAllPackagesPermission" />
+    <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" tools:ignore="ProtectedPermissions" />
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+
+    <!-- ================================================
+    📁 STORAGE
+    ================================================ -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="29" />
 
-    <!-- Location (opt-in, requested at button-tap from Settings) -->
+    <!-- ================================================
+    📍 LOCATION
+    ================================================ -->
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
-
-    <!-- Full-screen alarm intent (Android 14+) -->
-    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
-
-    <!-- OTA Update: Install APK (Android 8.0+) -->
-    <!-- <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" /> -->
 
     <application
         android:allowBackup="true"
@@ -59,8 +70,12 @@
         android:supportsRtl="true"
         android:theme="@style/AppTheme"
         android:usesCleartextTraffic="true"
-        android:networkSecurityConfig="@xml/network_security_config">
+        android:networkSecurityConfig="@xml/network_security_config"
+        tools:replace="android:allowBackup,android:label,android:icon,android:theme,android:usesCleartextTraffic">
 
+        <!-- ================================================
+        🧠 MAIN ACTIVITY
+        ================================================ -->
         <activity
             android:name=".MainActivity"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode|navigation|density"
@@ -69,18 +84,27 @@
             android:launchMode="singleTask"
             android:exported="true"
             android:showWhenLocked="true"
-            android:turnScreenOn="true">
+            android:turnScreenOn="true"
+            tools:replace="android:theme,android:label">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-            <!-- Deep link for auth callback -->
+            <!-- Capacitor deep link -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="capacitor" android:host="localhost" />
+            </intent-filter>
+            <!-- Supabase auth -->
             <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="https" android:host="nxvtoviyldffcqbtgriw.supabase.co" />
             </intent-filter>
+            <!-- Custom scheme -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
@@ -89,19 +113,45 @@
             </intent-filter>
         </activity>
 
-        <!-- Rise Alarm Receiver -->
+        <!-- ================================================
+        ⏰ RISE ALARM RECEIVER
+        ================================================ -->
         <receiver
-            android:name="com.mylifeos.app.plugins.RiseAlarmReceiver"
+            android:name=".rise.receiver.RiseAlarmReceiver"
             android:exported="true"
+            android:enabled="true" />
+
+        <!-- ================================================
+        🔄 RECOVERY WATCHDOG RECEIVER
+        ================================================ -->
+        <receiver
+            android:name=".rise.recovery.AlarmRecoveryReceiver"
+            android:exported="false"
             android:enabled="true">
+            <intent-filter>
+                <action android:name="com.mylifeos.app.RISE_RECOVERY_CHECK" />
+            </intent-filter>
         </receiver>
 
-        <!-- Boot receiver: re-arms alarms after device reboot or app update -->
+        <!-- ================================================
+        🔊 ALARM SOUND SERVICE
+        ================================================ -->
+        <service
+            android:name=".rise.service.AlarmSoundService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback"
+            android:stopWithTask="false" />
+
+        <!-- ================================================
+        🔁 BOOT RECEIVER
+        ================================================ -->
         <receiver
-            android:name="com.mylifeos.app.plugins.BootReceiver"
+            android:name=".plugins.BootReceiver"
             android:enabled="true"
             android:exported="true"
-            android:directBootAware="false">
+            android:directBootAware="false"
+            tools:replace="android:exported">
             <intent-filter android:priority="1000">
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
                 <action android:name="android.intent.action.QUICKBOOT_POWERON" />
@@ -110,40 +160,49 @@
             </intent-filter>
         </receiver>
 
-        <!-- Shield Foreground Service: enabled, only started after permissions are granted -->
+        <!-- ================================================
+        🛡️ SHIELD SERVICES
+        ================================================ -->
         <service
             android:name=".shield.ShieldService"
             android:enabled="true"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
-
-        <!-- Shield Accessibility Service: enabled so user can toggle it from Android Settings -->
+        <service
+            android:name=".shield.ShieldFloatingService"
+            android:enabled="true"
+            android:exported="false" />
         <service
             android:name=".shield.ShieldAccessibilityService"
             android:enabled="true"
             android:exported="true"
             android:label="Shield"
-            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
+            tools:replace="android:label">
             <intent-filter>
                 <action android:name="android.accessibilityservice.AccessibilityService" />
             </intent-filter>
-            <meta-data android:name="android.accessibilityservice" android:resource="@xml/accessibility_service_config" />
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/accessibility_service_config" />
         </service>
 
-        <!-- Shield Device Admin Receiver: enabled but inert until user activates it -->
+        <!-- 📱 Device Admin (Shield) -->
         <receiver
             android:name=".shield.ShieldDeviceAdminReceiver"
             android:enabled="true"
             android:exported="true"
             android:permission="android.permission.BIND_DEVICE_ADMIN">
-            <meta-data android:name="android.app.device_admin" android:resource="@xml/device_admin" />
+            <meta-data
+                android:name="android.app.device_admin"
+                android:resource="@xml/device_admin" />
             <intent-filter>
                 <action android:name="android.app.action.DEVICE_ADMIN_ENABLED" />
                 <action android:name="android.app.action.DEVICE_ADMIN_DISABLE_REQUESTED" />
             </intent-filter>
         </receiver>
 
-        <!-- Shield Block Activity: enabled, only launched by Shield services when blocking -->
+        <!-- 🚫 Shield Block Screen -->
         <activity
             android:name=".shield.ShieldBlockActivity"
             android:enabled="true"
@@ -151,13 +210,16 @@
             android:excludeFromRecents="true"
             android:launchMode="singleInstance"
             android:taskAffinity=""
-            android:theme="@style/AppTheme.NoActionBar" />
+            android:theme="@style/AppTheme.NoActionBar"
+            tools:replace="android:theme" />
 
+        <!-- 📂 File Provider -->
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"
             android:exported="false"
-            android:grantUriPermissions="true">
+            android:grantUriPermissions="true"
+            tools:replace="android:authorities">
             <meta-data
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/file_paths" />

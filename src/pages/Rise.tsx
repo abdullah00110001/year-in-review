@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Plus, Sunrise } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
@@ -8,15 +9,16 @@ import { RiseBottomNav } from '@/components/rise/RiseBottomNav';
 import { RiseHeader } from '@/components/rise/RiseHeader';
 import { RiseAlarmCard } from '@/components/rise/RiseAlarmCard';
 import { RiseAlarmEditor } from '@/components/rise/RiseAlarmEditor';
-import { RiseGroupWake } from '@/components/rise/RiseGroupWake';
 import { RiseReports } from '@/components/rise/RiseReports';
 import { RiseSettings } from '@/components/rise/RiseSettings';
 import { CommunityWakeFeed } from '@/components/rise/CommunityWakeFeed';
+import { LifeosGroupsHome } from '@/components/groups/LifeosGroupsHome';
 import { Card, CardContent } from '@/components/ui/card';
 import { scheduleRecurringAlarm, cancelAlarmByUuid, initializeAlarmChannel } from '@/lib/capacitor/nativeAlarm';
 import { cancelNativeAlarmShots, canScheduleExactAlarms } from '@/lib/capacitor/riseAlarmBridge';
 import { isNative } from '@/lib/capacitor/platform';
 import { App } from '@capacitor/app';
+// import { LocalNotifications } from '@capacitor/local-notifications';
 
 // � New Imports for Sequential Permissions
 import {
@@ -60,6 +62,7 @@ interface RisePermissionStatus {
 
 export default function RisePage() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('alarms');
   const [alarms, setAlarms] = useState<RiseAlarm[]>([]);
   const [streak, setStreak] = useState<RiseStreak | null>(null);
@@ -119,6 +122,26 @@ export default function RisePage() {
     return () => clearInterval(interval);
   }, [alarms]);
 
+  // Route to full-screen Ring when an alarm notification is received or tapped.
+/*   useEffect(() => {
+    if (!isNative) return;
+    let receivedSub: any, actionSub: any;
+    (async () => {
+      receivedSub = await LocalNotifications.addListener('localNotificationReceived', (n) => {
+        const id = (n.extra as any)?.alarmDbId || (n.extra as any)?.uuid;
+        if (id) navigate(`/rise/ring/${id}`);
+      });
+      actionSub = await LocalNotifications.addListener('localNotificationActionPerformed', (r) => {
+        const id = (r.notification.extra as any)?.alarmDbId || (r.notification.extra as any)?.uuid;
+        if (id) navigate(`/rise/ring/${id}`);
+      });
+    })();
+    return () => {
+      receivedSub?.remove?.();
+      actionSub?.remove?.();
+    };
+  }, [navigate]);
+ */
   const loadLocalAlarms = (): RiseAlarm[] => {
     try {
       const raw = localStorage.getItem('local_alarms');
@@ -404,37 +427,76 @@ export default function RisePage() {
 
         <div className="px-4 mt-4">
           {activeTab === 'alarms' && (
-            <div className="space-y-3">
+            <div className="space-y-4">
+              {/* Hero: Next Alarm — minimal LifeOS card */}
+              <div className="relative overflow-hidden rounded-2xl bg-card border border-border shadow-sm p-5">
+                <div className="flex items-center gap-2 mb-3 text-muted-foreground">
+                  <Sunrise className="h-4 w-4 text-primary" />
+                  <span className="text-[11px] uppercase tracking-widest font-semibold">Next Alarm</span>
+                </div>
+                {nextAlarm ? (
+                  <>
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-4xl md:text-5xl font-black tabular-nums tracking-tight text-foreground">
+                        {(() => {
+                          const [h, m] = nextAlarm.time.split(':');
+                          const hh = parseInt(h);
+                          const disp = hh > 12 ? hh - 12 : hh === 0 ? 12 : hh;
+                          return `${disp}:${m}`;
+                        })()}
+                      </span>
+                      <span className="text-base font-semibold text-muted-foreground">
+                        {parseInt(nextAlarm.time.split(':')[0]) >= 12 ? 'PM' : 'AM'}
+                      </span>
+                    </div>
+                    <p className="mt-1.5 text-xs text-muted-foreground">{nextAlarm.countdown}</p>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-xl font-bold text-foreground">No alarms set</p>
+                    <p className="text-xs text-muted-foreground mt-1">Tap + to create your first wake-up</p>
+                  </>
+                )}
+              </div>
+
+              {/* Alarm list */}
               {alarms.length === 0 ? (
-                <Card>
-                  <CardContent className="py-8 text-center">
-                    <Sunrise className="h-12 w-12 mx-auto mb-3 text-muted-foreground/50" />
-                    <h3 className="font-semibold mb-1">No Alarms Set</h3>
-                    <p className="text-sm text-muted-foreground">Create an alarm to start your disciplined mornings</p>
+                <Card className="border-dashed">
+                  <CardContent className="py-10 text-center">
+                    <Sunrise className="h-12 w-12 mx-auto mb-3 text-muted-foreground/40" />
+                    <h3 className="font-semibold mb-1">No alarms yet</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Tap the + button to create your first alarm
+                    </p>
                   </CardContent>
                 </Card>
               ) : (
-                alarms.map((alarm) => (
-                  <RiseAlarmCard
-                    key={alarm.id}
-                    alarm={alarm}
-                    onToggle={toggleAlarm}
-                    onEdit={handleEditAlarm}
-                    onDelete={handleDeleteAlarm}
-                    onDuplicate={handleDuplicateAlarm}
-                  />
-                ))
+                <div className="space-y-3">
+                  {alarms.map((alarm) => (
+                    <RiseAlarmCard
+                      key={alarm.id}
+                      alarm={alarm}
+                      onToggle={toggleAlarm}
+                      onEdit={handleEditAlarm}
+                      onDelete={handleDeleteAlarm}
+                      onDuplicate={handleDuplicateAlarm}
+                    />
+                  ))}
+                </div>
               )}
+
+              {/* Floating Add button */}
               <Button
                 onClick={handleCreateAlarm}
-                className="fixed bottom-24 right-4 h-14 w-14 rounded-full shadow-lg bg-rose-500 hover:bg-rose-600"
+                className="fixed bottom-24 right-4 h-16 w-16 rounded-full shadow-xl shadow-amber-500/40 bg-gradient-to-br from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 z-40"
                 size="icon"
+                aria-label="Create alarm"
               >
-                <Plus className="h-6 w-6" />
+                <Plus className="h-7 w-7" />
               </Button>
             </div>
           )}
-          {activeTab === 'group' && <RiseGroupWake />}
+          {activeTab === 'group' && <LifeosGroupsHome defaultType="rise" />}
           {activeTab === 'community' && <CommunityWakeFeed />}
           {activeTab === 'reports' && <RiseReports />}
           {activeTab === 'settings' && <RiseSettings />}
