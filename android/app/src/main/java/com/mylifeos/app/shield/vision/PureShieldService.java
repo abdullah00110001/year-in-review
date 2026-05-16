@@ -321,6 +321,13 @@ public class PureShieldService extends Service {
         }
 
         try {
+            FaceDetectorOptions mlOptions = new FaceDetectorOptions.Builder()
+                .setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_FAST)
+                .setMinFaceSize(Math.max(0.01f, config.getMinFaceSizePct() / 100f))
+                .enableTracking()
+                .build();
+            mlKitFaceDetector = FaceDetection.getClient(mlOptions);
+
             Log.i(TAG, "📂 Loading face model: " + faceModel);
             faceDetector = new Interpreter(loadModelFile(faceModel), options);
             activeModelName = faceModel;
@@ -379,8 +386,8 @@ public class PureShieldService extends Service {
                 }
             }
 
-            broadcastModelStatus("OK", faceModel);
-            lastDebugMessage = "Model: " + faceModel + " | " + modelKind
+            broadcastModelStatus("OK", "MLKit + " + faceModel);
+            lastDebugMessage = "Model: MLKit + " + faceModel + " | " + modelKind
                 + " | " + modelInputW + "x" + modelInputH
                 + " | anchors=" + numAnchors;
             Log.i(TAG, "✅ " + lastDebugMessage);
