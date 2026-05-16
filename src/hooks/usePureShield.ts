@@ -79,6 +79,10 @@ export function usePureShield() {
   const requestProjection = useCallback(async () => {
     const r = await PureShieldPlugin.requestMediaProjection();
     setPermissions(p => ({ ...p, projection: r.granted }));
+    if (r.granted) {
+      setRunning(true);
+      try { setStatus(await PureShieldPlugin.getAdaptiveStatus()); } catch {}
+    }
     return r.granted;
   }, []);
 
