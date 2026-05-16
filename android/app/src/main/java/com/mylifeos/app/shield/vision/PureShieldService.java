@@ -396,6 +396,11 @@ public class PureShieldService extends Service {
             return true;
         } catch (Throwable e) {
             Log.e(TAG, "❌ Load failed: " + e.getMessage(), e);
+            if (mlKitFaceDetector != null) {
+                broadcastModelStatus("OK", "MLKit fallback active");
+                lastDebugMessage = "Model: MLKit fallback active";
+                return true;
+            }
             broadcastModelStatus("MODEL_FAILED", e.getMessage());
             return false;
         }
@@ -1054,6 +1059,8 @@ public class PureShieldService extends Service {
     // ─────────────────────────────────────────────────────────────────────────
 
     private float sigmoid(float x) { return 1f / (1f + (float) Math.exp(-x)); }
+
+    private float clamp01(float v) { return Math.max(0f, Math.min(1f, v)); }
 
     private List<RectF> nonMaxSuppression(List<RectF> boxes, float iouThreshold) {
         if (boxes.isEmpty()) return boxes;
