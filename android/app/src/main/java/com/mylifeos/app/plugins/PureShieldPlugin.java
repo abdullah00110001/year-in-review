@@ -356,7 +356,7 @@ public class PureShieldPlugin extends Plugin {
 
         Intent intent = new Intent(getContext(), PureShieldService.class);
         intent.setAction(PureShieldService.Actions.UPDATE_CONFIG);
-        startPureShieldService(intent);
+        if (isServiceClassRunning(PureShieldService.class)) startPureShieldService(intent);
     }
 
     private void resolveGranted(PluginCall call, boolean granted) {
