@@ -49,6 +49,7 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
 
     <!-- ================================================
     📁 STORAGE
@@ -70,8 +71,7 @@
         android:supportsRtl="true"
         android:theme="@style/AppTheme"
         android:usesCleartextTraffic="true"
-        android:networkSecurityConfig="@xml/network_security_config"
-        tools:replace="android:allowBackup,android:label,android:icon,android:theme,android:usesCleartextTraffic">
+        android:networkSecurityConfig="@xml/network_security_config">
 
         <!-- ================================================
         🧠 MAIN ACTIVITY
@@ -84,8 +84,7 @@
             android:launchMode="singleTask"
             android:exported="true"
             android:showWhenLocked="true"
-            android:turnScreenOn="true"
-            tools:replace="android:theme,android:label">
+            android:turnScreenOn="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -98,7 +97,7 @@
                 <data android:scheme="capacitor" android:host="localhost" />
             </intent-filter>
             <!-- Supabase auth -->
-            <intent-filter android:autoVerify="true">
+            <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
@@ -150,8 +149,7 @@
             android:name=".plugins.BootReceiver"
             android:enabled="true"
             android:exported="true"
-            android:directBootAware="false"
-            tools:replace="android:exported">
+            android:directBootAware="false">
             <intent-filter android:priority="1000">
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
                 <action android:name="android.intent.action.QUICKBOOT_POWERON" />
@@ -177,8 +175,7 @@
             android:enabled="true"
             android:exported="true"
             android:label="Shield"
-            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
-            tools:replace="android:label">
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
             <intent-filter>
                 <action android:name="android.accessibilityservice.AccessibilityService" />
             </intent-filter>
@@ -186,6 +183,17 @@
                 android:name="android.accessibilityservice"
                 android:resource="@xml/accessibility_service_config" />
         </service>
+
+        <service
+            android:name=".shield.vision.PureShieldService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="mediaProjection|dataSync" />
+
+        <receiver
+            android:name=".shield.vision.PureShieldRestartReceiver"
+            android:enabled="true"
+            android:exported="false" />
 
         <!-- 📱 Device Admin (Shield) -->
         <receiver
@@ -210,19 +218,24 @@
             android:excludeFromRecents="true"
             android:launchMode="singleInstance"
             android:taskAffinity=""
-            android:theme="@style/AppTheme.NoActionBar"
-            tools:replace="android:theme" />
+            android:theme="@style/AppTheme.NoActionBar" />
 
         <!-- 📂 File Provider -->
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"
             android:exported="false"
-            android:grantUriPermissions="true"
-            tools:replace="android:authorities">
+            android:grantUriPermissions="true">
             <meta-data
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/file_paths" />
         </provider>
+
+        <!-- 📷 Barcode Scanner Activity (CameraX + ML Kit) -->
+        <activity
+            android:name=".rise.scanner.BarcodeScannerActivity"
+            android:exported="false"
+            android:theme="@style/AppTheme.NoActionBar"
+            android:screenOrientation="portrait" />
     </application>
 </manifest>

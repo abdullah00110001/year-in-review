@@ -16,6 +16,8 @@ import { setPresence } from '@/hooks/useLifeosLive';
 import { supabase } from '@/integrations/supabase/client';
 import { App } from '@capacitor/app';
 import { format } from 'date-fns';
+import { recordWakeEvent } from '@/lib/rise/recordWakeEvent';
+import { LocationPrivacySheet } from '@/components/rise/LocationPrivacySheet';
 
 interface LocalAlarm {
   id: string;
@@ -35,6 +37,7 @@ export default function RiseRingScreen() {
   const [phase, setPhase] = useState<'wake' | 'mission'>('wake');
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [statusBusy, setStatusBusy] = useState(false);
+  const [showPrivacySheet, setShowPrivacySheet] = useState(false);
 
   useEffect(() => {
     setPresence({ status: phase === 'wake' ? 'waking' : 'in_rise_mission' });
@@ -176,6 +179,23 @@ export default function RiseRingScreen() {
       try {
         await cancelAlarmByUuid(alarm.id);
       } catch (e) {}
+    }
+
+    // Record into community wake feed (respects user privacy)
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const result = await recordWakeEvent({
+          userId: user.id,
+          missionType: alarm?.verification_type,
+        });
+        if (result && !result.hasSeenPrompt) {
+          setShowPrivacySheet(true);
+          return;
+        }
+      }
+    } catch (e) {
+      console.warn('recordWakeEvent failed', e);
     }
 
     // If group alarm, show status modal before navigating away
@@ -359,6 +379,17 @@ export default function RiseRingScreen() {
           navigate('/rise', { replace: true });
         }}
         onSubmit={handleStatusSubmit}
+      />
+
+      <LocationPrivacySheet
+        open={showPrivacySheet}
+        onOpenChange={(o) => {
+          setShowPrivacySheet(o);
+          if (!o) {
+            toast.success('Welcome to the wake feed ☀️');
+            navigate('/rise', { replace: true });
+          }
+        }}
       />
     </>
   );

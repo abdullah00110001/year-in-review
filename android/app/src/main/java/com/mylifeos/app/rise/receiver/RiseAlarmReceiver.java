@@ -1,207 +1,178 @@
-package com.mylifeos.app.rise.ui;
+package com.mylifeos.app.rise.receiver;
 
-import android.app.Activity;
-import android.app.KeyguardManager;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
+import android.app.PendingIntent;
+import android.content.BroadcastReceiver;
+import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Build;
-import android.os.Bundle;
-import android.os.Handler;
-import android.os.Looper;
+import android.os.PowerManager;
 import android.util.Log;
-import android.view.WindowManager;
+
+import androidx.core.app.NotificationCompat;
 
 import com.mylifeos.app.MainActivity;
 import com.mylifeos.app.rise.core.AlarmConstants;
+import com.mylifeos.app.rise.recovery.AlarmRecoveryReceiver;
+import com.mylifeos.app.rise.service.AlarmSoundService;
 import com.mylifeos.app.rise.state.AlarmStateManager;
 
 /**
- * RiseRingActivity — Lock screen এর উপরে আসে।
+ * RiseAlarmReceiver
+ * Package: com.mylifeos.app.rise.receiver  ← CORRECT
  *
- * এই Activity কেন দরকার?
- * ──────────────────────────────────────────────────────────
- * Capacitor এর MainActivity lock screen dismiss করে না।
- * একটা native Activity দরকার যেটা:
- *   → showWhenLocked flag দিয়ে lock screen এর উপরে আসে
- *   → turnScreenOn দিয়ে screen জাগায়
- *   → FLAG_KEEP_SCREEN_ON দিয়ে screen on রাখে
- *   → Back button block করে
+ * ⚠️ এই file এ কোনো inner/nested class নেই।
+ * RiseRingActivity আলাদা file এ আছে: rise/ui/RiseRingActivity.java
  *
- * এই Activity শুধু bridge হিসেবে কাজ করে।
- * সে React ring screen এ navigate করে দেয়।
- *
- * Dismissal protection:
- * ──────────────────────────────────────────────────────────
- * ✅ Back button block (alarm চলাকালীন)
- * ✅ onPause এ re-bring (5s delay)
- * ✅ onResume এ state check
- * ✅ Accidental finish() prevention
- * ──────────────────────────────────────────────────────────
+ * Build error fix:
+ * "class RiseRingActivity is public, should be declared in a file named RiseRingActivity.java"
+ * → সেই class এখান থেকে সরানো হয়েছে।
  */
-public class RiseRingActivity extends Activity {
+public class RiseAlarmReceiver extends BroadcastReceiver {
 
-    private static final String TAG = "RiseRingActivity";
+    private static final String TAG        = "RiseAlarmReceiver";
+    private static final String CHANNEL_ID = "rise_alarm_notif_v3";
 
-    private Handler  reBringHandler  = new Handler(Looper.getMainLooper());
-    private Runnable reBringRunnable;
-    private boolean  missionComplete = false;
-
-    // ──────────────────────────────────────────
     @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
+    public void onReceive(Context context, Intent intent) {
+        if (intent == null) return;
 
-        // Lock screen এর উপরে আসো + screen জাগাও
-        enableLockscreenFlags();
+        int    alarmId = intent.getIntExtra("ALARM_ID", 0);
+        String uuid    = intent.getStringExtra("ALARM_UUID");
+        String title   = intent.getStringExtra("ALARM_TITLE");
+        String body    = intent.getStringExtra("ALARM_BODY");
 
-        Log.d(TAG, "onCreate");
+        if (uuid  == null) uuid  = String.valueOf(alarmId);
+        if (title == null) title = "Rise Alarm";
+        if (body  == null) body  = "Time to wake up!";
 
-        // UUID বের করো
-        String uuid = extractUuid();
+        Log.d(TAG, "⏰ Alarm triggered! id=" + alarmId + " uuid=" + uuid);
 
-        // Alarm active না থাকলে → main এ যাও
-        if (!AlarmStateManager.isRinging(this) && !isComingFromAlarm()) {
-            Log.w(TAG, "No active alarm — going to MainActivity");
-            goToMain(uuid);
-            return;
-        }
+        // 1. Persistent state সেট করো
+        AlarmStateManager.setRinging(context, alarmId, uuid, title, body, 3);
 
-        // React ring screen এ navigate করো
-        goToRingScreen(uuid);
+        // 2. Foreground sound service start করো
+        startSoundService(context, alarmId, uuid, title, body);
+
+        // 3. Short WakeLock (screen জাগাও)
+        acquireWakeLock(context);
+
+        // 4. Full screen notification
+        showFullScreenNotification(context, alarmId, uuid, title, body);
+
+        // 5. Force open ring screen (backup)
+        forceOpenApp(context, uuid);
+
+        // 6. Recovery watchdog schedule করো
+        AlarmRecoveryReceiver.schedule(context);
+
+        Log.d(TAG, "✅ All alarm actions dispatched");
     }
 
-    // ──────────────────────────────────────────
-    // Lock screen flags
-    // ──────────────────────────────────────────
-    private void enableLockscreenFlags() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
-            setShowWhenLocked(true);
-            setTurnScreenOn(true);
-            KeyguardManager km = (KeyguardManager) getSystemService(KEYGUARD_SERVICE);
-            if (km != null) km.requestDismissKeyguard(this, null);
-        } else {
-            //noinspection deprecation
-            getWindow().addFlags(
-                WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED |
-                WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON   |
-                WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD
-            );
-        }
-        // Screen off হতে দেবো না
-        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-    }
-
-    // ──────────────────────────────────────────
-    // UUID extraction
-    // ──────────────────────────────────────────
-    private String extractUuid() {
-        // Intent data থেকে (deep link)
-        if (getIntent() != null && getIntent().getData() != null) {
-            String path = getIntent().getData().getPath();
-            if (path != null && path.startsWith("/rise/ring/")) {
-                return path.replace("/rise/ring/", "");
-            }
-        }
-        // Extra থেকে
-        if (getIntent() != null) {
-            String extra = getIntent().getStringExtra(AlarmConstants.EXTRA_ALARM_UUID);
-            if (extra != null) return extra;
-        }
-        // State থেকে (most reliable)
-        String stateUuid = AlarmStateManager.getActiveUuid(this);
-        if (stateUuid != null) return stateUuid;
-
-        return "fallback";
-    }
-
-    private boolean isComingFromAlarm() {
-        // Intent extras check
-        return getIntent() != null &&
-               getIntent().getStringExtra(AlarmConstants.EXTRA_ALARM_UUID) != null;
-    }
-
-    // ──────────────────────────────────────────
-    // Navigation
-    // ──────────────────────────────────────────
-    private void goToRingScreen(String uuid) {
+    private void startSoundService(Context ctx, int id, String uuid,
+                                    String title, String body) {
         try {
-            Intent intent = new Intent(this, MainActivity.class);
-            intent.setAction(Intent.ACTION_VIEW);
-            intent.setData(Uri.parse(AlarmConstants.DEEP_LINK_BASE + uuid));
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK |
-                            Intent.FLAG_ACTIVITY_SINGLE_TOP |
-                            Intent.FLAG_ACTIVITY_CLEAR_TOP);
-            startActivity(intent);
-            // finish() করি না — back stack এ থাকি যাতে return করা যায়
+            Intent svc = new Intent(ctx, AlarmSoundService.class);
+            svc.putExtra("ALARM_ID",    id);
+            svc.putExtra("ALARM_UUID",  uuid);
+            svc.putExtra("ALARM_TITLE", title);
+            svc.putExtra("ALARM_BODY",  body);
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                ctx.startForegroundService(svc);
+            } else {
+                ctx.startService(svc);
+            }
+            Log.d(TAG, "AlarmSoundService started");
         } catch (Exception e) {
-            Log.e(TAG, "goToRingScreen failed", e);
-            goToMain(uuid);
+            Log.e(TAG, "startSoundService failed", e);
         }
     }
 
-    private void goToMain(String uuid) {
-        Intent intent = new Intent(this, MainActivity.class);
-        intent.setAction(Intent.ACTION_VIEW);
-        intent.setData(Uri.parse(AlarmConstants.DEEP_LINK_BASE + uuid));
-        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP);
-        startActivity(intent);
-        finish();
-    }
-
-    // ──────────────────────────────────────────
-    // Lifecycle — anti-dismiss
-    // ──────────────────────────────────────────
-
-    @Override
-    public void onBackPressed() {
-        if (AlarmStateManager.isRinging(this) && !missionComplete) {
-            // Alarm চলছে — back block করো
-            Log.d(TAG, "Back button blocked — alarm ringing");
-            // কোনো action নেই intentionally
-        } else {
-            super.onBackPressed();
+    private void acquireWakeLock(Context ctx) {
+        try {
+            PowerManager pm = (PowerManager) ctx.getSystemService(Context.POWER_SERVICE);
+            if (pm == null) return;
+            PowerManager.WakeLock wl = pm.newWakeLock(
+                PowerManager.FULL_WAKE_LOCK | PowerManager.ACQUIRE_CAUSES_WAKEUP,
+                "RiseAlarm:ReceiverWL"
+            );
+            wl.acquire(30_000L); // 30 seconds — service takes over after
+        } catch (Exception e) {
+            Log.e(TAG, "acquireWakeLock failed", e);
         }
     }
 
-    @Override
-    protected void onResume() {
-        super.onResume();
-        // Resume এ alarm আর নেই = mission complete হয়েছে
-        if (!AlarmStateManager.isRinging(this)) {
-            Log.d(TAG, "onResume: alarm stopped — finishing");
-            missionComplete = true;
-            finish();
+    private void showFullScreenNotification(Context ctx, int alarmId, String uuid,
+                                             String title, String body) {
+        try {
+            NotificationManager nm =
+                (NotificationManager) ctx.getSystemService(Context.NOTIFICATION_SERVICE);
+            if (nm == null) return;
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                NotificationChannel ch = new NotificationChannel(
+                    CHANNEL_ID, "Rise Alarm Alerts", NotificationManager.IMPORTANCE_HIGH);
+                ch.setBypassDnd(true);
+                ch.setSound(null, null);
+                ch.enableVibration(false);
+                ch.setLockscreenVisibility(NotificationCompat.VISIBILITY_PUBLIC);
+                nm.createNotificationChannel(ch);
+            }
+
+            PendingIntent tapPi = buildRingPendingIntent(ctx, uuid, alarmId);
+
+            nm.notify(alarmId, new NotificationCompat.Builder(ctx, CHANNEL_ID)
+                .setSmallIcon(ctx.getApplicationInfo().icon)
+                .setContentTitle("⏰ " + title)
+                .setContentText(body)
+                .setPriority(NotificationCompat.PRIORITY_MAX)
+                .setCategory(NotificationCompat.CATEGORY_ALARM)
+                .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+                .setFullScreenIntent(tapPi, true)
+                .setOngoing(true)
+                .setAutoCancel(false)
+                .setContentIntent(tapPi)
+                .build());
+
+            Log.d(TAG, "Full screen notification shown");
+        } catch (Exception e) {
+            Log.e(TAG, "showFullScreenNotification failed", e);
         }
     }
 
-    @Override
-    protected void onPause() {
-        super.onPause();
-        // User home/back চাপলে alarm চলছে থাকলে 5s এ ফিরিয়ে আনো
-        if (AlarmStateManager.isRinging(this) && !missionComplete) {
-            Log.d(TAG, "onPause: alarm still ringing — scheduling re-bring");
-            reBringRunnable = () -> {
-                if (AlarmStateManager.isRinging(this) && !missionComplete) {
-                    Log.d(TAG, "Re-bringing ring screen");
-                    String uuid = extractUuid();
-                    goToRingScreen(uuid);
-                }
-            };
-            reBringHandler.postDelayed(reBringRunnable, 5000);
+    private void forceOpenApp(Context ctx, String uuid) {
+        try {
+            Intent i = buildRingIntent(ctx, uuid);
+            ctx.startActivity(i);
+            Log.d(TAG, "Force opened ring screen");
+        } catch (Exception e) {
+            Log.e(TAG, "forceOpenApp failed", e);
         }
     }
 
-    @Override
-    protected void onDestroy() {
-        super.onDestroy();
-        if (reBringRunnable != null) {
-            reBringHandler.removeCallbacks(reBringRunnable);
-        }
+    private Intent buildRingIntent(Context ctx, String uuid) {
+        Intent i = new Intent(ctx, MainActivity.class);
+        i.setAction(Intent.ACTION_VIEW);
+        i.setData(Uri.parse("capacitor://localhost/rise/ring/" + uuid));
+        i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK |
+                   Intent.FLAG_ACTIVITY_SINGLE_TOP |
+                   Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        return i;
     }
 
-    // Mission complete হলে JS side এ call করার জন্য
-    // (optional — JS নিজেই stopNativeRinging call করে)
-    public void onMissionComplete() {
-        missionComplete = true;
+    private PendingIntent buildRingPendingIntent(Context ctx, String uuid, int reqCode) {
+        int flags = PendingIntent.FLAG_UPDATE_CURRENT;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) flags |= PendingIntent.FLAG_IMMUTABLE;
+        return PendingIntent.getActivity(ctx, reqCode, buildRingIntent(ctx, uuid), flags);
+    }
+
+    /** Plugin এর stopRinging() এখান থেকে call করে */
+    public static void stopSound(Context context) {
+        AlarmSoundService.stop(context);
+        AlarmRecoveryReceiver.cancel(context);
+        Log.d(TAG, "stopSound called");
     }
 }

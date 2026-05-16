@@ -1,177 +1,201 @@
 package com.mylifeos.app.plugins;
 
 import android.app.Activity;
-import android.content.*;
+import android.app.ActivityManager;
+import android.content.Context;
+import android.content.Intent;
+import android.content.SharedPreferences;
+import android.content.pm.ApplicationInfo;
+import android.content.pm.PackageManager;
 import android.media.projection.MediaProjectionManager;
 import android.net.Uri;
+import android.os.Build;
 import android.provider.Settings;
-import android.util.Log;
+
+import androidx.activity.result.ActivityResult;
+
+import com.getcapacitor.JSArray;
+import com.getcapacitor.JSObject;
+import com.getcapacitor.Plugin;
+import com.getcapacitor.PluginCall;
+import com.getcapacitor.PluginMethod;
+import com.getcapacitor.annotation.ActivityCallback;
+import com.getcapacitor.annotation.CapacitorPlugin;
+import com.mylifeos.app.shield.vision.PureShieldAdaptiveEngine;
+import com.mylifeos.app.shield.vision.PureShieldBlurView;
 import com.mylifeos.app.shield.vision.PureShieldConfig;
+import com.mylifeos.app.shield.vision.PureShieldModelManager;
+import com.mylifeos.app.shield.vision.PureShieldPreferences;
 import com.mylifeos.app.shield.vision.PureShieldService;
-import com.getcapacitor.*;
-import com.getcapacitor.annotation.*;
-import com.mylifeos.app.shield.vision.*;
 
-import java.util.*;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
-/**
- * PureShieldPlugin — Capacitor bridge
- *
- * Exposes all PureShield functionality to React/TypeScript frontend:
- *  - requestPermissions()
- *  - startPureShield()
- *  - stopPureShield()
- *  - setConfig(config)
- *  - setTargetApps(packages[])
- *  - getInstalledApps()
- *  - getAdaptiveStatus()
- *  - isRunning()
- */
-@NativePlugin(requestCodes = { PureShieldPlugin.REQUEST_MEDIA_PROJECTION })
 @CapacitorPlugin(name = "PureShield")
 public class PureShieldPlugin extends Plugin {
 
-    private static final String TAG = "PureShieldPlugin";
-    static final int REQUEST_MEDIA_PROJECTION = 1001;
-    static final int REQUEST_OVERLAY          = 1002;
+    private static final String PREFS_NAME = "pureview_prefs";
+    private static final String KEY_PROJECTION_APPROVED = "projection_approved_once";
+    private PureShieldModelManager modelManager;
 
-    private PluginCall pendingStartCall;
+    @Override
+    public void load() {
+        // ⚠️ LAZY: do NOT construct PureShieldModelManager here.
+        // It indirectly touches TensorFlow Lite native libraries which can
+        // crash on app startup on devices without GPU support.
+        // modelManager will be created on first actual use.
+    }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Permission check
-    // ─────────────────────────────────────────────────────────────────────────
+    private synchronized PureShieldModelManager getModelManager() {
+        if (modelManager == null) {
+            modelManager = new PureShieldModelManager(getContext());
+        }
+        return modelManager;
+    }
 
     @PluginMethod
     public void checkPermissions(PluginCall call) {
         JSObject result = new JSObject();
-        result.put("overlay",   hasOverlayPermission());
-        result.put("projection", false); // MediaProjection requires runtime request
+        result.put("overlay", hasOverlayPermission());
+        result.put("projection", isProjectionApprovedOnce() || isPureShieldRunning());
         call.resolve(result);
     }
 
     @PluginMethod
     public void requestOverlayPermission(PluginCall call) {
-        if (hasOverlayPermission()) {
-            JSObject result = new JSObject();
-            result.put("granted", true);
-            call.resolve(result);
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M || Settings.canDrawOverlays(getContext())) {
+            resolveGranted(call, true);
             return;
         }
-        Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-            Uri.parse("package:" + getContext().getPackageName()));
-        startActivityForResult(call, intent, REQUEST_OVERLAY);
+
+        Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION);
+        intent.setData(Uri.parse("package:" + getContext().getPackageName()));
+        startActivityForResult(call, intent, "overlayPermissionCallback");
+    }
+
+    @ActivityCallback
+    private void overlayPermissionCallback(PluginCall call, ActivityResult result) {
+        resolveGranted(call, hasOverlayPermission());
     }
 
     @PluginMethod
     public void requestMediaProjection(PluginCall call) {
-        this.pendingStartCall = call;
-        MediaProjectionManager mpm = (MediaProjectionManager)
-            getContext().getSystemService(Context.MEDIA_PROJECTION_SERVICE);
-        startActivityForResult(call, mpm.createScreenCaptureIntent(), REQUEST_MEDIA_PROJECTION);
+        MediaProjectionManager manager = (MediaProjectionManager) getContext().getSystemService(Context.MEDIA_PROJECTION_SERVICE);
+        if (manager == null) {
+            call.reject("MediaProjectionManager unavailable");
+            return;
+        }
+        startActivityForResult(call, manager.createScreenCaptureIntent(), "mediaProjectionCallback");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Start / Stop
-    // ─────────────────────────────────────────────────────────────────────────
+    @ActivityCallback
+    private void mediaProjectionCallback(PluginCall call, ActivityResult result) {
+        if (result.getResultCode() != Activity.RESULT_OK || result.getData() == null) {
+            resolveGranted(call, false);
+            return;
+        }
+
+        Intent intent = new Intent(getContext(), PureShieldService.class);
+        intent.setAction(PureShieldService.Actions.START_PROJECTION);
+        intent.putExtra("resultCode", result.getResultCode());
+        intent.putExtra("data", result.getData());
+        setProjectionApprovedOnce(true);
+        startPureShieldService(intent);
+        resolveGranted(call, true);
+    }
 
     @PluginMethod
     public void startPureShield(PluginCall call) {
-        if (!hasOverlayPermission()) {
-            call.reject("OVERLAY_PERMISSION_DENIED",
-                "Overlay permission required. Call requestOverlayPermission() first.");
-            return;
-        }
-        // MediaProjection is needed — trigger request
-        this.pendingStartCall = call;
-        MediaProjectionManager mpm = (MediaProjectionManager)
-            getContext().getSystemService(Context.MEDIA_PROJECTION_SERVICE);
-        startActivityForResult(call, mpm.createScreenCaptureIntent(), REQUEST_MEDIA_PROJECTION);
+        JSObject result = new JSObject();
+        result.put("started", isPureShieldRunning());
+        result.put("requiresProjection", !isPureShieldRunning());
+        call.resolve(result);
     }
 
     @PluginMethod
     public void stopPureShield(PluginCall call) {
-        Intent intent = new Intent(getContext(), PureShieldService.class);
-        intent.setAction(PureShieldService.Actions.STOP);
-        getContext().startService(intent);
+        if (isServiceClassRunning(PureShieldService.class)) {
+            Intent intent = new Intent(getContext(), PureShieldService.class);
+            intent.setAction(PureShieldService.Actions.STOP);
+            getContext().startService(intent);
+        } else {
+            android.app.NotificationManager nm = (android.app.NotificationManager) getContext().getSystemService(Context.NOTIFICATION_SERVICE);
+            if (nm != null) { nm.cancel(9901); nm.cancel(9902); }
+        }
         call.resolve();
     }
 
     @PluginMethod
     public void isRunning(PluginCall call) {
         JSObject result = new JSObject();
-        result.put("running", PureShieldService.instance != null);
+        result.put("running", isPureShieldRunning());
         call.resolve(result);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Config
-    // ─────────────────────────────────────────────────────────────────────────
-
     @PluginMethod
     public void setConfig(PluginCall call) {
-        PureShieldConfig config = PureShieldPreferences.loadConfig(getContext());
+        try {
+            PureShieldConfig config = PureShieldPreferences.loadConfig(getContext());
 
-        String gender = call.getString("blurGender");
-        if (gender != null) {
-            try { config.setBlurGender(PureShieldConfig.BlurGender.valueOf(gender.toUpperCase())); }
-            catch (Exception ignored) {}
+            String blurGender = call.getString("blurGender");
+            if (blurGender != null) {
+                config.setBlurGender(PureShieldConfig.BlurGender.valueOf(blurGender));
+            }
+
+            String blurStyle = call.getString("blurStyle");
+            if (blurStyle != null) {
+                config.setBlurStyle(PureShieldBlurView.BlurStyle.valueOf(blurStyle));
+            }
+
+            Double threshold = call.getDouble("confidenceThreshold");
+            if (threshold != null) {
+                config.setConfidenceThreshold(threshold.floatValue());
+            }
+
+            Integer blurOpacity = call.getInt("blurOpacity");
+            if (blurOpacity != null) config.setBlurOpacity(blurOpacity);
+
+            Integer blurPaddingPct = call.getInt("blurPaddingPct");
+            if (blurPaddingPct != null) config.setBlurPaddingPct(blurPaddingPct);
+
+            if (call.hasOption("debugOverlay")) {
+                config.setDebugOverlay(call.getBoolean("debugOverlay", config.isDebugOverlay()));
+            }
+
+            config.setEnabled(call.getBoolean("enabled", config.isEnabled()));
+            config.setPauseOnBatteryBelow20(call.getBoolean("pauseOnBatteryBelow20", config.isPauseOnBatteryBelow20()));
+
+            PureShieldPreferences.saveConfig(getContext(), config);
+            notifyConfigChanged();
+            call.resolve();
+        } catch (Exception e) {
+            call.reject("Failed to set config: " + e.getMessage());
         }
-
-        String style = call.getString("blurStyle");
-        if (style != null) {
-            try { config.setBlurStyle(PureShieldBlurView.BlurStyle.valueOf(style.toUpperCase())); }
-            catch (Exception ignored) {}
-        }
-
-        Double threshold = call.getDouble("confidenceThreshold");
-        if (threshold != null) config.setConfidenceThreshold(threshold.floatValue());
-
-        Boolean enabled = call.getBoolean("enabled");
-        if (enabled != null) config.setEnabled(enabled);
-
-        PureShieldPreferences.saveConfig(getContext(), config);
-
-        // Notify running service
-        Intent intent = new Intent(getContext(), PureShieldService.class);
-        intent.setAction(PureShieldService.Actions.UPDATE_CONFIG);
-        getContext().startService(intent);
-
-        call.resolve();
     }
 
     @PluginMethod
     public void getConfig(PluginCall call) {
-        PureShieldConfig config = PureShieldPreferences.loadConfig(getContext());
-        JSObject result = new JSObject();
-        result.put("blurGender", config.getBlurGender().name());
-        result.put("blurStyle",  config.getBlurStyle().name());
-        result.put("confidenceThreshold", config.getConfidenceThreshold());
-        result.put("enabled", config.isEnabled());
-        result.put("pauseOnBatteryBelow20", config.isPauseOnBatteryBelow20());
-        call.resolve(result);
+        try {
+            call.resolve(configToJson(PureShieldPreferences.loadConfig(getContext())));
+        } catch (Exception e) {
+            call.reject("Failed to get config: " + e.getMessage());
+        }
     }
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // Target apps
-    // ─────────────────────────────────────────────────────────────────────────
 
     @PluginMethod
     public void setTargetApps(PluginCall call) {
-        JSArray packagesArray = call.getArray("packages");
-        if (packagesArray == null) { call.reject("packages required"); return; }
-
         try {
+            JSArray packagesArray = call.getArray("packages");
             Set<String> packages = new HashSet<>();
-            for (int i = 0; i < packagesArray.length(); i++) {
-                packages.add(packagesArray.getString(i));
+            if (packagesArray != null) {
+                for (int i = 0; i < packagesArray.length(); i++) {
+                    String pkg = packagesArray.getString(i);
+                    if (pkg != null && !pkg.trim().isEmpty()) packages.add(pkg);
+                }
             }
             PureShieldPreferences.saveTargetPackages(getContext(), packages);
-
-            // Notify running service
-            Intent intent = new Intent(getContext(), PureShieldService.class);
-            intent.setAction(PureShieldService.Actions.UPDATE_CONFIG);
-            getContext().startService(intent);
-
+            notifyConfigChanged();
             call.resolve();
         } catch (Exception e) {
             call.reject("Failed to set target apps: " + e.getMessage());
@@ -180,112 +204,226 @@ public class PureShieldPlugin extends Plugin {
 
     @PluginMethod
     public void getTargetApps(PluginCall call) {
-        Set<String> packages = PureShieldPreferences.loadTargetPackages(getContext());
-        JSArray arr = new JSArray();
-        for (String pkg : packages) arr.put(pkg);
+        JSArray packagesArray = new JSArray();
+        for (String pkg : PureShieldPreferences.loadTargetPackages(getContext())) {
+            packagesArray.put(pkg);
+        }
         JSObject result = new JSObject();
-        result.put("packages", arr);
+        result.put("packages", packagesArray);
         call.resolve(result);
     }
 
     @PluginMethod
     public void getInstalledApps(PluginCall call) {
         try {
-            List<android.content.pm.ApplicationInfo> apps =
-                getContext().getPackageManager().getInstalledApplications(
-                    android.content.pm.PackageManager.GET_META_DATA);
+            PackageManager pm = getContext().getPackageManager();
+            Intent launcherIntent = new Intent(Intent.ACTION_MAIN, null);
+            launcherIntent.addCategory(Intent.CATEGORY_LAUNCHER);
+            List<android.content.pm.ResolveInfo> resolved = pm.queryIntentActivities(launcherIntent, 0);
 
-            JSArray result = new JSArray();
-            for (android.content.pm.ApplicationInfo app : apps) {
-                // Only include launchable apps
-                if (getContext().getPackageManager().getLaunchIntentForPackage(app.packageName) == null)
-                    continue;
-                // Skip system utility packages
-                if (app.packageName.equals(getContext().getPackageName())) continue;
+            JSArray apps = new JSArray();
+            String myPkg = getContext().getPackageName();
+            for (android.content.pm.ResolveInfo ri : resolved) {
+                String pkg = ri.activityInfo.packageName;
+                if (pkg == null || pkg.equals(myPkg)) continue;
 
-                JSObject item = new JSObject();
-                item.put("packageName", app.packageName);
-                item.put("appName", getContext().getPackageManager().getApplicationLabel(app).toString());
-                result.put(item);
+                JSObject app = new JSObject();
+                app.put("packageName", pkg);
+                try {
+                    ApplicationInfo ai = pm.getApplicationInfo(pkg, 0);
+                    app.put("appName", pm.getApplicationLabel(ai).toString());
+                } catch (Exception e) {
+                    app.put("appName", pkg);
+                }
+                apps.put(app);
             }
-            JSObject res = new JSObject();
-            res.put("apps", result);
-            call.resolve(res);
+
+            JSObject result = new JSObject();
+            result.put("apps", apps);
+            call.resolve(result);
         } catch (Exception e) {
-            call.reject("Failed to get installed apps: " + e.getMessage());
+            call.reject("Failed to list installed apps: " + e.getMessage());
         }
     }
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // Status
-    // ─────────────────────────────────────────────────────────────────────────
 
     @PluginMethod
     public void getAdaptiveStatus(PluginCall call) {
-        if (PureShieldService.instance == null) {
-            call.reject("Service not running");
+        JSObject result = new JSObject();
+        PureShieldService service = PureShieldService.instance;
+        if (service != null) {
+            PureShieldAdaptiveEngine.AdaptiveStatus status = service.getAdaptiveStatus();
+            result.put("deviceTier", status.deviceTier);
+            result.put("sampleIntervalMs", status.sampleIntervalMs);
+            result.put("batteryLevel", status.batteryLevel);
+            result.put("thermalStatus", status.thermalStatus);
+            result.put("lastInferenceMs", status.lastInferenceMs);
+        } else {
+            result.put("deviceTier", getModelManager().getSelectedTier().toString());
+            result.put("sampleIntervalMs", getModelManager().getSamplingIntervalMs());
+            result.put("batteryLevel", 100);
+            result.put("thermalStatus", -1);
+            result.put("lastInferenceMs", 0);
+        }
+        call.resolve(result);
+    }
+
+    @PluginMethod
+    public void switchModelTier(PluginCall call) {
+        // (model status method added below)
+        String tier = call.getString("tier");
+        if (tier == null) {
+            call.reject("tier parameter required");
             return;
         }
-        // Access via static instance — safe because same process
-        // In production, use AIDL or ResultReceiver for cleaner IPC
-        call.resolve(); // simplified — extend with actual status
-    }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Activity result handling
-    // ─────────────────────────────────────────────────────────────────────────
+        try {
+            PureShieldModelManager.ModelTier newTier = PureShieldModelManager.ModelTier.valueOf(tier);
+            getModelManager().setSelectedTier(newTier);
 
-    @Override
-    protected void handleOnActivityResult(int requestCode, int resultCode, Intent data) {
-        super.handleOnActivityResult(requestCode, resultCode, data);
+            Intent intent = new Intent(getContext(), PureShieldService.class);
+            intent.setAction(PureShieldService.Actions.SWITCH_MODEL_TIER);
+            intent.putExtra("tier", tier);
+            if (isServiceClassRunning(PureShieldService.class)) startPureShieldService(intent);
 
-        if (requestCode == REQUEST_MEDIA_PROJECTION) {
-            if (resultCode == Activity.RESULT_OK && data != null) {
-                // Start service with projection token
-                Intent serviceIntent = new Intent(getContext(), PureShieldService.class);
-                serviceIntent.setAction(PureShieldService.Actions.START_PROJECTION);
-                serviceIntent.putExtra("resultCode", resultCode);
-                serviceIntent.putExtra("data", data);
-
-                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                    getContext().startForegroundService(serviceIntent);
-                } else {
-                    getContext().startService(serviceIntent);
-                }
-
-                if (pendingStartCall != null) {
-                    JSObject result = new JSObject();
-                    result.put("started", true);
-                    pendingStartCall.resolve(result);
-                    pendingStartCall = null;
-                }
-            } else {
-                if (pendingStartCall != null) {
-                    pendingStartCall.reject("PROJECTION_DENIED",
-                        "Screen capture permission denied by user");
-                    pendingStartCall = null;
-                }
-            }
-        }
-
-        if (requestCode == REQUEST_OVERLAY) {
-            PluginCall call = getSavedCall();
-            if (call != null) {
-                JSObject result = new JSObject();
-                result.put("granted", hasOverlayPermission());
-                call.resolve(result);
-            }
+            call.resolve();
+        } catch (Exception e) {
+            call.reject("Failed to switch tier: " + e.getMessage());
         }
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Helpers
-    // ─────────────────────────────────────────────────────────────────────────
+    @PluginMethod
+    public void getDeviceInfo(PluginCall call) {
+        try {
+            JSObject result = new JSObject();
+            result.put("autoDetectedTier", getModelManager().getAutoDetectedTier().toString());
+            result.put("selectedTier", getModelManager().getSelectedTier().toString());
+            result.put("deviceInfo", getModelManager().getDeviceInfo());
+            result.put("expectedFps", getModelManager().getExpectedFps());
+            result.put("batteryDrain", getModelManager().getExpectedBatteryDrainPerHour());
+            result.put("tierName", getModelManager().getTierName());
+            result.put("tierDescription", getModelManager().getTierDescription());
+            call.resolve(result);
+        } catch (Exception e) {
+            call.reject("Failed to get device info: " + e.getMessage());
+        }
+    }
+
+    @PluginMethod
+    public void startService(PluginCall call) {
+        startPureShield(call);
+    }
+
+    @PluginMethod
+    public void stopService(PluginCall call) {
+        stopPureShield(call);
+    }
+
+    @PluginMethod
+    public void isEnabled(PluginCall call) {
+        JSObject result = new JSObject();
+        result.put("enabled", isPureShieldRunning());
+        call.resolve(result);
+    }
+
+    @PluginMethod
+    public void saveConfig(PluginCall call) {
+        setConfig(call);
+    }
+
+    @PluginMethod
+    public void loadConfig(PluginCall call) {
+        getConfig(call);
+    }
+
+    private JSObject configToJson(PureShieldConfig config) {
+        JSObject result = new JSObject();
+        result.put("blurGender", config.getBlurGender().toString());
+        result.put("blurStyle", config.getBlurStyle().toString());
+        result.put("confidenceThreshold", config.getConfidenceThreshold());
+        result.put("blurOpacity", config.getBlurOpacity());
+        result.put("blurPaddingPct", config.getBlurPaddingPct());
+        result.put("debugOverlay", config.isDebugOverlay());
+        result.put("enabled", config.isEnabled());
+        result.put("pauseOnBatteryBelow20", config.isPauseOnBatteryBelow20());
+        return result;
+    }
+
+    private void notifyConfigChanged() {
+
+        Intent intent = new Intent(getContext(), PureShieldService.class);
+        intent.setAction(PureShieldService.Actions.UPDATE_CONFIG);
+        startPureShieldService(intent);
+    }
+
+    private void resolveGranted(PluginCall call, boolean granted) {
+        JSObject result = new JSObject();
+        result.put("granted", granted);
+        call.resolve(result);
+    }
 
     private boolean hasOverlayPermission() {
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
-            return Settings.canDrawOverlays(getContext());
+        return Build.VERSION.SDK_INT < Build.VERSION_CODES.M || Settings.canDrawOverlays(getContext());
+    }
+
+    private boolean isProjectionApprovedOnce() {
+        SharedPreferences prefs = getContext().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        return prefs.getBoolean(KEY_PROJECTION_APPROVED, false);
+    }
+
+    private void setProjectionApprovedOnce(boolean approved) {
+        getContext().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .edit()
+            .putBoolean(KEY_PROJECTION_APPROVED, approved)
+            .apply();
+    }
+
+    private boolean isPureShieldRunning() {
+        PureShieldService service = PureShieldService.instance;
+        return service != null && service.isPureShieldRunning();
+    }
+
+    private void startPureShieldService(Intent intent) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            getContext().startForegroundService(intent);
+        } else {
+            getContext().startService(intent);
         }
-        return true;
+    }
+
+    private boolean isServiceClassRunning(Class<?> serviceClass) {
+        ActivityManager manager = (ActivityManager) getContext().getSystemService(Context.ACTIVITY_SERVICE);
+        if (manager == null) return false;
+        for (ActivityManager.RunningServiceInfo service : manager.getRunningServices(Integer.MAX_VALUE)) {
+            if (serviceClass.getName().equals(service.service.getClassName())) return true;
+        }
+        return false;
+    }
+
+    @PluginMethod
+    public void getModelStatus(PluginCall call) {
+        JSObject result = new JSObject();
+        // Status set by the service when models load
+        String status = PureShieldService.lastModelStatus;
+        String reason = PureShieldService.lastModelStatusReason;
+
+        // If service hasn't run yet, infer from bundled assets
+        if ("UNKNOWN".equals(status)) {
+            try {
+                String[] assets = getContext().getAssets().list("");
+                boolean hasAny = false;
+                if (assets != null) {
+                    for (String a : assets) {
+                        if (a.endsWith(".tflite")) { hasAny = true; break; }
+                    }
+                }
+                status = hasAny ? "OK" : "MODEL_EMPTY";
+            } catch (Throwable t) {
+                status = "MODEL_FAILED";
+                reason = t.getMessage();
+            }
+        }
+        result.put("status", status);
+        if (reason != null) result.put("reason", reason);
+        call.resolve(result);
     }
 }

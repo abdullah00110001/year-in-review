@@ -2,20 +2,48 @@ package com.mylifeos.app.shield.vision;
 
 import android.content.Context;
 import android.content.SharedPreferences;
-
 import com.google.gson.Gson;
-import com.google.gson.reflect.TypeToken;
+import java.util.*;
 
-import java.lang.reflect.Type;
-import java.util.HashSet;
-import java.util.Set;
-
+/**
+ * PureShieldPreferences - Persist all PureView settings
+ */
 public class PureShieldPreferences {
-    private static final String PREFS_NAME = "PureShield_prefs";
+
+    private static final String PREFS_NAME = "pureview_prefs";
+    private static final String KEY_MODEL_TIER = "selected_model_tier";
     private static final String KEY_CONFIG = "config";
     private static final String KEY_PACKAGES = "target_packages";
 
     private static final Gson gson = new Gson();
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Model Tier
+    // ─────────────────────────────────────────────────────────────────────────
+
+    public static void saveSelectedModelTier(Context ctx, PureShieldModelManager.ModelTier tier) {
+        ctx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .edit()
+            .putString(KEY_MODEL_TIER, tier.name())
+            .apply();
+    }
+
+    public static PureShieldModelManager.ModelTier loadSelectedModelTier(Context ctx) {
+        String tierStr = ctx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .getString(KEY_MODEL_TIER, null);
+        
+        if (tierStr == null) return null;
+        
+        try {
+            return PureShieldModelManager.ModelTier.valueOf(tierStr);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Config
+    // ─────────────────────────────────────────────────────────────────────────
 
     public static PureShieldConfig loadConfig(Context ctx) {
         SharedPreferences prefs = ctx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
@@ -35,12 +63,16 @@ public class PureShieldPreferences {
             .apply();
     }
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // Target Packages
+    // ─────────────────────────────────────────────────────────────────────────
+
     public static Set<String> loadTargetPackages(Context ctx) {
         SharedPreferences prefs = ctx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
         String json = prefs.getString(KEY_PACKAGES, null);
         if (json == null) return new HashSet<>();
         try {
-            Type type = new TypeToken<Set<String>>(){}.getType();
+            java.lang.reflect.Type type = new com.google.gson.reflect.TypeToken<Set<String>>(){}.getType();
             Set<String> result = gson.fromJson(json, type);
             return result != null ? result : new HashSet<>();
         } catch (Exception e) {

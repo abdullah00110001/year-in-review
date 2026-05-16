@@ -1,213 +1,114 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { PureShieldPlugin, type PureShieldConfig, type InstalledApp } from '../lib/capacitor/pureShieldPlugin';
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Types
-// ─────────────────────────────────────────────────────────────────────────────
-
-export interface PureShieldState {
-  isRunning:          boolean;
-  isLoading:          boolean;
-  hasOverlayPerm:     boolean;
-  config:             PureShieldConfig;
-  targetApps:         string[];
-  installedApps:      InstalledApp[];
-  adaptiveStatus:     AdaptiveStatusUI | null;
-  error:              string | null;
-}
-
-export interface AdaptiveStatusUI {
-  deviceTier:       string;
-  sampleIntervalMs: number;
-  batteryLevel:     number;
-  lastInferenceMs:  number;
-  thermalStatus:    number;
-  thermalLabel:     string;
-}
+import { useCallback, useEffect, useState } from 'react';
+import {
+  PureShieldPlugin,
+  type PureShieldConfig,
+  type PermissionStatus,
+  type AdaptiveStatus,
+  type InstalledApp,
+  type ModelStatus,
+} from '@/lib/capacitor/pureShieldPlugin';
 
 const DEFAULT_CONFIG: PureShieldConfig = {
-  blurGender:           'FEMALE',
-  blurStyle:            'PIXELATE',
-  confidenceThreshold:  0.72,
-  enabled:              false,
+  blurGender: 'FEMALE',
+  blurStyle: 'PIXELATE',
+  confidenceThreshold: 0.72,
+  enabled: false,
   pauseOnBatteryBelow20: true,
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Hook
-// ─────────────────────────────────────────────────────────────────────────────
-
 export function usePureShield() {
-  const [state, setState] = useState<PureShieldState>({
-    isRunning:      false,
-    isLoading:      true,
-    hasOverlayPerm: false,
-    config:         DEFAULT_CONFIG,
-    targetApps:     [],
-    installedApps:  [],
-    adaptiveStatus: null,
-    error:          null,
-  });
+  const [config, setConfig] = useState<PureShieldConfig>(DEFAULT_CONFIG);
+  const [permissions, setPermissions] = useState<PermissionStatus>({ overlay: false, projection: false });
+  const [running, setRunning] = useState(false);
+  const [status, setStatus] = useState<AdaptiveStatus | null>(null);
+  const [targetApps, setTargetApps] = useState<string[]>([]);
+  const [installedApps, setInstalledApps] = useState<InstalledApp[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [modelStatus, setModelStatus] = useState<ModelStatus>({ status: 'UNKNOWN' });
 
-  const statusIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  // ── Initial load ───────────────────────────────────────────────────────────
-
-  const loadInitialState = useCallback(async () => {
+  const refresh = useCallback(async () => {
     try {
-      const [perms, config, targetAppsResult, appsResult, runningResult] = await Promise.all([
+      const [p, c, r, t, m] = await Promise.all([
         PureShieldPlugin.checkPermissions(),
-        PureShieldPlugin.getConfig(),
-        PureShieldPlugin.getTargetApps(),
-        PureShieldPlugin.getInstalledApps(),
-        PureShieldPlugin.isRunning(),
+        PureShieldPlugin.getConfig().catch(() => DEFAULT_CONFIG),
+        PureShieldPlugin.isRunning().catch(() => ({ running: false })),
+        PureShieldPlugin.getTargetApps().catch(() => ({ packages: [] })),
+        PureShieldPlugin.getModelStatus().catch(() => ({ status: 'UNKNOWN' as const })),
       ]);
-
-      setState(prev => ({
-        ...prev,
-        isLoading:      false,
-        hasOverlayPerm: perms.overlay,
-        config,
-        targetApps:     targetAppsResult.packages,
-        installedApps:  appsResult.apps,
-        isRunning:      runningResult.running,
-      }));
-    } catch (err) {
-      setState(prev => ({ ...prev, isLoading: false, error: String(err) }));
+      setPermissions(p);
+      setConfig({ ...DEFAULT_CONFIG, ...c });
+      setRunning(r.running);
+      setTargetApps(t.packages);
+      setModelStatus(m);
+    } catch (e) {
+      console.warn('PureShield refresh failed', e);
     }
   }, []);
 
-  useEffect(() => {
-    loadInitialState();
-  }, [loadInitialState]);
-
-  // ── Adaptive status polling (every 3s when running) ────────────────────────
-
-  useEffect(() => {
-    if (state.isRunning) {
-      statusIntervalRef.current = setInterval(async () => {
-        try {
-          const status = await PureShieldPlugin.getAdaptiveStatus();
-          setState(prev => ({
-            ...prev,
-            adaptiveStatus: {
-              ...status,
-              thermalLabel: getThermalLabel(status.thermalStatus),
-            },
-          }));
-        } catch {}
-      }, 3000);
-    } else {
-      if (statusIntervalRef.current) {
-        clearInterval(statusIntervalRef.current);
-        statusIntervalRef.current = null;
-      }
-    }
-    return () => {
-      if (statusIntervalRef.current) clearInterval(statusIntervalRef.current);
-    };
-  }, [state.isRunning]);
-
-  // ── Actions ────────────────────────────────────────────────────────────────
-
-  const requestPermissions = useCallback(async () => {
-    setState(prev => ({ ...prev, isLoading: true, error: null }));
-    try {
-      const result = await PureShieldPlugin.requestOverlayPermission();
-      setState(prev => ({
-        ...prev,
-        isLoading:      false,
-        hasOverlayPerm: result.granted,
-      }));
-      return result.granted;
-    } catch (err) {
-      setState(prev => ({ ...prev, isLoading: false, error: String(err) }));
-      return false;
-    }
-  }, []);
+  const updateConfig = useCallback(async (patch: Partial<PureShieldConfig>) => {
+    const next = { ...config, ...patch };
+    setConfig(next);
+    try { await PureShieldPlugin.setConfig(patch); } catch (e) { console.warn(e); }
+  }, [config]);
 
   const start = useCallback(async () => {
-    setState(prev => ({ ...prev, isLoading: true, error: null }));
+    setLoading(true);
     try {
-      const result = await PureShieldPlugin.startPureShield();
-      setState(prev => ({ ...prev, isLoading: false, isRunning: result.started }));
-      return result.started;
-    } catch (err: any) {
-      const message = err?.message || String(err);
-      setState(prev => ({ ...prev, isLoading: false, error: message }));
-      return false;
-    }
+      const res = await PureShieldPlugin.startPureShield();
+      setRunning(!!res.started);
+      return !!res.started;
+    } finally { setLoading(false); }
   }, []);
 
   const stop = useCallback(async () => {
-    setState(prev => ({ ...prev, isLoading: true }));
-    try {
-      await PureShieldPlugin.stopPureShield();
-      setState(prev => ({ ...prev, isLoading: false, isRunning: false, adaptiveStatus: null }));
-    } catch (err) {
-      setState(prev => ({ ...prev, isLoading: false, error: String(err) }));
-    }
+    setLoading(true);
+    try { await PureShieldPlugin.stopPureShield(); setRunning(false); }
+    finally { setLoading(false); }
   }, []);
 
-  const toggle = useCallback(async () => {
-    if (state.isRunning) return stop();
-    if (!state.hasOverlayPerm) {
-      const granted = await requestPermissions();
-      if (!granted) return;
-    }
-    return start();
-  }, [state.isRunning, state.hasOverlayPerm, start, stop, requestPermissions]);
-
-  const updateConfig = useCallback(async (update: Partial<PureShieldConfig>) => {
-    try {
-      await PureShieldPlugin.setConfig(update);
-      setState(prev => ({ ...prev, config: { ...prev.config, ...update } }));
-    } catch (err) {
-      setState(prev => ({ ...prev, error: String(err) }));
-    }
+  const requestOverlay = useCallback(async () => {
+    const r = await PureShieldPlugin.requestOverlayPermission();
+    setPermissions(p => ({ ...p, overlay: r.granted }));
+    return r.granted;
   }, []);
 
-  const toggleTargetApp = useCallback(async (packageName: string) => {
-    const current = state.targetApps;
-    const isSelected = current.includes(packageName);
-    const updated = isSelected
-      ? current.filter(p => p !== packageName)
-      : [...current, packageName];
+  const requestProjection = useCallback(async () => {
+    const r = await PureShieldPlugin.requestMediaProjection();
+    setPermissions(p => ({ ...p, projection: r.granted }));
+    return r.granted;
+  }, []);
 
-    setState(prev => ({ ...prev, targetApps: updated }));
+  const loadInstalledApps = useCallback(async () => {
     try {
-      await PureShieldPlugin.setTargetApps({ packages: updated });
-    } catch (err) {
-      // rollback
-      setState(prev => ({ ...prev, targetApps: current }));
-    }
-  }, [state.targetApps]);
+      const { apps } = await PureShieldPlugin.getInstalledApps();
+      setInstalledApps(apps);
+    } catch (e) { console.warn(e); }
+  }, []);
+
+  const toggleTargetApp = useCallback(async (pkg: string) => {
+    const next = targetApps.includes(pkg) ? targetApps.filter(p => p !== pkg) : [...targetApps, pkg];
+    setTargetApps(next);
+    try { await PureShieldPlugin.setTargetApps({ packages: next }); } catch (e) { console.warn(e); }
+  }, [targetApps]);
+
+  useEffect(() => { refresh(); }, [refresh]);
+
+  useEffect(() => {
+    if (!running) return;
+    const id = setInterval(async () => {
+      try { setStatus(await PureShieldPlugin.getAdaptiveStatus()); } catch {}
+      try { setModelStatus(await PureShieldPlugin.getModelStatus()); } catch {}
+    }, 2000);
+    return () => clearInterval(id);
+  }, [running]);
 
   return {
-    ...state,
-    requestPermissions,
-    start,
-    stop,
-    toggle,
-    updateConfig,
-    toggleTargetApp,
-    refresh: loadInitialState,
+    config, permissions, running, status, modelStatus,
+    targetApps, installedApps, loading,
+    refresh, updateConfig, start, stop,
+    requestOverlay, requestProjection,
+    loadInstalledApps, toggleTargetApp,
   };
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Helpers
-// ─────────────────────────────────────────────────────────────────────────────
-
-function getThermalLabel(status: number): string {
-  switch (status) {
-    case 0:  return 'Normal';
-    case 1:  return 'Light';
-    case 2:  return 'Moderate';
-    case 3:  return 'Severe';
-    case 4:  return 'Critical';
-    case 5:  return 'Emergency';
-    case 6:  return 'Shutdown';
-    default: return 'Unknown';
-  }
-}
+export default usePureShield;

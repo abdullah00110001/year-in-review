@@ -1,235 +1,163 @@
-import { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { useState } from 'react';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Globe, MapPin, Sunrise, TrendingUp, Shield, Trophy, Clock } from 'lucide-react';
-import { useGroupSettings } from '@/hooks/useGroupSettings';
-import { useAuth } from '@/hooks/useAuth';
-import { supabase } from '@/integrations/supabase/client';
-import { formatDistanceToNow } from 'date-fns';
+import { Input } from '@/components/ui/input';
+import { Globe, Building2, MapPin, List, Map as MapIcon, Sunrise, Settings as SettingsIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useNearbyWakers, type FilterMode } from '@/hooks/useNearbyWakers';
+import { useWakeLocation } from '@/hooks/useWakeLocation';
+import { NearbyWakerCard } from './NearbyWakerCard';
+import { WakeMapView } from './WakeMapView';
+import { LocationPrivacySheet } from './LocationPrivacySheet';
 
-interface AreaStat {
-  area: string;
-  awakeCount: number;
-  totalUsers: number;
-  percentage: number;
-}
-
-interface WakeEvent {
-  id: string;
-  time: string;
-  area: string;
-  displayName: string;
-  avatarUrl: string | null;
-  type: 'fajr' | 'tahajjud' | 'early';
-}
+const FILTERS: { mode: FilterMode; icon: any; label: string }[] = [
+  { mode: 'global', icon: Globe, label: 'Global' },
+  { mode: 'city', icon: Building2, label: 'City' },
+  { mode: 'nearby', icon: MapPin, label: 'Nearby' },
+];
 
 export function CommunityWakeFeed() {
-  const { user } = useAuth();
-  const { settings, updateSettings } = useGroupSettings();
-  const [areaStats, setAreaStats] = useState<AreaStat[]>([]);
-  const [recentWakes, setRecentWakes] = useState<WakeEvent[]>([]);
-  const [stats, setStats] = useState({ awakeToday: 0, totalUsers: 0 });
+  const {
+    wakers, myEvent, filterMode, setFilterMode, isLoading,
+    totalToday, cityCount, nearbyCount, userLocation,
+    updateMyStatus, refreshFeed,
+  } = useNearbyWakers();
+  const { locationSettings } = useWakeLocation();
 
-  useEffect(() => {
-    void loadFeed();
-    const ch = supabase
-      .channel('community_wake_feed')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'community_wake_events' }, () => {
-        void loadFeed();
-      })
-      .subscribe();
-    return () => { void supabase.removeChannel(ch); };
-  }, []);
+  const [view, setView] = useState<'feed' | 'map'>('feed');
+  const [statusInput, setStatusInput] = useState('');
+  const [emojiInput, setEmojiInput] = useState('');
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
-  async function loadFeed() {
-    try {
-      const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-      const { data: events } = await supabase
-        .from('community_wake_events' as any)
-        .select('id, user_id, wake_time, city, event_type')
-        .gte('wake_time', since)
-        .order('wake_time', { ascending: false })
-        .limit(30);
-
-      const rows = ((events as any[]) || []);
-      // Fetch real profiles for the users
-      const uniqueIds = Array.from(new Set(rows.map((r: any) => r.user_id)));
-      const profileMap = new Map<string, { full_name: string | null; avatar_url: string | null }>();
-      if (uniqueIds.length > 0) {
-        const { data: profiles } = await supabase
-          .from('profiles')
-          .select('user_id, full_name, avatar_url')
-          .in('user_id', uniqueIds as any);
-        (profiles ?? []).forEach((p: any) => profileMap.set(p.user_id, { full_name: p.full_name, avatar_url: p.avatar_url }));
-      }
-      setRecentWakes(rows.slice(0, 10).map((e) => {
-        const p = profileMap.get(e.user_id);
-        return {
-          id: e.id,
-          time: formatDistanceToNow(new Date(e.wake_time), { addSuffix: true }),
-          area: e.city || 'Unknown',
-          displayName: p?.full_name || 'Member',
-          avatarUrl: p?.avatar_url || null,
-          type: e.event_type,
-        } as WakeEvent;
-      }));
-
-      const byCity: Record<string, number> = {};
-      rows.forEach((r) => { byCity[r.city || 'Unknown'] = (byCity[r.city || 'Unknown'] || 0) + 1; });
-
-      const { count: totalLoc } = await supabase
-        .from('user_locations' as any)
-        .select('user_id', { count: 'exact', head: true })
-        .eq('opted_in', true);
-
-      const total = totalLoc || rows.length;
-      setStats({ awakeToday: rows.length, totalUsers: total });
-
-      setAreaStats(
-        Object.entries(byCity)
-          .map(([area, awake]) => ({
-            area,
-            awakeCount: awake,
-            totalUsers: total,
-            percentage: total > 0 ? Math.round((awake / total) * 100) : 0,
-          }))
-          .sort((a, b) => b.awakeCount - a.awakeCount)
-          .slice(0, 5)
-      );
-    } catch (err) {
-      console.error('Community feed load failed (likely needs migration):', err);
-    }
-  }
-
-  async function logMyWake(type: 'fajr' | 'tahajjud' | 'early') {
-    if (!user) return;
-    try {
-      await supabase.from('community_wake_events' as any).insert({
-        user_id: user.id,
-        city: settings.city || null,
-        event_type: type,
-        anonymous: false,
-      });
-      await loadFeed();
-    } catch (err) {
-      console.error('Log wake failed', err);
-    }
-  }
-
-  const getTypeColor = (type: string) => {
-    switch (type) {
-      case 'fajr': return 'bg-primary/10 text-primary border-primary/20';
-      case 'tahajjud': return 'bg-secondary text-secondary-foreground border-border';
-      case 'early': return 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20';
-      default: return 'bg-muted text-muted-foreground';
-    }
-  };
-
-  const successRate = stats.totalUsers > 0 ? Math.round((stats.awakeToday / stats.totalUsers) * 100) : 0;
+  const tab = (active: boolean) =>
+    cn(
+      'flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-full text-xs font-medium transition-all',
+      active ? 'bg-[#6C63FF] text-white shadow-[0_0_18px_rgba(108,99,255,0.4)]' : 'text-white/60 hover:text-white'
+    );
 
   return (
-    <div className="space-y-4">
-      {!settings.locationOptIn && (
-        <Card className="border-primary/20 bg-primary/5">
-          <CardContent className="p-4">
-            <div className="flex items-start gap-3">
-              <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                <MapPin className="h-5 w-5 text-primary" />
-              </div>
-              <div className="flex-1">
-                <h3 className="font-semibold text-sm mb-1">Enable city-based community insights</h3>
-                <p className="text-xs text-muted-foreground mb-3">You will only share your city, never your exact location.</p>
-                <div className="flex items-center gap-2 text-xs text-emerald-600">
-                  <Shield className="h-3 w-3" />Privacy-safe city level data only
-                </div>
-              </div>
+    <div className="space-y-3 text-white">
+      {/* Header */}
+      <div className="rounded-2xl bg-[#111118] border border-white/[0.06] p-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="text-base font-semibold flex items-center gap-2">
+              <Sunrise className="h-4 w-4 text-[#FFD740]" /> আজকের Wakers
             </div>
-            <Button className="w-full mt-3" size="sm" onClick={() => void updateSettings({ locationOptIn: true, city: settings.city || 'Dhaka' })}>
-              <Globe className="h-4 w-4 mr-2" />Enable location sharing
-            </Button>
-          </CardContent>
-        </Card>
-      )}
-
-      <Card>
-        <CardHeader className="pb-2 flex-row items-center justify-between space-y-0">
-          <CardTitle className="text-sm flex items-center gap-2"><Sunrise className="h-4 w-4 text-primary" />Log my wake</CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-wrap gap-2">
-          <Button size="sm" variant="outline" onClick={() => void logMyWake('fajr')}>Fajr</Button>
-          <Button size="sm" variant="outline" onClick={() => void logMyWake('tahajjud')}>Tahajjud</Button>
-          <Button size="sm" variant="outline" onClick={() => void logMyWake('early')}>Early</Button>
-        </CardContent>
-      </Card>
-
-      {areaStats.length > 0 && (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm flex items-center gap-2"><Trophy className="h-4 w-4 text-primary" />Area leaderboard</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {areaStats.map((stat, index) => (
-              <div key={stat.area} className="flex items-center justify-between p-3 rounded-xl bg-muted/30 hover:bg-muted/50 transition-colors">
-                <div className="flex items-center gap-3">
-                  <span className="text-lg font-bold w-6 text-center text-primary">{index + 1}</span>
-                  <div>
-                    <p className="font-medium text-sm flex items-center gap-1"><MapPin className="h-3 w-3" />{stat.area}</p>
-                    <p className="text-xs text-muted-foreground">{stat.awakeCount} awake in last 24h</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-semibold text-emerald-600">{stat.percentage}%</span>
-                  <TrendingUp className="h-3 w-3 text-emerald-600" />
-                </div>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      )}
-
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm flex items-center gap-2"><Sunrise className="h-4 w-4 text-primary" />Recent wake activity</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2">
-          {recentWakes.length === 0 ? (
-            <p className="text-xs text-muted-foreground text-center py-6">
-              No recent wakes. Be the first — log your wake above.
-            </p>
-          ) : recentWakes.map((event) => (
-            <div key={event.id} className="flex items-center justify-between p-3 rounded-xl bg-muted/30">
-              <div className="flex items-center gap-3">
-                {event.avatarUrl ? (
-                  <img src={event.avatarUrl} alt="" className="h-8 w-8 rounded-full object-cover" />
-                ) : (
-                  <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center font-bold text-primary text-xs">
-                    {event.displayName.charAt(0).toUpperCase()}
-                  </div>
-                )}
-                <div>
-                  <p className="text-sm font-medium">{event.displayName}</p>
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <MapPin className="h-3 w-3" /><span>{event.area}</span><span>•</span><Clock className="h-3 w-3" /><span>{event.time}</span>
-                  </div>
-                </div>
-              </div>
-              <Badge variant="outline" className={cn('text-xs', getTypeColor(event.type))}>{event.type}</Badge>
+            <div className="text-xs text-white/50 mt-0.5">
+              {totalToday} জন উঠেছে {filterMode === 'global' ? 'সারা বিশ্বে' : filterMode === 'city' ? `${userLocation?.city || 'your city'}-এ` : '5 km এ'}
             </div>
-          ))}
-        </CardContent>
-      </Card>
-
-      <Card className="border-primary/20 bg-primary/5">
-        <CardContent className="p-4">
-          <div className="flex items-center justify-around py-2">
-            <div className="text-center"><p className="text-2xl font-bold text-emerald-600">{stats.awakeToday}</p><p className="text-xs text-muted-foreground">Awake today</p></div>
-            <div className="text-center"><p className="text-2xl font-bold text-primary">{stats.totalUsers}</p><p className="text-xs text-muted-foreground">Tracked users</p></div>
-            <div className="text-center"><p className="text-2xl font-bold text-blue-600">{successRate}%</p><p className="text-xs text-muted-foreground">Success rate</p></div>
           </div>
-        </CardContent>
-      </Card>
+          <Button size="icon" variant="ghost" className="text-white/60 hover:text-white" onClick={() => setSettingsOpen(true)}>
+            <SettingsIcon className="h-4 w-4" />
+          </Button>
+        </div>
+
+        <div className="flex items-center gap-1 mt-3 p-1 bg-black/30 rounded-full">
+          {FILTERS.map(f => (
+            <button key={f.mode} onClick={() => setFilterMode(f.mode)} className={tab(filterMode === f.mode)}>
+              <f.icon className="h-3.5 w-3.5" /> {f.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Stats */}
+      <div className="grid grid-cols-3 gap-2">
+        {[
+          { icon: '🌍', n: totalToday, l: 'Global' },
+          { icon: '🏙️', n: cityCount, l: 'City' },
+          { icon: '📍', n: nearbyCount, l: 'Nearby' },
+        ].map(s => (
+          <Card key={s.l} className="bg-[#111118] border-white/[0.06]">
+            <CardContent className="p-3 text-center">
+              <div className="text-xl">{s.icon}</div>
+              <div className="text-lg font-bold text-white">{s.n}</div>
+              <div className="text-[10px] text-white/50 uppercase tracking-wide">{s.l}</div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {/* My status */}
+      {myEvent && (
+        <Card className="bg-[#111118] border-[#6C63FF]/30">
+          <CardContent className="p-3">
+            <div className="text-xs text-white/60 mb-2">Your status</div>
+            <div className="flex gap-2">
+              <Input
+                value={emojiInput}
+                onChange={e => setEmojiInput(e.target.value)}
+                placeholder="🕌"
+                className="w-14 bg-black/30 border-white/10 text-center"
+                maxLength={2}
+              />
+              <Input
+                value={statusInput}
+                onChange={e => setStatusInput(e.target.value)}
+                placeholder={myEvent.status_text || 'কী করছেন এখন?'}
+                className="bg-black/30 border-white/10 text-white"
+                maxLength={60}
+              />
+              <Button
+                onClick={() => statusInput.trim() && updateMyStatus(statusInput.trim(), emojiInput.trim() || undefined)}
+                className="bg-[#6C63FF] hover:bg-[#5b52ff]"
+              >
+                Save
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* View toggle */}
+      <div className="flex gap-1 p-1 bg-[#111118] border border-white/[0.06] rounded-full">
+        <button onClick={() => setView('feed')} className={tab(view === 'feed')}>
+          <List className="h-3.5 w-3.5" /> Feed
+        </button>
+        <button onClick={() => setView('map')} className={tab(view === 'map')}>
+          <MapIcon className="h-3.5 w-3.5" /> Map
+        </button>
+      </div>
+
+      {/* Content */}
+      {view === 'map' ? (
+        <WakeMapView wakers={wakers} myLat={userLocation?.lat ?? null} myLng={userLocation?.lng ?? null} />
+      ) : (
+        <div className="space-y-2">
+          {isLoading && wakers.length === 0 ? (
+            <div className="text-center text-white/40 text-sm py-8">Loading…</div>
+          ) : wakers.length === 0 ? (
+            <Card className="bg-[#111118] border-white/[0.06]">
+              <CardContent className="p-8 text-center">
+                <div className="text-4xl mb-2">🌙</div>
+                <div className="text-sm font-medium">এখনো কেউ {filterMode === 'nearby' ? 'কাছে' : 'এখানে'} নেই</div>
+                <div className="text-xs text-white/50 mt-1">আপনিই প্রথম! 🎉</div>
+                {filterMode !== 'global' && (
+                  <Button size="sm" variant="outline" className="mt-3 border-white/20 text-white" onClick={() => setFilterMode('global')}>
+                    Switch to Global feed
+                  </Button>
+                )}
+              </CardContent>
+            </Card>
+          ) : (
+            wakers.map(w => (
+              <NearbyWakerCard
+                key={w.id}
+                waker={w}
+                showDistance={filterMode === 'nearby'}
+                isCurrentUser={myEvent?.id === w.id}
+              />
+            ))
+          )}
+        </div>
+      )}
+
+      <LocationPrivacySheet
+        open={settingsOpen}
+        onOpenChange={setSettingsOpen}
+        onSaved={() => void refreshFeed()}
+      />
     </div>
   );
 }

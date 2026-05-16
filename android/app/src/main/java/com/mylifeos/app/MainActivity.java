@@ -10,6 +10,7 @@ import android.util.Log;
 import android.view.WindowManager;
 
 import com.getcapacitor.BridgeActivity;
+import com.mylifeos.app.plugins.PureShieldPlugin;
 import com.mylifeos.app.plugins.ShieldPlugin;
 import com.mylifeos.app.plugins.RiseAlarmPlugin;
 
@@ -131,20 +132,25 @@ import android.os.Bundle;
 import android.util.Log;
 import android.view.WindowManager;
 import com.getcapacitor.BridgeActivity;
+import com.mylifeos.app.plugins.PureShieldPlugin;
 import com.mylifeos.app.plugins.ShieldPlugin;
 import com.mylifeos.app.plugins.RiseAlarmPlugin;
+import com.mylifeos.app.plugins.BarcodeScannerPlugin;
 
 public class MainActivity extends BridgeActivity {
   private static MainActivity instance;
 
   @Override
   public void onCreate(Bundle savedInstanceState) {
-    registerPlugin(ShieldPlugin.class);
-    registerPlugin(RiseAlarmPlugin.class);
+    // Register plugins defensively — one failure must not crash the whole app
+    try { registerPlugin(ShieldPlugin.class); } catch (Throwable t) { Log.e("MainActivity", "ShieldPlugin register failed", t); }
+    try { registerPlugin(RiseAlarmPlugin.class); } catch (Throwable t) { Log.e("MainActivity", "RiseAlarmPlugin register failed", t); }
+    try { registerPlugin(PureShieldPlugin.class); } catch (Throwable t) { Log.e("MainActivity", "PureShieldPlugin register failed", t); }
+    try { registerPlugin(BarcodeScannerPlugin.class); } catch (Throwable t) { Log.e("MainActivity", "BarcodeScannerPlugin register failed", t); }
     super.onCreate(savedInstanceState);
     instance = this;
     // 🔥 Handle first launch intent
-    handleAlarmIntent(getIntent());
+    try { handleAlarmIntent(getIntent()); } catch (Throwable t) { Log.e("MainActivity", "handleAlarmIntent failed", t); }
   }
 
   @Override

@@ -18,22 +18,6 @@ allprojects {
         mavenCentral()
         maven { url 'https://jitpack.io' }
     }
-    
-    // Keep Java source/target aligned without using javac --release.
-    // Android Gradle Plugin must control the Android bootclasspath itself.
-    tasks.withType(JavaCompile).configureEach {
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
-    }
-    
-    // Force Java 17 toolchain
-    plugins.withType(JavaPlugin).configureEach {
-        java {
-            toolchain {
-                languageVersion = JavaLanguageVersion.of(17)
-            }
-        }
-    }
 }
 
 task clean(type: Delete) {

@@ -14,10 +14,11 @@ import { ShieldFocusTimer } from '@/components/shield/ShieldFocusTimer';
 import { ShieldQuickActions } from '@/components/shield/ShieldQuickActions';
 import { ShieldReports } from '@/components/shield/ShieldReports';
 import { LifeosGroupsHome } from '@/components/groups/LifeosGroupsHome';
-import { BlockAppsPage } from '@/components/shield/Pages/BlockAppsPage';
-import { BlockSitesPage } from '@/components/shield/Pages/BlockSitesPage';
-import { BlockKeywordsPage } from '@/components/shield/Pages/BlockKeywordsPage';
+import { BlockAppsPage } from '@/components/shield/pages/BlockAppsPage';
+import { BlockSitesPage } from '@/components/shield/pages/BlockSitesPage';
+import { BlockKeywordsPage } from '@/components/shield/pages/BlockKeywordsPage';
 import { FloatingTimerSettings } from '@/components/shield/FloatingTimerSettings';
+import { PureShieldMainSettings } from '@/components/shield/pureShield/PureShieldMainSettings';
 import { isNative } from '@/lib/capacitor/platform';
 import { App } from '@capacitor/app';
 import {
@@ -44,7 +45,7 @@ import {
 } from '@/lib/capacitor/permissions';
 
 type StrictnessMode = 'normal' | 'lock' | 'strict';
-type SubPage = 'main' | 'block-screen' | 'block-apps' | 'block-sites' | 'block-keywords' | 'floating-timer';
+type SubPage = 'main' | 'block-screen' | 'block-apps' | 'block-sites' | 'block-keywords' | 'floating-timer' | 'pure-shield';
 
 interface DisciplineProfile {
   id: string;
@@ -331,7 +332,7 @@ export default function ShieldPage() {
   };
 
   const handleNavigate = (page: string) => {
-    if (page === 'block-screen' || page === 'floating-timer') {
+    if (page === 'block-screen' || page === 'floating-timer' || page === 'pure-shield') {
       setSubPage(page as SubPage);
     }
   };
@@ -416,6 +417,7 @@ export default function ShieldPage() {
   if (subPage === 'block-sites') return <BlockSitesPage onBack={() => setSubPage('main')} />;
   if (subPage === 'block-keywords') return <BlockKeywordsPage onBack={() => setSubPage('main')} />;
   if (subPage === 'floating-timer') return <FloatingTimerSettings onBack={() => setSubPage('main')} />;
+  if (subPage === 'pure-shield') return <PureShieldMainSettings onBack={() => setSubPage('main')} />;
 
   if (isLoading) {
     return (

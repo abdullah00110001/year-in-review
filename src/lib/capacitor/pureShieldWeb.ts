@@ -1,5 +1,5 @@
 import { WebPlugin } from '@capacitor/core';
-import type { PureShieldPluginInterface, PureShieldConfig, PermissionStatus, AdaptiveStatus } from './pureShieldPlugin';
+import type { PureShieldPluginInterface, PureShieldConfig, PermissionStatus, AdaptiveStatus, ModelStatus } from './pureShieldPlugin';
 
 /**
  * Web stub — used in browser dev environment.
@@ -7,7 +7,7 @@ import type { PureShieldPluginInterface, PureShieldConfig, PermissionStatus, Ada
  */
 export class PureShieldWeb extends WebPlugin implements PureShieldPluginInterface {
 
-  private config: PureShieldConfig = {
+  private cfg: PureShieldConfig = {
     blurGender:           'FEMALE',
     blurStyle:            'PIXELATE',
     confidenceThreshold:  0.72,
@@ -39,10 +39,10 @@ export class PureShieldWeb extends WebPlugin implements PureShieldPluginInterfac
   async isRunning() { return { running: this.running }; }
 
   async setConfig(cfg: Partial<PureShieldConfig>) {
-    this.config = { ...this.config, ...cfg };
+    this.cfg = { ...this.cfg, ...cfg };
   }
 
-  async getConfig() { return { ...this.config }; }
+  async getConfig() { return { ...this.cfg }; }
 
   async setTargetApps(data: { packages: string[] }) {
     this.targetPackages = data.packages;
@@ -73,5 +73,9 @@ export class PureShieldWeb extends WebPlugin implements PureShieldPluginInterfac
       thermalStatus:    0,
       lastInferenceMs:  18,
     };
+  }
+
+  async getModelStatus(): Promise<ModelStatus> {
+    return { status: 'OK' };
   }
 }

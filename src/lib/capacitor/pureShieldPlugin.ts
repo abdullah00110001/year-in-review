@@ -5,7 +5,7 @@ import { registerPlugin } from '@capacitor/core';
 // ─────────────────────────────────────────────────────────────────────────────
 
 export type BlurGender = 'FEMALE' | 'MALE' | 'BOTH';
-export type BlurStyle  = 'PIXELATE' | 'FROSTED' | 'SOLID';
+export type BlurStyle  = 'PIXELATE' | 'FROSTED' | 'SOLID' | 'MOSAIC';
 
 export interface PureShieldConfig {
   blurGender:           BlurGender;
@@ -33,6 +33,13 @@ export interface AdaptiveStatus {
   lastInferenceMs: number;
 }
 
+export type ModelStatusCode = 'OK' | 'MODEL_FAILED' | 'MODEL_EMPTY' | 'UNKNOWN';
+
+export interface ModelStatus {
+  status: ModelStatusCode;
+  reason?: string;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Plugin interface
 // ─────────────────────────────────────────────────────────────────────────────
@@ -54,6 +61,7 @@ export interface PureShieldPluginInterface {
   getInstalledApps():            Promise<{ apps: InstalledApp[] }>;
 
   getAdaptiveStatus():           Promise<AdaptiveStatus>;
+  getModelStatus():              Promise<ModelStatus>;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

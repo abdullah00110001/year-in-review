@@ -13,6 +13,8 @@ import { cn } from '@/lib/utils';
 import { openAccessibilitySettings, openDeviceAdminSettings, openUsageAccessSettings } from '@/utils/permissions';
 import { Capacitor } from '@capacitor/core';
 import ShieldPlugin from '@/lib/capacitor/shieldPlugin';
+import { PureShieldCard } from '@/components/shield/pureShield/PureShieldCard';
+import { usePureShield } from '@/hooks/usePureShield';
 import { toast } from 'sonner';
 
 interface SettingItem {
@@ -46,6 +48,7 @@ interface ShieldSettingsProps {
 }
 
 export function ShieldSettings({ settings, onSettingChange, onNavigate }: ShieldSettingsProps) {
+  const { running: pureShieldRunning } = usePureShield();
   const [permissionStatus, setPermissionStatus] = useState({
     accessibility: false,
     usageStats: false,
@@ -443,6 +446,7 @@ export function ShieldSettings({ settings, onSettingChange, onNavigate }: Shield
 
   return (
     <div className="space-y-6 pb-4">
+      <PureShieldCard isActive={pureShieldRunning} onClick={() => onNavigate('pure-shield')} />
       {renderSection('Blocking', blockingSettings)}
       {renderSection('Timer & Alerts', timerSettings)}
       {renderSection('Notifications', notificationSettings)}

@@ -1,4 +1,4 @@
-package com.mylifeos.app.plugins;
+/* package com.mylifeos.app.plugins;
 
 import android.app.AlarmManager;
 import android.app.PendingIntent;
@@ -17,7 +17,7 @@ import org.json.JSONObject;
  * 
  * ✅ FIXED: RiseAlarmScheduler import সরানো হয়েছে।
  *    সরাসরি AlarmManager ব্যবহার করো - extra class dependency নেই।
- */
+ * /
 public class BootReceiver extends BroadcastReceiver {
 
     private static final String TAG = "RiseBootReceiver";
@@ -132,6 +132,95 @@ public class BootReceiver extends BroadcastReceiver {
 
         } catch (Exception e) {
             Log.e(TAG, "scheduleAlarm failed for id=" + id, e);
+        }
+    }
+}
+ */
+ 
+package com.mylifeos.app.plugins;
+
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.Intent;
+import android.content.SharedPreferences;
+import android.util.Log;
+
+import com.mylifeos.app.rise.scheduler.RiseAlarmScheduler;
+
+import org.json.JSONArray;
+import org.json.JSONObject;
+
+/**
+ * BootReceiver
+ * Package: com.mylifeos.app.plugins
+ *
+ * Device reboot হলে সব alarm restore করে।
+ * RiseAlarmScheduler ব্যবহার করে (correct package থেকে import)।
+ */
+public class BootReceiver extends BroadcastReceiver {
+
+    private static final String TAG = "RiseBootReceiver";
+
+    @Override
+    public void onReceive(Context context, Intent intent) {
+        if (intent == null) return;
+
+        String action = intent.getAction();
+        boolean shouldRestore =
+            Intent.ACTION_BOOT_COMPLETED.equals(action) ||
+            Intent.ACTION_MY_PACKAGE_REPLACED.equals(action) ||
+            "android.intent.action.QUICKBOOT_POWERON".equals(action) ||
+            "com.htc.intent.action.QUICKBOOT_POWERON".equals(action);
+
+        if (!shouldRestore) return;
+
+        Log.d(TAG, "Boot detected → restoring alarms");
+
+        try {
+            SharedPreferences prefs =
+                context.getSharedPreferences("CapacitorStorage", Context.MODE_PRIVATE);
+
+            // Capacitor Preferences key format = "_cap_KEY"
+            String alarmsJson = prefs.getString("_cap_rise_alarms", null);
+            if (alarmsJson == null) alarmsJson = prefs.getString("rise_alarms", null);
+
+            if (alarmsJson == null || alarmsJson.isEmpty()) {
+                Log.d(TAG, "No saved alarms found");
+                return;
+            }
+
+            JSONArray alarms = new JSONArray(alarmsJson);
+            int restored = 0;
+
+            for (int i = 0; i < alarms.length(); i++) {
+                JSONObject alarm = alarms.getJSONObject(i);
+
+                // Disabled হলে skip
+                if (alarm.has("is_enabled") && !alarm.getBoolean("is_enabled")) continue;
+                if (alarm.has("enabled")    && !alarm.getBoolean("enabled"))    continue;
+
+                int    alarmId      = alarm.getInt("id");
+                long   timeInMillis = alarm.getLong("timeInMillis");
+                String title        = alarm.optString("title", "Rise Alarm");
+                String body         = alarm.optString("body",  "Wake up!");
+                String uuid         = alarm.optString("uuid",  String.valueOf(alarmId));
+
+                // Past time হলে skip
+                if (timeInMillis <= System.currentTimeMillis()) {
+                    Log.d(TAG, "Past alarm skip: id=" + alarmId);
+                    continue;
+                }
+
+                // ✅ RiseAlarmScheduler ব্যবহার করো (correct package import)
+                RiseAlarmScheduler.scheduleAlarm(context, alarmId, timeInMillis, title, body, uuid);
+                restored++;
+                Log.d(TAG, "Restored id=" + alarmId + " uuid=" + uuid);
+            }
+
+            Log.d(TAG, "Total restored: " + restored + " alarms");
+
+        } catch (Exception e) {
+            Log.e(TAG, "Boot restore error", e);
         }
     }
 }
