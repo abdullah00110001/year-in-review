@@ -521,19 +521,14 @@ public class PureShieldService extends Service {
     // ─────────────────────────────────────────────────────────────────────────
 
     private void processFrame(Bitmap bitmap) {
-        if (faceDetector == null) {
-            lastDebugMessage = "❌ faceDetector is null!";
+        if (mlKitFaceDetector == null && faceDetector == null) {
+            lastDebugMessage = "❌ face detector is null!";
             return;
         }
 
         long startMs = System.currentTimeMillis();
 
-        // ✅ Get real input size from model
-        int[] inputShape = faceDetector.getInputTensor(0).shape();
-        int inputH = inputShape[1];
-        int inputW = inputShape[2];
-
-        List<RectF> faces = detectFaces(bitmap, inputW, inputH);
+        List<RectF> faces = detectFaces(bitmap);
 
         long inferMs = System.currentTimeMillis() - startMs;
         lastInferenceMs.set(inferMs);
@@ -557,6 +552,11 @@ public class PureShieldService extends Service {
         for (RectF face : faces) {
             GenderResult result = estimateGender(bitmap, face);
             boolean blur = shouldBlur(result);
+            if (!blur && config.getBlurGender() != PureShieldConfig.BlurGender.BOTH) {
+                // Until a real gender classifier is bundled, never leave detected
+                // faces unprotected just because the fallback color heuristic is unsure.
+                blur = true;
+            }
 
             Log.d(TAG, "👤 Face | female=" + String.format("%.2f", result.femaleProbability)
                 + " male=" + String.format("%.2f", result.maleProbability)
