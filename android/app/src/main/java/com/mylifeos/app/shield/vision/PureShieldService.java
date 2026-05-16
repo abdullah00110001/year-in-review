@@ -172,6 +172,7 @@ public class PureShieldService extends Service {
             case Actions.UPDATE_CONFIG:
                 config = PureShieldPreferences.loadConfig(this);
                 targetPackages = PureShieldPreferences.loadTargetPackages(this);
+                rebuildMlKitDetector();
                 adaptiveEngine.onConfigChanged(config);
                 Log.d(TAG, "⚙️ Config updated — targets: " + targetPackages);
                 break;
@@ -398,6 +399,16 @@ public class PureShieldService extends Service {
             broadcastModelStatus("MODEL_FAILED", e.getMessage());
             return false;
         }
+    }
+
+    private void rebuildMlKitDetector() {
+        try { if (mlKitFaceDetector != null) mlKitFaceDetector.close(); } catch (Throwable ignored) {}
+        FaceDetectorOptions mlOptions = new FaceDetectorOptions.Builder()
+            .setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_FAST)
+            .setMinFaceSize(Math.max(0.01f, config.getMinFaceSizePct() / 100f))
+            .enableTracking()
+            .build();
+        mlKitFaceDetector = FaceDetection.getClient(mlOptions);
     }
 
     private boolean assetExists(String name) {
