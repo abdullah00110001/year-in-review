@@ -159,6 +159,9 @@ public class PureShieldPlugin extends Plugin {
             Integer blurPaddingPct = call.getInt("blurPaddingPct");
             if (blurPaddingPct != null) config.setBlurPaddingPct(blurPaddingPct);
 
+            Integer minFaceSizePct = call.getInt("minFaceSizePct");
+            if (minFaceSizePct != null) config.setMinFaceSizePct(minFaceSizePct);
+
             if (call.hasOption("debugOverlay")) {
                 config.setDebugOverlay(call.getBoolean("debugOverlay", config.isDebugOverlay()));
             }
@@ -342,6 +345,7 @@ public class PureShieldPlugin extends Plugin {
         result.put("confidenceThreshold", config.getConfidenceThreshold());
         result.put("blurOpacity", config.getBlurOpacity());
         result.put("blurPaddingPct", config.getBlurPaddingPct());
+        result.put("minFaceSizePct", config.getMinFaceSizePct());
         result.put("debugOverlay", config.isDebugOverlay());
         result.put("enabled", config.isEnabled());
         result.put("pauseOnBatteryBelow20", config.isPauseOnBatteryBelow20());
