@@ -4,7 +4,6 @@ import android.app.Activity;
 import android.app.ActivityManager;
 import android.content.Context;
 import android.content.Intent;
-import android.content.SharedPreferences;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.media.projection.MediaProjectionManager;
@@ -364,18 +363,6 @@ public class PureShieldPlugin extends Plugin {
 
     private boolean hasOverlayPermission() {
         return Build.VERSION.SDK_INT < Build.VERSION_CODES.M || Settings.canDrawOverlays(getContext());
-    }
-
-    private boolean isProjectionApprovedOnce() {
-        SharedPreferences prefs = getContext().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
-        return prefs.getBoolean(KEY_PROJECTION_APPROVED, false);
-    }
-
-    private void setProjectionApprovedOnce(boolean approved) {
-        getContext().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            .edit()
-            .putBoolean(KEY_PROJECTION_APPROVED, approved)
-            .apply();
     }
 
     private boolean isPureShieldRunning() {
