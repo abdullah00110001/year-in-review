@@ -858,6 +858,8 @@ public class PureShieldService extends Service {
     private View createBlurOverlayView() {
         PureShieldBlurView view = new PureShieldBlurView(this);
         view.setBlurStyle(config.getBlurStyle());
+        view.setOverlayOpacity(config.getBlurOpacity());
+        view.setDebugOverlay(config.isDebugOverlay());
 
         int type = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
             ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
@@ -876,9 +878,20 @@ public class PureShieldService extends Service {
     }
 
     private void positionOverlay(View view, RectF rect) {
+        if (view instanceof PureShieldBlurView) {
+            PureShieldBlurView blurView = (PureShieldBlurView) view;
+            blurView.setBlurStyle(config.getBlurStyle());
+            blurView.setOverlayOpacity(config.getBlurOpacity());
+            blurView.setDebugOverlay(config.isDebugOverlay());
+        }
         WindowManager.LayoutParams p = (WindowManager.LayoutParams) view.getLayoutParams();
-        p.x = (int) rect.left; p.y = (int) rect.top;
-        p.width = (int) rect.width(); p.height = (int) rect.height();
+        float pad = Math.max(rect.width(), rect.height()) * (config.getBlurPaddingPct() / 100f);
+        int left = Math.max(0, (int) (rect.left - pad));
+        int top = Math.max(0, (int) (rect.top - pad));
+        int right = Math.min(screenWidth, (int) (rect.right + pad));
+        int bottom = Math.min(screenHeight, (int) (rect.bottom + pad));
+        p.x = left; p.y = top;
+        p.width = Math.max(1, right - left); p.height = Math.max(1, bottom - top);
         try { windowManager.updateViewLayout(view, p); }
         catch (Exception e) { Log.w(TAG, "Overlay update failed: " + e.getMessage()); }
     }
@@ -918,7 +931,7 @@ public class PureShieldService extends Service {
             + " | isTarget: " + isTarget
             + " | targets: " + targetPackages);
 
-        if (!isTarget) {
+        if (!targetPackages.isEmpty() && !isTarget) {
             clearAllOverlays();
         } else {
             Log.i(TAG, "✅ Target app in foreground: " + currentForegroundPackage);
