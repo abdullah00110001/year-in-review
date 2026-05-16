@@ -11,6 +11,10 @@ export class PureShieldWeb extends WebPlugin implements PureShieldPluginInterfac
     blurGender:           'FEMALE',
     blurStyle:            'PIXELATE',
     confidenceThreshold:  0.72,
+    blurOpacity:          100,
+    blurPaddingPct:       15,
+    minFaceSizePct:       2,
+    debugOverlay:         false,
     enabled:              false,
     pauseOnBatteryBelow20: true,
   };

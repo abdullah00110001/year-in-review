@@ -22,6 +22,7 @@ public class PureShieldConfig {
     private float confidenceThreshold     = 0.72f;
     private int blurOpacity               = 100;
     private int blurPaddingPct            = 15;
+    private int minFaceSizePct            = 2;
     private boolean debugOverlay          = false;
     private boolean enabled               = true;
     private boolean pauseOnBatteryBelow20 = true;
@@ -34,6 +35,7 @@ public class PureShieldConfig {
     public float getConfidenceThreshold()                      { return confidenceThreshold; }
     public int getBlurOpacity()                                { return blurOpacity; }
     public int getBlurPaddingPct()                             { return blurPaddingPct; }
+    public int getMinFaceSizePct()                             { return minFaceSizePct; }
     public boolean isDebugOverlay()                            { return debugOverlay; }
     public boolean isEnabled()                                 { return enabled; }
     public boolean isPauseOnBatteryBelow20()                   { return pauseOnBatteryBelow20; }
@@ -44,6 +46,7 @@ public class PureShieldConfig {
     public void setConfidenceThreshold(float t)                { this.confidenceThreshold = t; }
     public void setBlurOpacity(int o)                          { this.blurOpacity = Math.max(20, Math.min(100, o)); }
     public void setBlurPaddingPct(int p)                       { this.blurPaddingPct = Math.max(0, Math.min(80, p)); }
+    public void setMinFaceSizePct(int p)                       { this.minFaceSizePct = Math.max(1, Math.min(50, p)); }
     public void setDebugOverlay(boolean d)                     { this.debugOverlay = d; }
     public void setEnabled(boolean e)                          { this.enabled = e; }
     public void setPauseOnBatteryBelow20(boolean p)            { this.pauseOnBatteryBelow20 = p; }
