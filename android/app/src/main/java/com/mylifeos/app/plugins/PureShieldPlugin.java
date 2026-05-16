@@ -36,7 +36,6 @@ import java.util.Set;
 public class PureShieldPlugin extends Plugin {
 
     private static final String PREFS_NAME = "pureview_prefs";
-    private static final String KEY_PROJECTION_APPROVED = "projection_approved_once";
     private PureShieldModelManager modelManager;
 
     @Override
@@ -58,7 +57,10 @@ public class PureShieldPlugin extends Plugin {
     public void checkPermissions(PluginCall call) {
         JSObject result = new JSObject();
         result.put("overlay", hasOverlayPermission());
-        result.put("projection", isProjectionApprovedOnce() || isPureShieldRunning());
+        // Android MediaProjection consent cannot be reused after stop/restart.
+        // Treat it as granted only while the capture service is actively running
+        // so turning PureShield off and on asks for Screen Capture again.
+        result.put("projection", isPureShieldRunning());
         call.resolve(result);
     }
 
@@ -100,7 +102,6 @@ public class PureShieldPlugin extends Plugin {
         intent.setAction(PureShieldService.Actions.START_PROJECTION);
         intent.putExtra("resultCode", result.getResultCode());
         intent.putExtra("data", result.getData());
-        setProjectionApprovedOnce(true);
         startPureShieldService(intent);
         resolveGranted(call, true);
     }
