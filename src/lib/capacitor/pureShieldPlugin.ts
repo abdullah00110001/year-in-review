@@ -11,6 +11,10 @@ export interface PureShieldConfig {
   blurGender:           BlurGender;
   blurStyle:            BlurStyle;
   confidenceThreshold:  number; // 0.0 – 1.0, default 0.72
+  blurOpacity:          number; // 20-100
+  blurPaddingPct:       number; // 0-80
+  minFaceSizePct:       number; // 1-50
+  debugOverlay:         boolean;
   enabled:              boolean;
   pauseOnBatteryBelow20: boolean;
 }
