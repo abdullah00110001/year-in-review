@@ -629,6 +629,34 @@ public class PureShieldService extends Service {
     // ✅ Unified face detection with dynamic input size
     // ─────────────────────────────────────────────────────────────────────────
 
+    private List<RectF> detectFaces(Bitmap src) {
+        if (mlKitFaceDetector != null) {
+            try {
+                InputImage image = InputImage.fromBitmap(src, 0);
+                List<Face> mlFaces = Tasks.await(mlKitFaceDetector.process(image), 1200, TimeUnit.MILLISECONDS);
+                List<RectF> boxes = new ArrayList<>();
+                float minFace = Math.max(0.01f, config.getMinFaceSizePct() / 100f);
+                for (Face face : mlFaces) {
+                    Rect b = face.getBoundingBox();
+                    RectF box = new RectF(
+                        clamp01(b.left / (float) src.getWidth()),
+                        clamp01(b.top / (float) src.getHeight()),
+                        clamp01(b.right / (float) src.getWidth()),
+                        clamp01(b.bottom / (float) src.getHeight())
+                    );
+                    if (box.width() >= minFace && box.height() >= minFace) boxes.add(box);
+                }
+                if (!boxes.isEmpty()) return boxes;
+            } catch (Throwable t) {
+                Log.w(TAG, "ML Kit detection fallback: " + t.getMessage());
+            }
+        }
+
+        if (faceDetector == null) return Collections.emptyList();
+        int[] inputShape = faceDetector.getInputTensor(0).shape();
+        return detectFaces(src, inputShape[2], inputShape[1]);
+    }
+
     private List<RectF> detectFaces(Bitmap src, int inputW, int inputH) {
         Bitmap resized = Bitmap.createScaledBitmap(src, inputW, inputH, false);
 
