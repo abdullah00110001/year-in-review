@@ -445,6 +445,7 @@ public class PureShieldService extends Service {
     }
 
     private void releaseModels() {
+        if (mlKitFaceDetector != null) { mlKitFaceDetector.close(); mlKitFaceDetector = null; }
         if (faceDetector    != null) { faceDetector.close();     faceDetector    = null; }
         if (genderClassifier!= null) { genderClassifier.close(); genderClassifier= null; }
         if (gpuDelegate     != null) { gpuDelegate.close();      gpuDelegate     = null; }
