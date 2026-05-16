@@ -57,6 +57,11 @@ export function PureShieldMainSettings({ onBack }: PureShieldMainSettingsProps) 
     const next = { ...extras, ...p };
     setExtras(next);
     saveExtras(next);
+    updateConfig({
+      blurOpacity: next.blurOpacity,
+      minFaceSizePct: next.minFaceSizePct,
+      debugOverlay: next.debugOverlay,
+    });
   };
 
   const allPermsGranted = permissions.overlay && permissions.projection;
@@ -393,7 +398,13 @@ export function PureShieldMainSettings({ onBack }: PureShieldMainSettingsProps) 
         )}
       </div>
 
-      <TestBlurDemo open={demoOpen} onClose={() => setDemoOpen(false)} style={config.blurStyle} />
+      <TestBlurDemo
+        open={demoOpen}
+        onClose={() => setDemoOpen(false)}
+        style={config.blurStyle}
+        initialOpacity={extras.blurOpacity}
+        initialPadding={config.blurPaddingPct}
+      />
     </div>
   );
 }
