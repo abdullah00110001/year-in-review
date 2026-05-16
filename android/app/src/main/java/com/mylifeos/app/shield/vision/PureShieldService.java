@@ -18,6 +18,12 @@ import androidx.core.app.NotificationCompat;
 
 import com.mylifeos.app.R;
 
+import com.google.mlkit.vision.common.InputImage;
+import com.google.mlkit.vision.face.Face;
+import com.google.mlkit.vision.face.FaceDetection;
+import com.google.mlkit.vision.face.FaceDetector;
+import com.google.mlkit.vision.face.FaceDetectorOptions;
+
 import org.tensorflow.lite.Interpreter;
 import org.tensorflow.lite.gpu.GpuDelegate;
 
@@ -44,6 +50,7 @@ public class PureShieldService extends Service {
     private ImageReader imageReader;
 
     private Interpreter faceDetector;
+    private FaceDetector mlKitFaceDetector;
     private Interpreter genderClassifier;
     private GpuDelegate gpuDelegate;
 
