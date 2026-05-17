@@ -9,8 +9,6 @@ interface TestBlurDemoProps {
   open: boolean;
   onClose: () => void;
   style?: 'PIXELATE' | 'FROSTED' | 'SOLID' | 'MOSAIC';
-  initialOpacity?: number;
-  initialPadding?: number;
 }
 
 /**
@@ -18,18 +16,15 @@ interface TestBlurDemoProps {
  * Shows a stylized "person" silhouette and applies the selected blur style on top
  * to communicate what filtering will look like.
  */
-export function TestBlurDemo({ open, onClose, style = 'PIXELATE', initialOpacity = 100, initialPadding = 15 }: TestBlurDemoProps) {
-  const [intensity, setIntensity] = useState(initialOpacity);
-  const [padding, setPadding] = useState(initialPadding);
+export function TestBlurDemo({ open, onClose, style = 'PIXELATE' }: TestBlurDemoProps) {
+  const [intensity, setIntensity] = useState(70);
   const [pulse, setPulse] = useState(0);
 
   useEffect(() => {
     if (!open) return;
     const id = setInterval(() => setPulse((p) => p + 1), 1800);
     return () => clearInterval(id);
-    setIntensity(initialOpacity);
-    setPadding(initialPadding);
-  }, [open, initialOpacity, initialPadding]);
+  }, [open]);
 
   if (!open) return null;
 
@@ -66,9 +61,8 @@ export function TestBlurDemo({ open, onClose, style = 'PIXELATE', initialOpacity
             animate={{ scale: 1, opacity: 1 }}
             transition={{ duration: 0.4 }}
             className="absolute top-10 left-1/2 -translate-x-1/2 w-32 h-32"
-            style={{ padding: `${padding}%` }}
           >
-            <div className="relative w-full h-full rounded-[28%] bg-amber-400/80 dark:bg-amber-700/60 border-2 border-primary shadow-[0_0_24px_-6px] shadow-primary/50">
+            <div className="relative w-full h-full rounded-full bg-amber-400/80 dark:bg-amber-700/60 border-2 border-primary shadow-[0_0_24px_-6px] shadow-primary/50">
               <div
                 className={overlayClass}
                 style={{ opacity: intensity / 100, borderRadius: '9999px' }}

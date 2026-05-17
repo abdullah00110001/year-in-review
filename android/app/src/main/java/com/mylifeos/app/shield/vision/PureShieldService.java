@@ -18,13 +18,6 @@ import androidx.core.app.NotificationCompat;
 
 import com.mylifeos.app.R;
 
-import com.google.mlkit.vision.common.InputImage;
-import com.google.mlkit.vision.face.Face;
-import com.google.mlkit.vision.face.FaceDetection;
-import com.google.mlkit.vision.face.FaceDetector;
-import com.google.mlkit.vision.face.FaceDetectorOptions;
-import com.google.android.gms.tasks.Tasks;
-
 import org.tensorflow.lite.Interpreter;
 import org.tensorflow.lite.gpu.GpuDelegate;
 
@@ -51,7 +44,6 @@ public class PureShieldService extends Service {
     private ImageReader imageReader;
 
     private Interpreter faceDetector;
-    private FaceDetector mlKitFaceDetector;
     private Interpreter genderClassifier;
     private GpuDelegate gpuDelegate;
 
@@ -172,7 +164,6 @@ public class PureShieldService extends Service {
             case Actions.UPDATE_CONFIG:
                 config = PureShieldPreferences.loadConfig(this);
                 targetPackages = PureShieldPreferences.loadTargetPackages(this);
-                rebuildMlKitDetector();
                 adaptiveEngine.onConfigChanged(config);
                 Log.d(TAG, "⚙️ Config updated — targets: " + targetPackages);
                 break;
@@ -323,13 +314,6 @@ public class PureShieldService extends Service {
         }
 
         try {
-            FaceDetectorOptions mlOptions = new FaceDetectorOptions.Builder()
-                .setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_FAST)
-                .setMinFaceSize(Math.max(0.01f, config.getMinFaceSizePct() / 100f))
-                .enableTracking()
-                .build();
-            mlKitFaceDetector = FaceDetection.getClient(mlOptions);
-
             Log.i(TAG, "📂 Loading face model: " + faceModel);
             faceDetector = new Interpreter(loadModelFile(faceModel), options);
             activeModelName = faceModel;
@@ -388,32 +372,17 @@ public class PureShieldService extends Service {
                 }
             }
 
-            broadcastModelStatus("OK", "MLKit + " + faceModel);
-            lastDebugMessage = "Model: MLKit + " + faceModel + " | " + modelKind
+            broadcastModelStatus("OK", faceModel);
+            lastDebugMessage = "Model: " + faceModel + " | " + modelKind
                 + " | " + modelInputW + "x" + modelInputH
                 + " | anchors=" + numAnchors;
             Log.i(TAG, "✅ " + lastDebugMessage);
             return true;
         } catch (Throwable e) {
             Log.e(TAG, "❌ Load failed: " + e.getMessage(), e);
-            if (mlKitFaceDetector != null) {
-                broadcastModelStatus("OK", "MLKit fallback active");
-                lastDebugMessage = "Model: MLKit fallback active";
-                return true;
-            }
             broadcastModelStatus("MODEL_FAILED", e.getMessage());
             return false;
         }
-    }
-
-    private void rebuildMlKitDetector() {
-        try { if (mlKitFaceDetector != null) mlKitFaceDetector.close(); } catch (Throwable ignored) {}
-        FaceDetectorOptions mlOptions = new FaceDetectorOptions.Builder()
-            .setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_FAST)
-            .setMinFaceSize(Math.max(0.01f, config.getMinFaceSizePct() / 100f))
-            .enableTracking()
-            .build();
-        mlKitFaceDetector = FaceDetection.getClient(mlOptions);
     }
 
     private boolean assetExists(String name) {
@@ -462,7 +431,6 @@ public class PureShieldService extends Service {
     }
 
     private void releaseModels() {
-        if (mlKitFaceDetector != null) { mlKitFaceDetector.close(); mlKitFaceDetector = null; }
         if (faceDetector    != null) { faceDetector.close();     faceDetector    = null; }
         if (genderClassifier!= null) { genderClassifier.close(); genderClassifier= null; }
         if (gpuDelegate     != null) { gpuDelegate.close();      gpuDelegate     = null; }
@@ -537,14 +505,19 @@ public class PureShieldService extends Service {
     // ─────────────────────────────────────────────────────────────────────────
 
     private void processFrame(Bitmap bitmap) {
-        if (mlKitFaceDetector == null && faceDetector == null) {
-            lastDebugMessage = "❌ face detector is null!";
+        if (faceDetector == null) {
+            lastDebugMessage = "❌ faceDetector is null!";
             return;
         }
 
         long startMs = System.currentTimeMillis();
 
-        List<RectF> faces = detectFaces(bitmap);
+        // ✅ Get real input size from model
+        int[] inputShape = faceDetector.getInputTensor(0).shape();
+        int inputH = inputShape[1];
+        int inputW = inputShape[2];
+
+        List<RectF> faces = detectFaces(bitmap, inputW, inputH);
 
         long inferMs = System.currentTimeMillis() - startMs;
         lastInferenceMs.set(inferMs);
@@ -568,11 +541,6 @@ public class PureShieldService extends Service {
         for (RectF face : faces) {
             GenderResult result = estimateGender(bitmap, face);
             boolean blur = shouldBlur(result);
-            if (!blur && config.getBlurGender() != PureShieldConfig.BlurGender.BOTH) {
-                // Until a real gender classifier is bundled, never leave detected
-                // faces unprotected just because the fallback color heuristic is unsure.
-                blur = true;
-            }
 
             Log.d(TAG, "👤 Face | female=" + String.format("%.2f", result.femaleProbability)
                 + " male=" + String.format("%.2f", result.maleProbability)
@@ -633,34 +601,6 @@ public class PureShieldService extends Service {
     // ─────────────────────────────────────────────────────────────────────────
     // ✅ Unified face detection with dynamic input size
     // ─────────────────────────────────────────────────────────────────────────
-
-    private List<RectF> detectFaces(Bitmap src) {
-        if (mlKitFaceDetector != null) {
-            try {
-                InputImage image = InputImage.fromBitmap(src, 0);
-                List<Face> mlFaces = Tasks.await(mlKitFaceDetector.process(image), 1200, TimeUnit.MILLISECONDS);
-                List<RectF> boxes = new ArrayList<>();
-                float minFace = Math.max(0.01f, config.getMinFaceSizePct() / 100f);
-                for (Face face : mlFaces) {
-                    Rect b = face.getBoundingBox();
-                    RectF box = new RectF(
-                        clamp01(b.left / (float) src.getWidth()),
-                        clamp01(b.top / (float) src.getHeight()),
-                        clamp01(b.right / (float) src.getWidth()),
-                        clamp01(b.bottom / (float) src.getHeight())
-                    );
-                    if (box.width() >= minFace && box.height() >= minFace) boxes.add(box);
-                }
-                if (!boxes.isEmpty()) return boxes;
-            } catch (Throwable t) {
-                Log.w(TAG, "ML Kit detection fallback: " + t.getMessage());
-            }
-        }
-
-        if (faceDetector == null) return Collections.emptyList();
-        int[] inputShape = faceDetector.getInputTensor(0).shape();
-        return detectFaces(src, inputShape[2], inputShape[1]);
-    }
 
     private List<RectF> detectFaces(Bitmap src, int inputW, int inputH) {
         Bitmap resized = Bitmap.createScaledBitmap(src, inputW, inputH, false);
@@ -833,15 +773,19 @@ public class PureShieldService extends Service {
         return new GenderResult(femaleProbability, 1f - femaleProbability);
     }
 
-    private boolean shouldBlur(GenderResult result) {
-        float threshold = config.getConfidenceThreshold();
-        switch (config.getBlurGender()) {
-            case FEMALE: return result.femaleProbability > threshold;
-            case MALE:   return result.maleProbability   > threshold;
-            case BOTH:   return true;
-            default:     return false;
-        }
+    // ✅ নতুন
+private boolean shouldBlur(GenderResult result) {
+    float raw = config.getConfidenceThreshold();
+    // Real gender model থাকলে user threshold use করো
+    // না থাকলে 0.45 cap করো (heuristic max ~0.65)
+    float threshold = (genderClassifier == null) ? Math.min(raw, 0.45f) : raw;
+    switch (config.getBlurGender()) {
+        case FEMALE: return result.femaleProbability > threshold;
+        case MALE:   return result.maleProbability   > threshold;
+        case BOTH:   return true;
+        default:     return false;
     }
+}
 
     // ─────────────────────────────────────────────────────────────────────────
     // Overlay
@@ -863,8 +807,6 @@ public class PureShieldService extends Service {
     private View createBlurOverlayView() {
         PureShieldBlurView view = new PureShieldBlurView(this);
         view.setBlurStyle(config.getBlurStyle());
-        view.setOverlayOpacity(config.getBlurOpacity());
-        view.setDebugOverlay(config.isDebugOverlay());
 
         int type = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
             ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
@@ -883,20 +825,9 @@ public class PureShieldService extends Service {
     }
 
     private void positionOverlay(View view, RectF rect) {
-        if (view instanceof PureShieldBlurView) {
-            PureShieldBlurView blurView = (PureShieldBlurView) view;
-            blurView.setBlurStyle(config.getBlurStyle());
-            blurView.setOverlayOpacity(config.getBlurOpacity());
-            blurView.setDebugOverlay(config.isDebugOverlay());
-        }
         WindowManager.LayoutParams p = (WindowManager.LayoutParams) view.getLayoutParams();
-        float pad = Math.max(rect.width(), rect.height()) * (config.getBlurPaddingPct() / 100f);
-        int left = Math.max(0, (int) (rect.left - pad));
-        int top = Math.max(0, (int) (rect.top - pad));
-        int right = Math.min(screenWidth, (int) (rect.right + pad));
-        int bottom = Math.min(screenHeight, (int) (rect.bottom + pad));
-        p.x = left; p.y = top;
-        p.width = Math.max(1, right - left); p.height = Math.max(1, bottom - top);
+        p.x = (int) rect.left; p.y = (int) rect.top;
+        p.width = (int) rect.width(); p.height = (int) rect.height();
         try { windowManager.updateViewLayout(view, p); }
         catch (Exception e) { Log.w(TAG, "Overlay update failed: " + e.getMessage()); }
     }
@@ -936,7 +867,7 @@ public class PureShieldService extends Service {
             + " | isTarget: " + isTarget
             + " | targets: " + targetPackages);
 
-        if (!targetPackages.isEmpty() && !isTarget) {
+        if (!isTarget) {
             clearAllOverlays();
         } else {
             Log.i(TAG, "✅ Target app in foreground: " + currentForegroundPackage);
@@ -1059,8 +990,6 @@ public class PureShieldService extends Service {
     // ─────────────────────────────────────────────────────────────────────────
 
     private float sigmoid(float x) { return 1f / (1f + (float) Math.exp(-x)); }
-
-    private float clamp01(float v) { return Math.max(0f, Math.min(1f, v)); }
 
     private List<RectF> nonMaxSuppression(List<RectF> boxes, float iouThreshold) {
         if (boxes.isEmpty()) return boxes;

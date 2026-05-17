@@ -4,6 +4,7 @@ import android.app.Activity;
 import android.app.ActivityManager;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.media.projection.MediaProjectionManager;
@@ -35,6 +36,7 @@ import java.util.Set;
 public class PureShieldPlugin extends Plugin {
 
     private static final String PREFS_NAME = "pureview_prefs";
+    private static final String KEY_PROJECTION_APPROVED = "projection_approved_once";
     private PureShieldModelManager modelManager;
 
     @Override
@@ -56,10 +58,7 @@ public class PureShieldPlugin extends Plugin {
     public void checkPermissions(PluginCall call) {
         JSObject result = new JSObject();
         result.put("overlay", hasOverlayPermission());
-        // Android MediaProjection consent cannot be reused after stop/restart.
-        // Treat it as granted only while the capture service is actively running
-        // so turning PureShield off and on asks for Screen Capture again.
-        result.put("projection", isPureShieldRunning());
+        result.put("projection", isProjectionApprovedOnce() || isPureShieldRunning());
         call.resolve(result);
     }
 
@@ -101,6 +100,7 @@ public class PureShieldPlugin extends Plugin {
         intent.setAction(PureShieldService.Actions.START_PROJECTION);
         intent.putExtra("resultCode", result.getResultCode());
         intent.putExtra("data", result.getData());
+        setProjectionApprovedOnce(true);
         startPureShieldService(intent);
         resolveGranted(call, true);
     }
@@ -158,9 +158,6 @@ public class PureShieldPlugin extends Plugin {
 
             Integer blurPaddingPct = call.getInt("blurPaddingPct");
             if (blurPaddingPct != null) config.setBlurPaddingPct(blurPaddingPct);
-
-            Integer minFaceSizePct = call.getInt("minFaceSizePct");
-            if (minFaceSizePct != null) config.setMinFaceSizePct(minFaceSizePct);
 
             if (call.hasOption("debugOverlay")) {
                 config.setDebugOverlay(call.getBoolean("debugOverlay", config.isDebugOverlay()));
@@ -345,7 +342,6 @@ public class PureShieldPlugin extends Plugin {
         result.put("confidenceThreshold", config.getConfidenceThreshold());
         result.put("blurOpacity", config.getBlurOpacity());
         result.put("blurPaddingPct", config.getBlurPaddingPct());
-        result.put("minFaceSizePct", config.getMinFaceSizePct());
         result.put("debugOverlay", config.isDebugOverlay());
         result.put("enabled", config.isEnabled());
         result.put("pauseOnBatteryBelow20", config.isPauseOnBatteryBelow20());
@@ -356,7 +352,7 @@ public class PureShieldPlugin extends Plugin {
 
         Intent intent = new Intent(getContext(), PureShieldService.class);
         intent.setAction(PureShieldService.Actions.UPDATE_CONFIG);
-        if (isServiceClassRunning(PureShieldService.class)) startPureShieldService(intent);
+        startPureShieldService(intent);
     }
 
     private void resolveGranted(PluginCall call, boolean granted) {
@@ -367,6 +363,18 @@ public class PureShieldPlugin extends Plugin {
 
     private boolean hasOverlayPermission() {
         return Build.VERSION.SDK_INT < Build.VERSION_CODES.M || Settings.canDrawOverlays(getContext());
+    }
+
+    private boolean isProjectionApprovedOnce() {
+        SharedPreferences prefs = getContext().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        return prefs.getBoolean(KEY_PROJECTION_APPROVED, false);
+    }
+
+    private void setProjectionApprovedOnce(boolean approved) {
+        getContext().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .edit()
+            .putBoolean(KEY_PROJECTION_APPROVED, approved)
+            .apply();
     }
 
     private boolean isPureShieldRunning() {

@@ -144,14 +144,25 @@ public class PureShieldModelManager {
             default:   return 128;
         }
     }
-
-    public int getGenderClassificationInputSize() {
+    
+    
+    public String getGenderClassifierModel() {
+    if (selectedTier == ModelTier.HIGH) {
+        return "gender_mobilenet.tflite"; // ✅ 300KB real model
+    }
+    return null;
+}
+/*     public int getGenderClassificationInputSize() {
         if (selectedTier == ModelTier.HIGH) {
             return 96;  // MobileNetV3
         }
         return 0;  // Not used for MID/LOW
     }
-
+ */
+ 
+ 
+ 
+ 
     /**
      * Expected inference time per frame (ms)
      */

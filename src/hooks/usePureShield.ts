@@ -12,10 +12,6 @@ const DEFAULT_CONFIG: PureShieldConfig = {
   blurGender: 'FEMALE',
   blurStyle: 'PIXELATE',
   confidenceThreshold: 0.72,
-  blurOpacity: 100,
-  blurPaddingPct: 15,
-  minFaceSizePct: 2,
-  debugOverlay: false,
   enabled: false,
   pauseOnBatteryBelow20: true,
 };
@@ -79,10 +75,6 @@ export function usePureShield() {
   const requestProjection = useCallback(async () => {
     const r = await PureShieldPlugin.requestMediaProjection();
     setPermissions(p => ({ ...p, projection: r.granted }));
-    if (r.granted) {
-      setRunning(true);
-      try { setStatus(await PureShieldPlugin.getAdaptiveStatus()); } catch {}
-    }
     return r.granted;
   }, []);
 
