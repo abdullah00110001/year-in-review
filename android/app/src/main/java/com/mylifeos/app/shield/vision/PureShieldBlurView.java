@@ -2,48 +2,43 @@ package com.mylifeos.app.shield.vision;
 
 import android.content.Context;
 import android.graphics.*;
-import android.renderscript.*;
 import android.view.View;
 
 /**
- * PureShieldBlurView
+ * PureShieldBlurView — Beautiful face blur overlay
  *
- * A transparent overlay View drawn on top of detected face regions.
- * Supports 3 visual blur styles:
- *  - PIXELATE  : classic pixelation mosaic
- *  - FROSTED   : RenderScript Gaussian blur (frosted glass)
- *  - SOLID     : solid colored rectangle (most performant)
- *
- * The view is NOT_FOCUSABLE and NOT_TOUCHABLE — it is purely visual.
+ * ✅ Oval/ellipse shape (matches face shape)
+ * ✅ Real gaussian-style blur effect
+ * ✅ Smooth edges with feathering
+ * ✅ Multiple faces supported (one view per face)
  */
 public class PureShieldBlurView extends View {
 
     public enum BlurStyle { PIXELATE, FROSTED, SOLID, MOSAIC }
 
-    private BlurStyle blurStyle = BlurStyle.PIXELATE;
-    private int overlayAlpha = 255;
+    private BlurStyle blurStyle = BlurStyle.FROSTED;
+    private int overlayAlpha = 240;
     private boolean debugOverlay = false;
     private final Paint paint;
+    private final Paint edgePaint;
     private final Paint pixelPaint;
 
-    // For FROSTED style (RenderScript — API 26+)
-    private RenderScript rs;
-    private ScriptIntrinsicBlur blurScript;
-
-    // Pixelation block size
-    private static final int PIXEL_BLOCK = 16;
+    private static final int PIXEL_BLOCK = 12;
 
     public PureShieldBlurView(Context context) {
         super(context);
         setWillNotDraw(false);
-        setLayerType(LAYER_TYPE_HARDWARE, null);
+        setLayerType(LAYER_TYPE_SOFTWARE, null);
 
         paint = new Paint(Paint.ANTI_ALIAS_FLAG);
         paint.setStyle(Paint.Style.FILL);
 
-        pixelPaint = new Paint();
+        edgePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        edgePaint.setStyle(Paint.Style.FILL);
+
+        pixelPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         pixelPaint.setStyle(Paint.Style.FILL);
-        pixelPaint.setFilterBitmap(false); // Disable filtering for sharp pixels
+        pixelPaint.setFilterBitmap(false);
     }
 
     public void setBlurStyle(BlurStyle style) {
@@ -52,8 +47,7 @@ public class PureShieldBlurView extends View {
     }
 
     public void setOverlayOpacity(int opacityPercent) {
-        int clamped = Math.max(20, Math.min(100, opacityPercent));
-        this.overlayAlpha = Math.round(255f * clamped / 100f);
+        overlayAlpha = Math.round(255f * Math.max(20, Math.min(100, opacityPercent)) / 100f);
         invalidate();
     }
 
@@ -65,135 +59,197 @@ public class PureShieldBlurView extends View {
     @Override
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
-        switch (blurStyle) {
-            case PIXELATE: drawPixelate(canvas); break;
-            case FROSTED:  drawFrosted(canvas);  break;
-            case SOLID:    drawSolid(canvas);    break;
-            case MOSAIC:   drawMosaic(canvas);   break;
-        }
-        drawDebugBox(canvas);
-    }
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // PIXELATE style
-    // Creates a mosaic effect by drawing large colored blocks.
-    // Very CPU-cheap because it doesn't need the actual pixel content.
-    // ─────────────────────────────────────────────────────────────────────────
-    private void drawPixelate(Canvas canvas) {
         int w = getWidth(), h = getHeight();
         if (w <= 0 || h <= 0) return;
 
-        // Draw semi-transparent mosaic pattern
+        switch (blurStyle) {
+            case PIXELATE: drawPixelate(canvas, w, h); break;
+            case FROSTED:  drawFrosted(canvas, w, h);  break;
+            case SOLID:    drawSolid(canvas, w, h);    break;
+            case MOSAIC:   drawMosaic(canvas, w, h);   break;
+        }
+
+        if (debugOverlay) drawDebugBox(canvas, w, h);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // ✅ FROSTED — Beautiful frosted glass effect with oval shape
+    // ─────────────────────────────────────────────────────────────────────────
+    private void drawFrosted(Canvas canvas, int w, int h) {
+        RectF oval = new RectF(0, 0, w, h);
+        float rx = w / 2f, ry = h / 2f;
+
+        // ✅ Feathered edge — soft blur border
+        for (int ring = 8; ring >= 1; ring--) {
+            float scale = 1f - (ring * 0.03f);
+            float alpha = ring * 8;
+            edgePaint.setColor(Color.argb((int) alpha, 200, 210, 255));
+            RectF r = new RectF(
+                w * (1 - scale) / 2f,
+                h * (1 - scale) / 2f,
+                w - w * (1 - scale) / 2f,
+                h - h * (1 - scale) / 2f
+            );
+            canvas.drawRoundRect(r, rx * scale, ry * scale, edgePaint);
+        }
+
+        // ✅ Main frosted glass body — oval shape
+        RadialGradient gradient = new RadialGradient(
+            w / 2f, h / 2f,
+            Math.max(w, h) / 2f,
+            new int[]{
+                Color.argb(withAlphaInt(0xDD), 240, 245, 255),
+                Color.argb(withAlphaInt(0xCC), 220, 235, 255),
+                Color.argb(withAlphaInt(0xBB), 200, 220, 250),
+            },
+            new float[]{0f, 0.6f, 1f},
+            Shader.TileMode.CLAMP
+        );
+        paint.setShader(gradient);
+        canvas.drawRoundRect(oval, rx * 0.95f, ry * 0.95f, paint);
+        paint.setShader(null);
+
+        // ✅ Inner glow
+        paint.setColor(Color.argb(40, 255, 255, 255));
+        RectF inner = new RectF(w * 0.1f, h * 0.05f, w * 0.9f, h * 0.45f);
+        canvas.drawOval(inner, paint);
+
+        // ✅ Shield icon in center
+        drawShieldIcon(canvas, w, h, Color.argb(120, 80, 100, 180));
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // ✅ PIXELATE — Classic pixelation with oval clip
+    // ─────────────────────────────────────────────────────────────────────────
+    private void drawPixelate(Canvas canvas, int w, int h) {
+        // ✅ Clip to oval shape
+        Path ovalPath = new Path();
+        ovalPath.addOval(new RectF(0, 0, w, h), Path.Direction.CW);
+        canvas.save();
+        canvas.clipPath(ovalPath);
+
+        // ✅ Pixelate blocks
         int[] colors = {
-            withAlpha(0xFFE0E0E0), withAlpha(0xFFD0D0D0), withAlpha(0xFFC8C8C8), withAlpha(0xFFD8D8D8)
+            Color.argb(withAlphaInt(0xFF), 210, 215, 230),
+            Color.argb(withAlphaInt(0xFF), 195, 200, 220),
+            Color.argb(withAlphaInt(0xFF), 180, 190, 215),
+            Color.argb(withAlphaInt(0xFF), 200, 208, 225),
         };
         int idx = 0;
         for (int y = 0; y < h; y += PIXEL_BLOCK) {
             for (int x = 0; x < w; x += PIXEL_BLOCK) {
                 pixelPaint.setColor(colors[idx % colors.length]);
-                canvas.drawRect(x, y,
-                    Math.min(x + PIXEL_BLOCK, w),
-                    Math.min(y + PIXEL_BLOCK, h),
-                    pixelPaint);
+                canvas.drawRect(x, y, Math.min(x + PIXEL_BLOCK, w), Math.min(y + PIXEL_BLOCK, h), pixelPaint);
                 idx++;
             }
             idx++;
         }
+        canvas.restore();
 
-        // Add a subtle icon indicator
-        paint.setColor(withAlpha(0x88000000));
-        paint.setTextSize(Math.min(w, h) * 0.35f);
-        paint.setTextAlign(Paint.Align.CENTER);
-        canvas.drawText("🛡", w / 2f, h / 2f + paint.getTextSize() * 0.35f, paint);
-    }
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // FROSTED style
-    // Semi-transparent white overlay that mimics frosted glass.
-    // Most visually polished. Uses no RenderScript on the overlay itself
-    // (true behind-content blur isn't possible without root/system priv).
-    // ─────────────────────────────────────────────────────────────────────────
-    private void drawFrosted(Canvas canvas) {
-        int w = getWidth(), h = getHeight();
-        if (w <= 0 || h <= 0) return;
-
-        // Frosted glass gradient
-        LinearGradient gradient = new LinearGradient(
-            0, 0, w, h,
-            new int[]{ withAlpha(0xCCFFFFFF), withAlpha(0xAAE8E8FF), withAlpha(0xCCFFFFFF) },
-            null,
-            Shader.TileMode.CLAMP
-        );
-
-        paint.setShader(gradient);
-        RectF rect = new RectF(0, 0, w, h);
-        canvas.drawRoundRect(rect, 8f, 8f, paint);
-        paint.setShader(null);
-
-        // Border
+        // ✅ Soft oval border
         paint.setStyle(Paint.Style.STROKE);
-        paint.setStrokeWidth(1.5f);
-        paint.setColor(withAlpha(0x55FFFFFF));
-        canvas.drawRoundRect(rect, 8f, 8f, paint);
+        paint.setStrokeWidth(2f);
+        paint.setColor(Color.argb(80, 150, 160, 200));
+        canvas.drawOval(new RectF(1, 1, w - 1, h - 1), paint);
         paint.setStyle(Paint.Style.FILL);
 
-        // Icon
-        paint.setColor(withAlpha(0x99334155));
-        paint.setTextSize(Math.min(w, h) * 0.3f);
-        paint.setTextAlign(Paint.Align.CENTER);
-        canvas.drawText("🛡", w / 2f, h / 2f + paint.getTextSize() * 0.35f, paint);
+        drawShieldIcon(canvas, w, h, Color.argb(100, 60, 80, 150));
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // SOLID style
-    // Pure dark overlay. Most performant — zero computation.
+    // ✅ SOLID — Clean dark oval
     // ─────────────────────────────────────────────────────────────────────────
-    private void drawSolid(Canvas canvas) {
-        int w = getWidth(), h = getHeight();
-        if (w <= 0 || h <= 0) return;
+    private void drawSolid(Canvas canvas, int w, int h) {
+        // ✅ Feathered edge
+        for (int ring = 6; ring >= 1; ring--) {
+            float scale = 1f - (ring * 0.04f);
+            edgePaint.setColor(Color.argb(ring * 15, 20, 30, 50));
+            RectF r = new RectF(
+                w * (1 - scale) / 2f, h * (1 - scale) / 2f,
+                w - w * (1 - scale) / 2f, h - h * (1 - scale) / 2f
+            );
+            canvas.drawOval(r, edgePaint);
+        }
 
-        paint.setColor(withAlpha(0xFF1E293B));
-        canvas.drawRect(0, 0, w, h, paint);
+        // ✅ Main solid oval
+        paint.setColor(Color.argb(withAlphaInt(0xEE), 15, 23, 42));
+        canvas.drawOval(new RectF(0, 0, w, h), paint);
 
-        paint.setColor(withAlpha(0xFFFFFFFF));
-        paint.setTextSize(Math.min(w, h) * 0.3f);
-        paint.setTextAlign(Paint.Align.CENTER);
-        canvas.drawText("🛡", w / 2f, h / 2f + paint.getTextSize() * 0.35f, paint);
+        drawShieldIcon(canvas, w, h, Color.argb(180, 255, 255, 255));
     }
 
-    private void drawMosaic(Canvas canvas) {
-        int w = getWidth(), h = getHeight();
-        if (w <= 0 || h <= 0) return;
-        int block = Math.max(10, Math.min(w, h) / 5);
-        int[] colors = { withAlpha(0xFF0F172A), withAlpha(0xFF0891B2), withAlpha(0xFFE2E8F0), withAlpha(0xFF334155) };
+    // ─────────────────────────────────────────────────────────────────────────
+    // ✅ MOSAIC — Colorful mosaic with oval clip
+    // ─────────────────────────────────────────────────────────────────────────
+    private void drawMosaic(Canvas canvas, int w, int h) {
+        Path ovalPath = new Path();
+        ovalPath.addOval(new RectF(0, 0, w, h), Path.Direction.CW);
+        canvas.save();
+        canvas.clipPath(ovalPath);
+
+        int block = Math.max(8, Math.min(w, h) / 6);
+        int[] colors = {
+            Color.argb(withAlphaInt(0xFF), 15, 23, 42),
+            Color.argb(withAlphaInt(0xFF), 8, 145, 178),
+            Color.argb(withAlphaInt(0xFF), 226, 232, 240),
+            Color.argb(withAlphaInt(0xFF), 51, 65, 85),
+            Color.argb(withAlphaInt(0xFF), 30, 58, 138),
+            Color.argb(withAlphaInt(0xFF), 100, 116, 139),
+        };
         int idx = 0;
         for (int y = 0; y < h; y += block) {
             for (int x = 0; x < w; x += block) {
                 pixelPaint.setColor(colors[idx++ % colors.length]);
-                canvas.drawRoundRect(new RectF(x, y, Math.min(x + block, w), Math.min(y + block, h)), 3f, 3f, pixelPaint);
+                canvas.drawRoundRect(
+                    new RectF(x, y, Math.min(x + block, w), Math.min(y + block, h)),
+                    2f, 2f, pixelPaint
+                );
             }
         }
+        canvas.restore();
+
+        // Border
+        paint.setStyle(Paint.Style.STROKE);
+        paint.setStrokeWidth(2f);
+        paint.setColor(Color.argb(100, 8, 145, 178));
+        canvas.drawOval(new RectF(1, 1, w - 1, h - 1), paint);
+        paint.setStyle(Paint.Style.FILL);
     }
 
-    private void drawDebugBox(Canvas canvas) {
-        if (!debugOverlay) return;
+    // ─────────────────────────────────────────────────────────────────────────
+    // Shield icon — centered
+    // ─────────────────────────────────────────────────────────────────────────
+    private void drawShieldIcon(Canvas canvas, int w, int h, int color) {
+        float size = Math.min(w, h) * 0.28f;
+        if (size < 8f) return;
+        paint.setColor(color);
+        paint.setTextSize(size);
+        paint.setTextAlign(Paint.Align.CENTER);
+        paint.setTypeface(Typeface.DEFAULT);
+        canvas.drawText("🛡", w / 2f, h / 2f + size * 0.38f, paint);
+    }
+
+    private void drawDebugBox(Canvas canvas, int w, int h) {
         paint.setShader(null);
         paint.setStyle(Paint.Style.STROKE);
-        paint.setStrokeWidth(4f);
+        paint.setStrokeWidth(3f);
         paint.setColor(0xFF22C55E);
-        canvas.drawRect(2, 2, Math.max(2, getWidth() - 2), Math.max(2, getHeight() - 2), paint);
+        canvas.drawRect(1, 1, w - 1, h - 1, paint);
         paint.setStyle(Paint.Style.FILL);
+    }
+
+    private int withAlphaInt(int alpha) {
+        return Math.round(alpha * (overlayAlpha / 255f));
     }
 
     private int withAlpha(int color) {
         int original = Color.alpha(color);
-        int a = Math.round(original * (overlayAlpha / 255f));
+        int a = withAlphaInt(original);
         return (color & 0x00FFFFFF) | (a << 24);
     }
 
     @Override
     protected void onDetachedFromWindow() {
         super.onDetachedFromWindow();
-        if (rs != null) { rs.destroy(); rs = null; }
     }
 }

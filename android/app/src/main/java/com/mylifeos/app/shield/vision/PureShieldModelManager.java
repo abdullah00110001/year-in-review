@@ -10,8 +10,10 @@ import android.util.Log;
  *
  * Uses different models for each tier:
  * HIGH: BlazeFace (detection) + Gender Model
- * MID:  YOLOv5n-face (all-in-one)
- * LOW:  MediaPipe Face (ultra-light)
+ * MID:  BlazeFace short-range (detection) + Gender Model
+ * LOW:  MediaPipe Face (ultra-fast) + Gender Model
+ *
+ * ✅ All tiers now use the same real gender model (300KB UTKFace trained)
  */
 public class PureShieldModelManager {
 
@@ -19,7 +21,7 @@ public class PureShieldModelManager {
 
     public enum ModelTier {
         HIGH,   // BlazeFace + Gender = Best accuracy
-        MID,    // YOLOv5n-face = Balanced
+        MID,    // BlazeFace short-range = Balanced
         LOW     // MediaPipe = Ultra-fast
     }
 
@@ -108,9 +110,9 @@ public class PureShieldModelManager {
 
     /**
      * Get face detector model file based on tier
-     * HIGH: blazeface.tflite (400KB)
-     * MID:  yolov5n_face.tflite (4.2MB)
-     * LOW:  mediapipe_face.tflite (224KB)
+     * HIGH: blazeface.tflite (128x128)
+     * MID:  blaze_face_short_range.tflite (128x128)
+     * LOW:  mediapipe_face.tflite (128x128)
      */
     public String getFaceDetectorModel() {
         switch (selectedTier) {
@@ -126,51 +128,44 @@ public class PureShieldModelManager {
     }
 
     /**
-     * Get gender classifier model (only for HIGH tier)
-     * MID and LOW have gender detection built-in
+     * ✅ Get gender classifier model
+     * ALL tiers now use the same real gender model (300KB UTKFace trained)
+     * Works on ALL devices — LOW end, MID, HIGH
+     * Input: 96x96 RGB image
+     * Output: [1, 2] → index 0 = female_prob, index 1 = male_prob
      */
     public String getGenderClassifierModel() {
-        if (selectedTier == ModelTier.HIGH) {
-            return "gender_mobilenet.tflite";  // 2MB
-        }
-        return null;  // MID and LOW have gender built-in
+        return "gender_mobilenet.tflite"; // ✅ All tiers — real 300KB model
     }
 
+    /**
+     * Face detection input size — all tiers use 128x128
+     */
     public int getFaceDetectionInputSize() {
         switch (selectedTier) {
             case HIGH: return 128;  // BlazeFace
-            case MID:  return 416;  // YOLOv5n
+            case MID:  return 128;  // BlazeFace short-range
             case LOW:  return 128;  // MediaPipe
             default:   return 128;
         }
     }
-    
-    
-    public String getGenderClassifierModel() {
-    if (selectedTier == ModelTier.HIGH) {
-        return "gender_mobilenet.tflite"; // ✅ 300KB real model
+
+    /**
+     * ✅ Gender classifier input size
+     * UTKFace model expects 96x96 RGB input — same for all tiers
+     */
+    public int getGenderClassificationInputSize() {
+        return 96; // UTKFace trained model — 96x96 for all tiers
     }
-    return null;
-}
-/*     public int getGenderClassificationInputSize() {
-        if (selectedTier == ModelTier.HIGH) {
-            return 96;  // MobileNetV3
-        }
-        return 0;  // Not used for MID/LOW
-    }
- */
- 
- 
- 
- 
+
     /**
      * Expected inference time per frame (ms)
      */
     public long getExpectedInferenceTimeMs() {
         switch (selectedTier) {
             case HIGH: return 100;  // BlazeFace (~50ms) + Gender (~50ms)
-            case MID:  return 80;   // YOLOv5n (~80ms on CPU)
-            case LOW:  return 20;   // MediaPipe ultra-light (~20ms)
+            case MID:  return 80;   // BlazeFace short (~40ms) + Gender (~40ms)
+            case LOW:  return 50;   // MediaPipe (~20ms) + Gender (~30ms)
             default:   return 60;
         }
     }
@@ -249,8 +244,8 @@ public class PureShieldModelManager {
     public String getTierDescription() {
         switch (selectedTier) {
             case HIGH: return "Best accuracy, BlazeFace + Gender model (uses more GPU)";
-            case MID:  return "Good balance, BlazeFace short-range model";
-            case LOW:  return "Fastest, MediaPipe ultra-light model (minimal battery)";
+            case MID:  return "Good balance, BlazeFace short-range + Gender model";
+            case LOW:  return "Fastest, MediaPipe + Gender model (minimal battery)";
             default:   return "Unknown";
         }
     }
@@ -259,7 +254,7 @@ public class PureShieldModelManager {
         ActivityManager am = (ActivityManager) context.getSystemService(Context.ACTIVITY_SERVICE);
         ActivityManager.MemoryInfo mi = new ActivityManager.MemoryInfo();
         am.getMemoryInfo(mi);
-        
+
         long ramGb = mi.totalMem / (1024 * 1024 * 1024);
         int cores = Runtime.getRuntime().availableProcessors();
         // GPU probe intentionally skipped here — only run after PureShield starts

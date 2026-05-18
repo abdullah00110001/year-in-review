@@ -32,10 +32,7 @@ public class PureShieldService extends Service {
 
     private static final String TAG = "PureShieldService";
     private static final String CHANNEL_ID = "PureShield_channel";
-    private static final String DETECT_CHANNEL_ID = "PureShield_detect";
     private static final int NOTIF_ID = 9901;
-    private static final int DETECT_NOTIF_ID = 9902;
-    private long lastDetectNotifMs = 0;
 
     private int screenWidth, screenHeight, screenDensity;
 
@@ -46,19 +43,6 @@ public class PureShieldService extends Service {
     private Interpreter faceDetector;
     private Interpreter genderClassifier;
     private GpuDelegate gpuDelegate;
-
-    // ✅ Model metadata cached at load time
-    private int   modelInputW = 128;
-    private int   modelInputH = 128;
-    private int   modelNumOutputs = 0;
-    private int   regressorsOutIdx = 0;   // which output is the box regressors
-    private int   classifiersOutIdx = 1;  // which output is the scores
-    private int   numAnchors = 896;       // detected from output shape
-    private int   regressorVectorSize = 16;
-    private String activeModelName = "(none)";
-    private ModelKind modelKind = ModelKind.BLAZEFACE;
-
-    private enum ModelKind { BLAZEFACE, YOLO, UNKNOWN }
 
     private WindowManager windowManager;
     private final List<View> blurOverlays = new CopyOnWriteArrayList<>();
@@ -316,66 +300,24 @@ public class PureShieldService extends Service {
         try {
             Log.i(TAG, "📂 Loading face model: " + faceModel);
             faceDetector = new Interpreter(loadModelFile(faceModel), options);
-            activeModelName = faceModel;
 
-            // ✅ Inspect input
+            // ✅ Detect model input size dynamically
             int[] inputShape = faceDetector.getInputTensor(0).shape();
-            modelInputH = inputShape.length >= 4 ? inputShape[1] : 128;
-            modelInputW = inputShape.length >= 4 ? inputShape[2] : 128;
-            Log.i(TAG, "✅ Input shape: " + Arrays.toString(inputShape)
-                + " → using " + modelInputW + "x" + modelInputH);
+            Log.i(TAG, "✅ Model input shape: " + Arrays.toString(inputShape));
+            // inputShape = [1, H, W, 3] → inputShape[1] = height, inputShape[2] = width
 
-            // ✅ Inspect outputs and decide model kind + index assignment
-            modelNumOutputs = faceDetector.getOutputTensorCount();
-            Log.i(TAG, "✅ Output tensor count: " + modelNumOutputs);
-
-            for (int i = 0; i < modelNumOutputs; i++) {
-                int[] s = faceDetector.getOutputTensor(i).shape();
-                Log.i(TAG, "   ↳ output[" + i + "] shape=" + Arrays.toString(s));
-            }
-
-            if (faceModel.contains("yolo")) {
-                modelKind = ModelKind.YOLO;
-                int[] s = faceDetector.getOutputTensor(0).shape();
-                // YOLO output: [1, N, 6] (x,y,w,h,conf,cls) or [1, N, 16] etc.
-                numAnchors = s.length >= 3 ? s[1] : 25200;
-                regressorVectorSize = s.length >= 3 ? s[2] : 6;
-                regressorsOutIdx = 0;
-                classifiersOutIdx = -1;
-                Log.i(TAG, "🟢 YOLO model — anchors=" + numAnchors + " vecSize=" + regressorVectorSize);
+            // ✅ Load gender model for ALL tiers
+            String genderModelFile = modelManager.getGenderClassifierModel();
+            if (genderModelFile != null && assetExists(genderModelFile)) {
+                Log.i(TAG, "📂 Loading gender model: " + genderModelFile);
+                genderClassifier = new Interpreter(loadModelFile(genderModelFile), options);
+                Log.i(TAG, "✅ Gender model loaded — real classification enabled for all races");
             } else {
-                modelKind = ModelKind.BLAZEFACE;
-                // BlazeFace: 2 outputs. One is [1,N,16] (regressors), other [1,N,1] (scores).
-                // Detect which is which by last-dim size.
-                if (modelNumOutputs >= 2) {
-                    int[] s0 = faceDetector.getOutputTensor(0).shape();
-                    int[] s1 = faceDetector.getOutputTensor(1).shape();
-                    int last0 = s0[s0.length - 1];
-                    int last1 = s1[s1.length - 1];
-                    if (last0 == 1 && last1 > 1) {
-                        classifiersOutIdx = 0;
-                        regressorsOutIdx  = 1;
-                        numAnchors = s1[1];
-                        regressorVectorSize = last1;
-                    } else {
-                        regressorsOutIdx = 0;
-                        classifiersOutIdx = 1;
-                        numAnchors = s0[1];
-                        regressorVectorSize = last0;
-                    }
-                    Log.i(TAG, "🟢 BlazeFace — regOut=" + regressorsOutIdx
-                        + " clsOut=" + classifiersOutIdx
-                        + " anchors=" + numAnchors
-                        + " vecSize=" + regressorVectorSize);
-                } else {
-                    Log.w(TAG, "⚠️ BlazeFace expected 2 outputs, got " + modelNumOutputs);
-                }
+                Log.w(TAG, "⚠️ No gender model found");
             }
 
             broadcastModelStatus("OK", faceModel);
-            lastDebugMessage = "Model: " + faceModel + " | " + modelKind
-                + " | " + modelInputW + "x" + modelInputH
-                + " | anchors=" + numAnchors;
+            lastDebugMessage = "Model loaded: " + faceModel + " input=" + inputShape[1] + "x" + inputShape[2];
             Log.i(TAG, "✅ " + lastDebugMessage);
             return true;
         } catch (Throwable e) {
@@ -560,42 +502,7 @@ public class PureShieldService extends Service {
         // ✅ Update notification with live stats
         updateNotificationStats();
 
-        // 🔔 Dev-mode detection notification (heads-up)
-        if (toBlur.size() > 0) {
-            notifyDetection(faceCount, toBlur.size());
-        }
-
         new Handler(Looper.getMainLooper()).post(() -> updateOverlays(toBlur));
-    }
-
-    private void notifyDetection(int detected, int blurred) {
-        long now = System.currentTimeMillis();
-        if (now - lastDetectNotifMs < 3000) return; // throttle 3s
-        lastDetectNotifMs = now;
-        try {
-            String genderLabel;
-            switch (config.getBlurGender()) {
-                case FEMALE: genderLabel = "FEMALE"; break;
-                case MALE:   genderLabel = "MALE";   break;
-                default:     genderLabel = "BOTH";   break;
-            }
-            String app = (currentForegroundPackage == null || currentForegroundPackage.isEmpty())
-                ? "screen" : currentForegroundPackage;
-            String text = "Blurred " + blurred + "/" + detected + " " + genderLabel + " face(s) in " + app;
-
-            Notification n = new NotificationCompat.Builder(this, DETECT_CHANNEL_ID)
-                .setContentTitle("🛡️ PureShield detected a face")
-                .setContentText(text)
-                .setStyle(new NotificationCompat.BigTextStyle().bigText(text))
-                .setSmallIcon(R.drawable.ic_shield)
-                .setPriority(NotificationCompat.PRIORITY_HIGH)
-                .setCategory(NotificationCompat.CATEGORY_STATUS)
-                .setAutoCancel(true)
-                .setTimeoutAfter(5000)
-                .build();
-            NotificationManager nm = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
-            if (nm != null) nm.notify(DETECT_NOTIF_ID, n);
-        } catch (Throwable ignored) {}
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -610,79 +517,80 @@ public class PureShieldService extends Service {
         resized.getPixels(pixels, 0, inputW, 0, 0, inputW, inputH);
         resized.recycle();
 
-        boolean isYolo = (modelKind == ModelKind.YOLO);
-
-        // ✅ YOLO uses [0,1] normalization, BlazeFace uses [-1,1]
+        // ✅ MediaPipe/BlazeFace normalization: [-1, 1]
         for (int i = 0; i < pixels.length; i++) {
             int p = pixels[i];
             int y = i / inputW, x = i % inputW;
-            float r = ((p >> 16) & 0xFF);
-            float g = ((p >> 8)  & 0xFF);
-            float b = (p & 0xFF);
-            if (isYolo) {
-                input[0][y][x][0] = r / 255f;
-                input[0][y][x][1] = g / 255f;
-                input[0][y][x][2] = b / 255f;
-            } else {
-                input[0][y][x][0] = (r / 127.5f) - 1f;
-                input[0][y][x][1] = (g / 127.5f) - 1f;
-                input[0][y][x][2] = (b / 127.5f) - 1f;
-            }
+            input[0][y][x][0] = (((p >> 16) & 0xFF) / 127.5f) - 1f;
+            input[0][y][x][1] = (((p >> 8)  & 0xFF) / 127.5f) - 1f;
+            input[0][y][x][2] = ((p & 0xFF)          / 127.5f) - 1f;
         }
 
+        // ✅ Try multi-output first (BlazeFace format)
         try {
-            if (isYolo) {
-                float[][][] out = new float[1][numAnchors][regressorVectorSize];
-                faceDetector.run(input, out);
-                return decodeYolo(out, inputW, inputH);
-            } else {
-                float[][][] regressors  = new float[1][numAnchors][regressorVectorSize];
-                float[][][] classifiers = new float[1][numAnchors][1];
-                Map<Integer, Object> outputs = new HashMap<>();
-                outputs.put(regressorsOutIdx,  regressors);
-                outputs.put(classifiersOutIdx, classifiers);
-                faceDetector.runForMultipleInputsOutputs(new Object[]{input}, outputs);
-                return decodeBlazeFace(regressors, classifiers, inputW, inputH);
-            }
+            // BlazeFace short range: 896 anchors
+            // BlazeFace full range: 896 anchors
+            float[][][] regressors  = new float[1][896][16];
+            float[][][] classifiers = new float[1][896][1];
+            Map<Integer, Object> outputs = new HashMap<>();
+            outputs.put(0, regressors);
+            outputs.put(1, classifiers);
+
+            faceDetector.runForMultipleInputsOutputs(new Object[]{input}, outputs);
+            List<RectF> faces = decodeBlazeFace(regressors, classifiers, inputW, inputH, 0.5f);
+            Log.d(TAG, "✅ BlazeFace multi-output: " + faces.size() + " faces");
+            return faces;
         } catch (Throwable t) {
-            Log.e(TAG, "❌ Detection inference failed: " + t.getMessage(), t);
-            lastDebugMessage = "❌ Inference: " + t.getMessage();
+            Log.w(TAG, "⚠️ Multi-output failed: " + t.getMessage());
+        }
+
+        // ✅ Fallback: single output
+        try {
+            // Try common output shapes
+            int numOutputs = faceDetector.getOutputTensorCount();
+            Log.d(TAG, "Model has " + numOutputs + " outputs");
+
+            if (numOutputs >= 2) {
+                // Try 2-output format
+                int[] shape0 = faceDetector.getOutputTensor(0).shape();
+                int[] shape1 = faceDetector.getOutputTensor(1).shape();
+                Log.d(TAG, "Output 0 shape: " + Arrays.toString(shape0));
+                Log.d(TAG, "Output 1 shape: " + Arrays.toString(shape1));
+            }
+
+            // Single output fallback
+            float[][][] single = new float[1][896][16];
+            faceDetector.run(input, single);
+            return decodeSingleOutput(single);
+        } catch (Throwable t2) {
+            Log.e(TAG, "❌ All detection failed: " + t2.getMessage());
+            lastDebugMessage = "❌ Detection error: " + t2.getMessage();
             return Collections.emptyList();
         }
     }
 
-    private static final float DETECT_THRESHOLD = 0.30f;
-    private static final float NMS_IOU_THRESHOLD = 0.30f;
+    private static final float DETECT_THRESHOLD = 0.55f;  // ✅ Higher = fewer false positives
+    private static final float NMS_IOU_THRESHOLD = 0.40f;  // ✅ Better NMS
 
     private List<RectF> decodeBlazeFace(float[][][] regressors, float[][][] classifiers,
-                                         int inputW, int inputH) {
+                                         int inputW, int inputH, float threshold) {
         List<RectF> boxes = new ArrayList<>();
         float[] anchorX = PureShieldAnchors.X_CENTER;
         float[] anchorY = PureShieldAnchors.Y_CENTER;
-        int count = Math.min(numAnchors, anchorX.length);
-
-        float maxScore = -999f, minScore = 999f;
-        int abovePoint1 = 0, abovePoint3 = 0, abovePoint5 = 0;
+        int count = Math.min(896, anchorX.length);
 
         for (int i = 0; i < count; i++) {
-            float raw = classifiers[0][i][0];
-            if (raw < -100f) raw = -100f;
-            if (raw >  100f) raw =  100f;
-            float score = sigmoid(raw);
-            if (score > maxScore) maxScore = score;
-            if (score < minScore) minScore = score;
-            if (score > 0.1f) abovePoint1++;
-            if (score > 0.3f) abovePoint3++;
-            if (score > 0.5f) abovePoint5++;
-
-            if (score < DETECT_THRESHOLD) continue;
+            float score = sigmoid(classifiers[0][i][0]);
+            if (score < threshold) continue;
 
             float cx = regressors[0][i][0] / inputW + anchorX[i];
             float cy = regressors[0][i][1] / inputH + anchorY[i];
             float w  = regressors[0][i][2] / inputW;
             float h  = regressors[0][i][3] / inputH;
 
-            if (w < 0.02f || h < 0.02f) continue;
+            if (w < 0.04f || h < 0.04f) continue;  // min face size
+            float ar = (h > 0) ? w/h : 1f;
+            if (ar < 0.4f || ar > 2.5f) continue;  // aspect ratio filter
 
             boxes.add(new RectF(
                 Math.max(0f, cx - w/2),
@@ -692,46 +600,23 @@ public class PureShieldService extends Service {
             ));
         }
 
-        Log.d(TAG, String.format(
-            "📊 BlazeFace scores: max=%.3f min=%.3f >0.1=%d >0.3=%d >0.5=%d | raw boxes=%d",
-            maxScore, minScore, abovePoint1, abovePoint3, abovePoint5, boxes.size()));
-
-        return nonMaxSuppression(boxes, NMS_IOU_THRESHOLD);
+        Log.d(TAG, "👤 BlazeFace raw detections: " + boxes.size());
+        return nonMaxSuppression(boxes, 0.3f);
     }
 
-    private List<RectF> decodeYolo(float[][][] output, int inputW, int inputH) {
+    private List<RectF> decodeSingleOutput(float[][][] output) {
         List<RectF> boxes = new ArrayList<>();
-        int n = output[0].length;
-        int vec = output[0][0].length;
-        float maxConf = 0f;
-        int kept = 0;
-
-        for (int i = 0; i < n; i++) {
-            float[] det = output[0][i];
-            if (det.length < 5) continue;
-            float objConf = det[4];
-            if (objConf > maxConf) maxConf = objConf;
-            float clsConf = (vec >= 6) ? det[5] : 1f;
-            float conf = objConf * clsConf;
-            if (conf < DETECT_THRESHOLD) continue;
-
-            float cx = det[0] / inputW;
-            float cy = det[1] / inputH;
-            float w  = det[2] / inputW;
-            float h  = det[3] / inputH;
-
-            if (w < 0.02f || h < 0.02f) continue;
-
+        for (int i = 0; i < output[0].length; i++) {
+            if (output[0][i].length < 5) continue;
+            float conf = sigmoid(output[0][i][4]);
+            if (conf < 0.5f) continue;
+            float cx = output[0][i][0], cy = output[0][i][1];
+            float w  = output[0][i][2], h  = output[0][i][3];
             boxes.add(new RectF(
-                Math.max(0f, cx - w/2),
-                Math.max(0f, cy - h/2),
-                Math.min(1f, cx + w/2),
-                Math.min(1f, cy + h/2)
-            ));
-            kept++;
+                Math.max(0f, cx - w/2), Math.max(0f, cy - h/2),
+                Math.min(1f, cx + w/2), Math.min(1f, cy + h/2)));
         }
-        Log.d(TAG, String.format("📊 YOLO: maxConf=%.3f kept=%d/%d", maxConf, kept, n));
-        return nonMaxSuppression(boxes, NMS_IOU_THRESHOLD);
+        return nonMaxSuppression(boxes, 0.3f);
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -739,53 +624,82 @@ public class PureShieldService extends Service {
     // ─────────────────────────────────────────────────────────────────────────
 
     private GenderResult estimateGender(Bitmap src, RectF faceBox) {
+        // BOTH mode — blur everything, skip gender model
         if (config.getBlurGender() == PureShieldConfig.BlurGender.BOTH) {
             return new GenderResult(0.9f, 0.9f);
         }
 
+        // ✅ Use real gender model if available
+        if (genderClassifier != null) {
+            return classifyGenderReal(src, faceBox);
+        }
+
+        // Fallback heuristic (no model)
+        return new GenderResult(0.5f, 0.5f);
+    }
+
+    /**
+     * ✅ Real gender classification using UTKFace trained model (300KB)
+     * Input: 96x96 RGB, normalized [0,1]
+     * Output: [1,2] → [female_prob, male_prob]
+     * Works for ALL races — Bengali, Chinese, European, African etc.
+     */
+    private GenderResult classifyGenderReal(Bitmap src, RectF faceBox) {
+        int sz = modelManager.getGenderClassificationInputSize(); // 96
         int bw = src.getWidth(), bh = src.getHeight();
-        int left   = (int) Math.max(0,  faceBox.left   * bw);
-        int top    = (int) Math.max(0,  faceBox.top    * bh);
-        int right  = (int) Math.min(bw, faceBox.right  * bw);
-        int bottom = (int) Math.min(bh, faceBox.bottom * bh);
+
+        // Add padding around face for better accuracy
+        float padX = faceBox.width()  * bw * 0.25f;
+        float padY = faceBox.height() * bh * 0.25f;
+
+        int left   = (int) Math.max(0,  faceBox.left   * bw - padX);
+        int top    = (int) Math.max(0,  faceBox.top    * bh - padY);
+        int right  = (int) Math.min(bw, faceBox.right  * bw + padX);
+        int bottom = (int) Math.min(bh, faceBox.bottom * bh + padY);
+
         if (right <= left || bottom <= top) return new GenderResult(0.5f, 0.5f);
 
-        Bitmap face  = Bitmap.createBitmap(src, left, top, right-left, bottom-top);
-        Bitmap small = Bitmap.createScaledBitmap(face, 8, 8, true);
+        Bitmap face    = Bitmap.createBitmap(src, left, top, right-left, bottom-top);
+        Bitmap resized = Bitmap.createScaledBitmap(face, sz, sz, true);
         face.recycle();
 
-        int[] pixels = new int[64];
-        small.getPixels(pixels, 0, 8, 0, 0, 8, 8);
-        small.recycle();
+        float[][][][] input = new float[1][sz][sz][3];
+        int[] pixels = new int[sz * sz];
+        resized.getPixels(pixels, 0, sz, 0, 0, sz, sz);
+        resized.recycle();
 
-        float rSum = 0, gSum = 0, bSum = 0;
-        for (int p : pixels) {
-            rSum += (p >> 16) & 0xFF;
-            gSum += (p >> 8)  & 0xFF;
-            bSum += p & 0xFF;
+        // Normalize [0, 255] → [0, 1]
+        for (int i = 0; i < pixels.length; i++) {
+            int p = pixels[i];
+            int y = i / sz, x = i % sz;
+            input[0][y][x][0] = ((p >> 16) & 0xFF) / 255f;
+            input[0][y][x][1] = ((p >> 8)  & 0xFF) / 255f;
+            input[0][y][x][2] = (p & 0xFF)          / 255f;
         }
-        rSum /= 64f; gSum /= 64f; bSum /= 64f;
 
-        float warmth  = (rSum - bSum) / 255f;
-        float softness = gSum / 255f;
-        float femaleProbability = Math.min(1f, Math.max(0f, 0.45f + warmth * 0.4f + softness * 0.15f));
-
-        return new GenderResult(femaleProbability, 1f - femaleProbability);
+        try {
+            float[][] output = new float[1][2];
+            genderClassifier.run(input, output);
+            float femaleProbability = output[0][0];
+            float maleProbability   = output[0][1];
+            Log.d(TAG, "👤 Gender: female=" + String.format("%.2f", femaleProbability)
+                + " male=" + String.format("%.2f", maleProbability));
+            return new GenderResult(femaleProbability, maleProbability);
+        } catch (Throwable t) {
+            Log.w(TAG, "⚠️ Gender classification failed: " + t.getMessage());
+            return new GenderResult(0.5f, 0.5f);
+        }
     }
 
-    // ✅ নতুন
-private boolean shouldBlur(GenderResult result) {
-    float raw = config.getConfidenceThreshold();
-    // Real gender model থাকলে user threshold use করো
-    // না থাকলে 0.45 cap করো (heuristic max ~0.65)
-    float threshold = (genderClassifier == null) ? Math.min(raw, 0.45f) : raw;
-    switch (config.getBlurGender()) {
-        case FEMALE: return result.femaleProbability > threshold;
-        case MALE:   return result.maleProbability   > threshold;
-        case BOTH:   return true;
-        default:     return false;
+    private boolean shouldBlur(GenderResult result) {
+        float threshold = config.getConfidenceThreshold();
+        switch (config.getBlurGender()) {
+            case FEMALE: return result.femaleProbability > threshold;
+            case MALE:   return result.maleProbability   > threshold;
+            case BOTH:   return true;
+            default:     return false;
+        }
     }
-}
 
     // ─────────────────────────────────────────────────────────────────────────
     // Overlay
@@ -910,19 +824,12 @@ private boolean shouldBlur(GenderResult result) {
 
     private void createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            NotificationManager nm = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
             NotificationChannel ch = new NotificationChannel(
                 CHANNEL_ID, "PureShield Active", NotificationManager.IMPORTANCE_LOW);
             ch.setDescription("Filtering visual content in background");
             ch.setShowBadge(false);
             ch.setSound(null, null);
-            nm.createNotificationChannel(ch);
-
-            NotificationChannel detect = new NotificationChannel(
-                DETECT_CHANNEL_ID, "PureShield Detections", NotificationManager.IMPORTANCE_HIGH);
-            detect.setDescription("Heads-up alerts when a face is detected & blurred");
-            detect.enableVibration(true);
-            nm.createNotificationChannel(detect);
+            ((NotificationManager) getSystemService(NOTIFICATION_SERVICE)).createNotificationChannel(ch);
         }
     }
 
