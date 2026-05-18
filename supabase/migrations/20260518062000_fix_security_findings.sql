@@ -24,14 +24,19 @@ USING (has_role(auth.uid(), 'admin'::app_role));
 ALTER PUBLICATION supabase_realtime DROP TABLE IF EXISTS public.manual_payments;
 
 -- If clients use Realtime Broadcast later, only allow authenticated users to join their own payment channels.
-ALTER TABLE realtime.messages ENABLE ROW LEVEL SECURITY;
+DO $$
+BEGIN
+  IF to_regclass('realtime.messages') IS NOT NULL THEN
+    ALTER TABLE realtime.messages ENABLE ROW LEVEL SECURITY;
 
-DROP POLICY IF EXISTS "Users can receive own manual payment realtime messages" ON realtime.messages;
-CREATE POLICY "Users can receive own manual payment realtime messages"
-ON realtime.messages
-FOR SELECT
-TO authenticated
-USING (
-  topic = ('manual_payments:' || auth.uid()::text)
-  OR topic = ('manual_payments:user:' || auth.uid()::text)
-);
+    DROP POLICY IF EXISTS "Users can receive own manual payment realtime messages" ON realtime.messages;
+    CREATE POLICY "Users can receive own manual payment realtime messages"
+    ON realtime.messages
+    FOR SELECT
+    TO authenticated
+    USING (
+      topic = ('manual_payments:' || auth.uid()::text)
+      OR topic = ('manual_payments:user:' || auth.uid()::text)
+    );
+  END IF;
+END $$;
