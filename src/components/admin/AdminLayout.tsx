@@ -19,7 +19,8 @@ import {
   Menu,
   X,
   Inbox,
-  Rocket
+  Rocket,
+  Megaphone
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -44,6 +45,7 @@ const adminNavCategories = [
       { title: 'At-Risk Users', href: '/admin/at-risk', icon: AlertTriangle },
       { title: 'User Feedback', href: '/admin/feedback', icon: Inbox },
       { title: 'Notifications', href: '/admin/notifications', icon: Bell },
+      { title: 'Announcements', href: '/admin/announcements', icon: Megaphone },
     ]
   },
   {

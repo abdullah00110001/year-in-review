@@ -377,6 +377,51 @@ export type Database = {
         }
         Relationships: []
       }
+      announcements: {
+        Row: {
+          body: string | null
+          button_text: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          image_url: string | null
+          is_active: boolean
+          link_url: string | null
+          max_views: number | null
+          show_mode: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          body?: string | null
+          button_text?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          image_url?: string | null
+          is_active?: boolean
+          link_url?: string | null
+          max_views?: number | null
+          show_mode?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          body?: string | null
+          button_text?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          image_url?: string | null
+          is_active?: boolean
+          link_url?: string | null
+          max_views?: number | null
+          show_mode?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       app_metadata: {
         Row: {
           download_url: string

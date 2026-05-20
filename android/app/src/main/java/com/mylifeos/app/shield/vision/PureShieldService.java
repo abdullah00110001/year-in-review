@@ -43,6 +43,8 @@ public class PureShieldService extends Service {
     private Interpreter faceDetector;
     private Interpreter genderClassifier;
     private GpuDelegate gpuDelegate;
+    private int genderInputWidth = 64;
+    private int genderInputHeight = 64;
 
     private WindowManager windowManager;
     private final List<View> blurOverlays = new CopyOnWriteArrayList<>();
@@ -306,14 +308,27 @@ public class PureShieldService extends Service {
             Log.i(TAG, "✅ Model input shape: " + Arrays.toString(inputShape));
             // inputShape = [1, H, W, 3] → inputShape[1] = height, inputShape[2] = width
 
-            // ✅ Load gender model for ALL tiers
+            // ✅ Load gender model for ALL tiers — wrapped in its own try/catch
+            // so a corrupt or missing gender model does NOT break face detection.
+            // Without the gender classifier, the shield falls back to blurring
+            // every detected face (safe default for FEMALE/MALE modes).
             String genderModelFile = modelManager.getGenderClassifierModel();
             if (genderModelFile != null && assetExists(genderModelFile)) {
-                Log.i(TAG, "📂 Loading gender model: " + genderModelFile);
-                genderClassifier = new Interpreter(loadModelFile(genderModelFile), options);
-                Log.i(TAG, "✅ Gender model loaded — real classification enabled for all races");
+                try {
+                    Log.i(TAG, "📂 Loading gender model: " + genderModelFile);
+                    genderClassifier = new Interpreter(loadModelFile(genderModelFile), buildCpuInterpreterOptions());
+                    int[] genderShape = genderClassifier.getInputTensor(0).shape();
+                    if (genderShape.length >= 4) {
+                        genderInputHeight = genderShape[1];
+                        genderInputWidth = genderShape[2];
+                    }
+                    Log.i(TAG, "✅ Gender model loaded — input=" + genderInputWidth + "x" + genderInputHeight);
+                } catch (Throwable gt) {
+                    genderClassifier = null;
+                    Log.w(TAG, "⚠️ Gender model load failed — falling back to blur-all-faces: " + gt.getMessage());
+                }
             } else {
-                Log.w(TAG, "⚠️ No gender model found");
+                Log.w(TAG, "⚠️ No gender model found — blur-all-faces fallback active");
             }
 
             broadcastModelStatus("OK", faceModel);
@@ -359,6 +374,12 @@ public class PureShieldService extends Service {
             gpuDelegate = null;
             Log.w(TAG, "⚠️ GPU unavailable, using CPU");
         }
+        return options;
+    }
+
+    private Interpreter.Options buildCpuInterpreterOptions() {
+        Interpreter.Options options = new Interpreter.Options();
+        options.setNumThreads(Math.max(1, adaptiveEngine.getInferenceThreadCount()));
         return options;
     }
 
@@ -634,18 +655,20 @@ public class PureShieldService extends Service {
             return classifyGenderReal(src, faceBox);
         }
 
-        // Fallback heuristic (no model)
-        return new GenderResult(0.5f, 0.5f);
+        // ⚠️ No gender model — safe fallback: treat every face as a match
+        // so FEMALE / MALE modes still blur visible faces instead of doing nothing.
+        return new GenderResult(0.9f, 0.9f);
     }
 
     /**
-     * ✅ Real gender classification using UTKFace trained model (300KB)
-     * Input: 96x96 RGB, normalized [0,1]
+     * ✅ Real gender classification using bundled MobileNetV2 TFLite model.
+     * Input: dynamic RGB tensor size, normalized [0,1]
      * Output: [1,2] → [female_prob, male_prob]
      * Works for ALL races — Bengali, Chinese, European, African etc.
      */
     private GenderResult classifyGenderReal(Bitmap src, RectF faceBox) {
-        int sz = modelManager.getGenderClassificationInputSize(); // 96
+        int inputW = Math.max(1, genderInputWidth);
+        int inputH = Math.max(1, genderInputHeight);
         int bw = src.getWidth(), bh = src.getHeight();
 
         // Add padding around face for better accuracy
@@ -660,18 +683,18 @@ public class PureShieldService extends Service {
         if (right <= left || bottom <= top) return new GenderResult(0.5f, 0.5f);
 
         Bitmap face    = Bitmap.createBitmap(src, left, top, right-left, bottom-top);
-        Bitmap resized = Bitmap.createScaledBitmap(face, sz, sz, true);
+        Bitmap resized = Bitmap.createScaledBitmap(face, inputW, inputH, true);
         face.recycle();
 
-        float[][][][] input = new float[1][sz][sz][3];
-        int[] pixels = new int[sz * sz];
-        resized.getPixels(pixels, 0, sz, 0, 0, sz, sz);
+        float[][][][] input = new float[1][inputH][inputW][3];
+        int[] pixels = new int[inputW * inputH];
+        resized.getPixels(pixels, 0, inputW, 0, 0, inputW, inputH);
         resized.recycle();
 
         // Normalize [0, 255] → [0, 1]
         for (int i = 0; i < pixels.length; i++) {
             int p = pixels[i];
-            int y = i / sz, x = i % sz;
+            int y = i / inputW, x = i % inputW;
             input[0][y][x][0] = ((p >> 16) & 0xFF) / 255f;
             input[0][y][x][1] = ((p >> 8)  & 0xFF) / 255f;
             input[0][y][x][2] = (p & 0xFF)          / 255f;

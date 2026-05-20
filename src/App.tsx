@@ -16,6 +16,7 @@ import SmartNotificationProvider from "@/components/notifications/SmartNotificat
 import { useState, useEffect } from "react";
 import { isNative } from "@/lib/capacitor/platform";
 import NativeSplash from "@/components/NativeSplash";
+import AnnouncementPopup from "@/components/AnnouncementPopup";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
 import { App as CapApp } from "@capacitor/app";
 import { getRingingAlarmId } from "@/lib/capacitor/riseAlarmBridge";
@@ -67,6 +68,7 @@ import AdminAnalytics from "./pages/admin/AdminAnalytics";
 import AdminNotifications from "./pages/admin/AdminNotifications";
 import AdminCommandCenter from "./pages/admin/AdminCommandCenter";
 import AdminPanel from "./pages/admin/AdminPanel";
+import AdminAnnouncements from "./pages/admin/AdminAnnouncements";
 import DownloadApp from "./pages/DownloadApp";
 import RiseRingScreen from "./pages/RiseRingScreen";
 import Welcome from "./pages/Welcome";
@@ -133,6 +135,7 @@ const AppContent = () => {
       <Sonner />
       <SmartNotificationProvider />
       <ScrollToTop />
+      <AnnouncementPopup />
       <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route path="/auth" element={<Auth />} />
@@ -186,6 +189,7 @@ const AppContent = () => {
         <Route path="/admin/notifications" element={<AdminProtectedRoute><AdminNotifications /></AdminProtectedRoute>} />
         <Route path="/admin/panel" element={<AdminProtectedRoute><AdminPanel /></AdminProtectedRoute>} />
         <Route path="/admin/command" element={<AdminProtectedRoute><AdminCommandCenter /></AdminProtectedRoute>} />
+        <Route path="/admin/announcements" element={<AdminProtectedRoute><AdminAnnouncements /></AdminProtectedRoute>} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </>

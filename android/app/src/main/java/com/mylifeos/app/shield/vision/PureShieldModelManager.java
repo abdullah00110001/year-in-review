@@ -131,7 +131,7 @@ public class PureShieldModelManager {
      * ✅ Get gender classifier model
      * ALL tiers now use the same real gender model (300KB UTKFace trained)
      * Works on ALL devices — LOW end, MID, HIGH
-     * Input: 96x96 RGB image
+     * Input size is read dynamically from the bundled TFLite model.
      * Output: [1, 2] → index 0 = female_prob, index 1 = male_prob
      */
     public String getGenderClassifierModel() {
@@ -152,10 +152,10 @@ public class PureShieldModelManager {
 
     /**
      * ✅ Gender classifier input size
-     * UTKFace model expects 96x96 RGB input — same for all tiers
+     * Default fallback only; PureShieldService reads the real tensor shape.
      */
     public int getGenderClassificationInputSize() {
-        return 96; // UTKFace trained model — 96x96 for all tiers
+        return 64;
     }
 
     /**

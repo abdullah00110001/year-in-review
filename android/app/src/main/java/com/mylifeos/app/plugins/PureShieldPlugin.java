@@ -44,7 +44,6 @@ public class PureShieldPlugin extends Plugin {
         // ⚠️ LAZY: do NOT construct PureShieldModelManager here.
         // It indirectly touches TensorFlow Lite native libraries which can
         // crash on app startup on devices without GPU support.
-        // modelManager will be created on first actual use.
     }
 
     private synchronized PureShieldModelManager getModelManager() {
@@ -68,7 +67,6 @@ public class PureShieldPlugin extends Plugin {
             resolveGranted(call, true);
             return;
         }
-
         Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION);
         intent.setData(Uri.parse("package:" + getContext().getPackageName()));
         startActivityForResult(call, intent, "overlayPermissionCallback");
@@ -95,7 +93,6 @@ public class PureShieldPlugin extends Plugin {
             resolveGranted(call, false);
             return;
         }
-
         Intent intent = new Intent(getContext(), PureShieldService.class);
         intent.setAction(PureShieldService.Actions.START_PROJECTION);
         intent.putExtra("resultCode", result.getResultCode());
@@ -139,19 +136,13 @@ public class PureShieldPlugin extends Plugin {
             PureShieldConfig config = PureShieldPreferences.loadConfig(getContext());
 
             String blurGender = call.getString("blurGender");
-            if (blurGender != null) {
-                config.setBlurGender(PureShieldConfig.BlurGender.valueOf(blurGender));
-            }
+            if (blurGender != null) config.setBlurGender(PureShieldConfig.BlurGender.valueOf(blurGender));
 
             String blurStyle = call.getString("blurStyle");
-            if (blurStyle != null) {
-                config.setBlurStyle(PureShieldBlurView.BlurStyle.valueOf(blurStyle));
-            }
+            if (blurStyle != null) config.setBlurStyle(PureShieldBlurView.BlurStyle.valueOf(blurStyle));
 
             Double threshold = call.getDouble("confidenceThreshold");
-            if (threshold != null) {
-                config.setConfidenceThreshold(threshold.floatValue());
-            }
+            if (threshold != null) config.setConfidenceThreshold(threshold.floatValue());
 
             Integer blurOpacity = call.getInt("blurOpacity");
             if (blurOpacity != null) config.setBlurOpacity(blurOpacity);
@@ -226,7 +217,6 @@ public class PureShieldPlugin extends Plugin {
             for (android.content.pm.ResolveInfo ri : resolved) {
                 String pkg = ri.activityInfo.packageName;
                 if (pkg == null || pkg.equals(myPkg)) continue;
-
                 JSObject app = new JSObject();
                 app.put("packageName", pkg);
                 try {
@@ -237,7 +227,6 @@ public class PureShieldPlugin extends Plugin {
                 }
                 apps.put(app);
             }
-
             JSObject result = new JSObject();
             result.put("apps", apps);
             call.resolve(result);
@@ -256,7 +245,7 @@ public class PureShieldPlugin extends Plugin {
             result.put("sampleIntervalMs", status.sampleIntervalMs);
             result.put("batteryLevel", status.batteryLevel);
             result.put("thermalStatus", status.thermalStatus);
-            result.put("lastInferenceMs", status.lastInferenceMs);
+            result.put("lastInferenceMs", PureShieldService.lastInferenceMs.get());
         } else {
             result.put("deviceTier", getModelManager().getSelectedTier().toString());
             result.put("sampleIntervalMs", getModelManager().getSamplingIntervalMs());
@@ -267,24 +256,30 @@ public class PureShieldPlugin extends Plugin {
         call.resolve(result);
     }
 
+    // ✅ NEW: Live stats from service counters
+    @PluginMethod
+    public void getLiveStats(PluginCall call) {
+        JSObject result = new JSObject();
+        result.put("totalFrames",      PureShieldService.totalFramesProcessed.get());
+        result.put("totalFaces",       PureShieldService.totalFacesDetected.get());
+        result.put("totalBlurred",     PureShieldService.totalFacesBlurred.get());
+        result.put("lastInferenceMs",  PureShieldService.lastInferenceMs.get());
+        result.put("lastDebugMessage", PureShieldService.lastDebugMessage);
+        result.put("modelStatus",      PureShieldService.lastModelStatus);
+        call.resolve(result);
+    }
+
     @PluginMethod
     public void switchModelTier(PluginCall call) {
-        // (model status method added below)
         String tier = call.getString("tier");
-        if (tier == null) {
-            call.reject("tier parameter required");
-            return;
-        }
-
+        if (tier == null) { call.reject("tier parameter required"); return; }
         try {
             PureShieldModelManager.ModelTier newTier = PureShieldModelManager.ModelTier.valueOf(tier);
             getModelManager().setSelectedTier(newTier);
-
             Intent intent = new Intent(getContext(), PureShieldService.class);
             intent.setAction(PureShieldService.Actions.SWITCH_MODEL_TIER);
             intent.putExtra("tier", tier);
             if (isServiceClassRunning(PureShieldService.class)) startPureShieldService(intent);
-
             call.resolve();
         } catch (Exception e) {
             call.reject("Failed to switch tier: " + e.getMessage());
@@ -296,12 +291,12 @@ public class PureShieldPlugin extends Plugin {
         try {
             JSObject result = new JSObject();
             result.put("autoDetectedTier", getModelManager().getAutoDetectedTier().toString());
-            result.put("selectedTier", getModelManager().getSelectedTier().toString());
-            result.put("deviceInfo", getModelManager().getDeviceInfo());
-            result.put("expectedFps", getModelManager().getExpectedFps());
-            result.put("batteryDrain", getModelManager().getExpectedBatteryDrainPerHour());
-            result.put("tierName", getModelManager().getTierName());
-            result.put("tierDescription", getModelManager().getTierDescription());
+            result.put("selectedTier",     getModelManager().getSelectedTier().toString());
+            result.put("deviceInfo",       getModelManager().getDeviceInfo());
+            result.put("expectedFps",      getModelManager().getExpectedFps());
+            result.put("batteryDrain",     getModelManager().getExpectedBatteryDrainPerHour());
+            result.put("tierName",         getModelManager().getTierName());
+            result.put("tierDescription",  getModelManager().getTierDescription());
             call.resolve(result);
         } catch (Exception e) {
             call.reject("Failed to get device info: " + e.getMessage());
@@ -309,47 +304,55 @@ public class PureShieldPlugin extends Plugin {
     }
 
     @PluginMethod
-    public void startService(PluginCall call) {
-        startPureShield(call);
-    }
-
-    @PluginMethod
-    public void stopService(PluginCall call) {
-        stopPureShield(call);
-    }
-
-    @PluginMethod
-    public void isEnabled(PluginCall call) {
+    public void getModelStatus(PluginCall call) {
         JSObject result = new JSObject();
-        result.put("enabled", isPureShieldRunning());
+        String status = PureShieldService.lastModelStatus;
+        String reason = PureShieldService.lastModelStatusReason;
+        if ("UNKNOWN".equals(status)) {
+            try {
+                String[] assets = getContext().getAssets().list("");
+                boolean hasAny = false;
+                if (assets != null) {
+                    for (String a : assets) {
+                        if (a.endsWith(".tflite")) { hasAny = true; break; }
+                    }
+                }
+                status = hasAny ? "OK" : "MODEL_EMPTY";
+            } catch (Throwable t) {
+                status = "MODEL_FAILED";
+                reason = t.getMessage();
+            }
+        }
+        result.put("status", status);
+        if (reason != null) result.put("reason", reason);
         call.resolve(result);
     }
 
-    @PluginMethod
-    public void saveConfig(PluginCall call) {
-        setConfig(call);
-    }
+    // Aliases
+    @PluginMethod public void startService(PluginCall call) { startPureShield(call); }
+    @PluginMethod public void stopService(PluginCall call)  { stopPureShield(call); }
+    @PluginMethod public void isEnabled(PluginCall call)    { isRunning(call); }
+    @PluginMethod public void saveConfig(PluginCall call)   { setConfig(call); }
+    @PluginMethod public void loadConfig(PluginCall call)   { getConfig(call); }
 
-    @PluginMethod
-    public void loadConfig(PluginCall call) {
-        getConfig(call);
-    }
+    // ─────────────────────────────────────────────────────────────────────────
+    // Helpers
+    // ─────────────────────────────────────────────────────────────────────────
 
     private JSObject configToJson(PureShieldConfig config) {
         JSObject result = new JSObject();
-        result.put("blurGender", config.getBlurGender().toString());
-        result.put("blurStyle", config.getBlurStyle().toString());
-        result.put("confidenceThreshold", config.getConfidenceThreshold());
-        result.put("blurOpacity", config.getBlurOpacity());
-        result.put("blurPaddingPct", config.getBlurPaddingPct());
-        result.put("debugOverlay", config.isDebugOverlay());
-        result.put("enabled", config.isEnabled());
+        result.put("blurGender",           config.getBlurGender().toString());
+        result.put("blurStyle",            config.getBlurStyle().toString());
+        result.put("confidenceThreshold",  config.getConfidenceThreshold());
+        result.put("blurOpacity",          config.getBlurOpacity());
+        result.put("blurPaddingPct",       config.getBlurPaddingPct());
+        result.put("debugOverlay",         config.isDebugOverlay());
+        result.put("enabled",              config.isEnabled());
         result.put("pauseOnBatteryBelow20", config.isPauseOnBatteryBelow20());
         return result;
     }
 
     private void notifyConfigChanged() {
-
         Intent intent = new Intent(getContext(), PureShieldService.class);
         intent.setAction(PureShieldService.Actions.UPDATE_CONFIG);
         startPureShieldService(intent);
@@ -366,15 +369,13 @@ public class PureShieldPlugin extends Plugin {
     }
 
     private boolean isProjectionApprovedOnce() {
-        SharedPreferences prefs = getContext().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
-        return prefs.getBoolean(KEY_PROJECTION_APPROVED, false);
+        return getContext().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .getBoolean(KEY_PROJECTION_APPROVED, false);
     }
 
     private void setProjectionApprovedOnce(boolean approved) {
         getContext().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            .edit()
-            .putBoolean(KEY_PROJECTION_APPROVED, approved)
-            .apply();
+            .edit().putBoolean(KEY_PROJECTION_APPROVED, approved).apply();
     }
 
     private boolean isPureShieldRunning() {
@@ -397,33 +398,5 @@ public class PureShieldPlugin extends Plugin {
             if (serviceClass.getName().equals(service.service.getClassName())) return true;
         }
         return false;
-    }
-
-    @PluginMethod
-    public void getModelStatus(PluginCall call) {
-        JSObject result = new JSObject();
-        // Status set by the service when models load
-        String status = PureShieldService.lastModelStatus;
-        String reason = PureShieldService.lastModelStatusReason;
-
-        // If service hasn't run yet, infer from bundled assets
-        if ("UNKNOWN".equals(status)) {
-            try {
-                String[] assets = getContext().getAssets().list("");
-                boolean hasAny = false;
-                if (assets != null) {
-                    for (String a : assets) {
-                        if (a.endsWith(".tflite")) { hasAny = true; break; }
-                    }
-                }
-                status = hasAny ? "OK" : "MODEL_EMPTY";
-            } catch (Throwable t) {
-                status = "MODEL_FAILED";
-                reason = t.getMessage();
-            }
-        }
-        result.put("status", status);
-        if (reason != null) result.put("reason", reason);
-        call.resolve(result);
     }
 }
