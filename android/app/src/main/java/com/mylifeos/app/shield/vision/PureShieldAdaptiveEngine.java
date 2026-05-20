@@ -259,6 +259,19 @@ public class PureShieldAdaptiveEngine {
         }
     }
 
+    private boolean isCharging() {
+        try {
+            IntentFilter iFilter = new IntentFilter(Intent.ACTION_BATTERY_CHANGED);
+            Intent batteryStatus = context.registerReceiver(null, iFilter);
+            if (batteryStatus == null) return false;
+            int status = batteryStatus.getIntExtra(BatteryManager.EXTRA_STATUS, -1);
+            return status == BatteryManager.BATTERY_STATUS_CHARGING
+                || status == BatteryManager.BATTERY_STATUS_FULL;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
     // ─────────────────────────────────────────────────────────────────────────
     // Summary for debug/UI
     // ─────────────────────────────────────────────────────────────────────────
