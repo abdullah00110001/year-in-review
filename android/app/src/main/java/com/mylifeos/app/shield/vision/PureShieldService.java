@@ -301,17 +301,33 @@ public class PureShieldService extends Service {
 
         try {
             Log.i(TAG, "📂 Loading face model: " + faceModel);
-            faceDetector = new Interpreter(loadModelFile(faceModel), options);
+            try {
+                faceDetector = new Interpreter(loadModelFile(faceModel), options);
+                // ✅ Sanity-check: run a tiny dummy inference to catch GPU
+                // delegate failures NOW instead of silently every frame.
+                int[] s = faceDetector.getInputTensor(0).shape();
+                float[][][][] dummy = new float[1][s[1]][s[2]][3];
+                int nOut = faceDetector.getOutputTensorCount();
+                Map<Integer, Object> dummyOuts = new HashMap<>();
+                for (int i = 0; i < nOut; i++) {
+                    int[] os = faceDetector.getOutputTensor(i).shape();
+                    if (os.length == 3) dummyOuts.put(i, new float[os[0]][os[1]][os[2]]);
+                    else if (os.length == 2) dummyOuts.put(i, new float[os[0]][os[1]]);
+                    else dummyOuts.put(i, new float[1][1]);
+                }
+                faceDetector.runForMultipleInputsOutputs(new Object[]{dummy}, dummyOuts);
+            } catch (Throwable gpuFail) {
+                Log.w(TAG, "⚠️ GPU/face init failed, retrying CPU-only: " + gpuFail.getMessage());
+                if (faceDetector != null) { try { faceDetector.close(); } catch (Throwable ignored) {} faceDetector = null; }
+                if (gpuDelegate != null) { try { gpuDelegate.close(); } catch (Throwable ignored) {} gpuDelegate = null; }
+                faceDetector = new Interpreter(loadModelFile(faceModel), buildCpuInterpreterOptions());
+            }
 
             // ✅ Detect model input size dynamically
             int[] inputShape = faceDetector.getInputTensor(0).shape();
             Log.i(TAG, "✅ Model input shape: " + Arrays.toString(inputShape));
-            // inputShape = [1, H, W, 3] → inputShape[1] = height, inputShape[2] = width
 
-            // ✅ Load gender model for ALL tiers — wrapped in its own try/catch
-            // so a corrupt or missing gender model does NOT break face detection.
-            // Without the gender classifier, the shield falls back to blurring
-            // every detected face (safe default for FEMALE/MALE modes).
+            // ✅ Load gender model on CPU (small model, GPU not worth it)
             String genderModelFile = modelManager.getGenderClassifierModel();
             if (genderModelFile != null && assetExists(genderModelFile)) {
                 try {
@@ -705,12 +721,25 @@ public class PureShieldService extends Service {
             genderClassifier.run(input, output);
             float femaleProbability = output[0][0];
             float maleProbability   = output[0][1];
+
+            // ✅ Safety: if model output is garbage (NaN, both near-zero, or
+            // not a proper distribution), fall back to "match" so FEMALE/MALE
+            // mode still blurs faces instead of doing nothing silently.
+            boolean nan = Float.isNaN(femaleProbability) || Float.isNaN(maleProbability);
+            boolean tooLow = (femaleProbability < 0.1f && maleProbability < 0.1f);
+            if (nan || tooLow) {
+                Log.w(TAG, "⚠️ Gender output unreliable (f=" + femaleProbability
+                    + " m=" + maleProbability + ") — treating as match");
+                return new GenderResult(0.9f, 0.9f);
+            }
+
             Log.d(TAG, "👤 Gender: female=" + String.format("%.2f", femaleProbability)
                 + " male=" + String.format("%.2f", maleProbability));
             return new GenderResult(femaleProbability, maleProbability);
         } catch (Throwable t) {
             Log.w(TAG, "⚠️ Gender classification failed: " + t.getMessage());
-            return new GenderResult(0.5f, 0.5f);
+            // Safe fallback: treat as match so the face still gets blurred
+            return new GenderResult(0.9f, 0.9f);
         }
     }
 

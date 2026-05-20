@@ -136,10 +136,17 @@ public class PureShieldAdaptiveEngine {
      * Called before every capture attempt.
      */
     public boolean shouldSkipFrame() {
-        // Skip if battery is critically low
+        // ✅ Only skip on critically low battery AND not charging.
+        // Previous logic skipped every frame at <10% battery which made the
+        // shield silently do nothing on phones that aren't fully charged.
         int battery = getBatteryLevel();
-        if (battery < 10) return true;
-        if (battery < 20 && deviceTier == DeviceTier.LOW) return true;
+        boolean charging = isCharging();
+        if (battery < 5 && !charging) return true;
+        // On LOW tier devices at very low battery (not charging), slow down
+        // instead of skipping entirely so the user still gets protection.
+        if (battery < 15 && !charging && deviceTier == DeviceTier.LOW) {
+            currentIntervalMs = INTERVAL_IDLE;
+        }
 
         // Skip if thermal is critical
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -249,6 +256,19 @@ public class PureShieldAdaptiveEngine {
             return (int) ((level / (float) scale) * 100);
         } catch (Exception e) {
             return 100;
+        }
+    }
+
+    private boolean isCharging() {
+        try {
+            IntentFilter iFilter = new IntentFilter(Intent.ACTION_BATTERY_CHANGED);
+            Intent batteryStatus = context.registerReceiver(null, iFilter);
+            if (batteryStatus == null) return false;
+            int status = batteryStatus.getIntExtra(BatteryManager.EXTRA_STATUS, -1);
+            return status == BatteryManager.BATTERY_STATUS_CHARGING
+                || status == BatteryManager.BATTERY_STATUS_FULL;
+        } catch (Exception e) {
+            return false;
         }
     }
 
