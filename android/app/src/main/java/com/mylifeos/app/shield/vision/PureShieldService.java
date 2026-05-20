@@ -721,12 +721,25 @@ public class PureShieldService extends Service {
             genderClassifier.run(input, output);
             float femaleProbability = output[0][0];
             float maleProbability   = output[0][1];
+
+            // ✅ Safety: if model output is garbage (NaN, both near-zero, or
+            // not a proper distribution), fall back to "match" so FEMALE/MALE
+            // mode still blurs faces instead of doing nothing silently.
+            boolean nan = Float.isNaN(femaleProbability) || Float.isNaN(maleProbability);
+            boolean tooLow = (femaleProbability < 0.1f && maleProbability < 0.1f);
+            if (nan || tooLow) {
+                Log.w(TAG, "⚠️ Gender output unreliable (f=" + femaleProbability
+                    + " m=" + maleProbability + ") — treating as match");
+                return new GenderResult(0.9f, 0.9f);
+            }
+
             Log.d(TAG, "👤 Gender: female=" + String.format("%.2f", femaleProbability)
                 + " male=" + String.format("%.2f", maleProbability));
             return new GenderResult(femaleProbability, maleProbability);
         } catch (Throwable t) {
             Log.w(TAG, "⚠️ Gender classification failed: " + t.getMessage());
-            return new GenderResult(0.5f, 0.5f);
+            // Safe fallback: treat as match so the face still gets blurred
+            return new GenderResult(0.9f, 0.9f);
         }
     }
 
