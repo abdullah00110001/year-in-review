@@ -44,6 +44,12 @@ jobs:
       - name: Install dependencies
         run: npm install --legacy-peer-deps
 
+      - name: Lint import paths (case-sensitivity)
+        run: node scripts/check-case-sensitive-imports.mjs
+
+      - name: Lint Java (duplicate methods)
+        run: bash scripts/check-duplicate-java-methods.sh
+
       - name: Build Web Assets
         run: npm run build
 
