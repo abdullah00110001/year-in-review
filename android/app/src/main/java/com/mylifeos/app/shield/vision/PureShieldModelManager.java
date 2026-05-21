@@ -248,9 +248,9 @@ public class PureShieldModelManager {
 
     public String getTierDescription() {
         switch (selectedTier) {
-            case HIGH: return "Best accuracy, BlazeFace + Gender model (uses more GPU)";
-            case MID:  return "Good balance, BlazeFace short-range + Gender model";
-            case LOW:  return "Fastest, MediaPipe + Gender model (minimal battery)";
+            case HIGH: return "Best accuracy — BlazeFace (128x128) + Gender, GPU when available";
+            case MID:  return "Balanced — BlazeFace short-range + Gender, smaller capture";
+            case LOW:  return "Battery saver — BlazeFace short-range, low capture, CPU";
             default:   return "Unknown";
         }
     }
