@@ -576,7 +576,7 @@ public class PureShieldService extends Service {
             outputs.put(1, classifiers);
 
             faceDetector.runForMultipleInputsOutputs(new Object[]{input}, outputs);
-            List<RectF> faces = decodeBlazeFace(regressors, classifiers, inputW, inputH, 0.5f);
+            List<RectF> faces = decodeBlazeFace(regressors, classifiers, inputW, inputH, DETECT_THRESHOLD);
             Log.d(TAG, "✅ BlazeFace multi-output: " + faces.size() + " faces");
             return faces;
         } catch (Throwable t) {
