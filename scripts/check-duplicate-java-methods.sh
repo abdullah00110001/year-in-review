@@ -18,7 +18,7 @@ src = re.sub(r'//[^\n]*', '', src)
 sys.stdout.write(src)
 ")
   sigs=$(printf '%s\n' "$stripped" \
-    | grep -E '^[[:space:]]*(public|private|protected)[^=;]*\([^)]*\)[[:space:]]*\{?[[:space:]]*$' \
+    | { grep -E '^[[:space:]]*(public|private|protected)[^=;]*\([^)]*\)[[:space:]]*\{?[[:space:]]*$' || true; } \
     | sed -E 's/[[:space:]]+/ /g' \
     | sed -E 's/\{[[:space:]]*$//' \
     | sort | uniq -c | awk '$1 > 1 { print }')
