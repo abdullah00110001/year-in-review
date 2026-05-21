@@ -608,8 +608,11 @@ public class PureShieldService extends Service {
         }
     }
 
-    private static final float DETECT_THRESHOLD = 0.55f;  // ✅ Higher = fewer false positives
-    private static final float NMS_IOU_THRESHOLD = 0.40f;  // ✅ Better NMS
+    // ✅ Tuned for higher recall — was missing too many real faces on screen.
+    private static final float DETECT_THRESHOLD  = 0.45f;
+    private static final float NMS_IOU_THRESHOLD = 0.35f;
+    private static final float MIN_FACE_FRAC     = 0.025f; // min face size as fraction of frame
+    private static final float MAX_FACE_FRAC     = 0.95f;
 
     private List<RectF> decodeBlazeFace(float[][][] regressors, float[][][] classifiers,
                                          int inputW, int inputH, float threshold) {
@@ -627,9 +630,10 @@ public class PureShieldService extends Service {
             float w  = regressors[0][i][2] / inputW;
             float h  = regressors[0][i][3] / inputH;
 
-            if (w < 0.04f || h < 0.04f) continue;  // min face size
+            if (w < MIN_FACE_FRAC || h < MIN_FACE_FRAC) continue;
+            if (w > MAX_FACE_FRAC || h > MAX_FACE_FRAC) continue;
             float ar = (h > 0) ? w/h : 1f;
-            if (ar < 0.4f || ar > 2.5f) continue;  // aspect ratio filter
+            if (ar < 0.35f || ar > 3.0f) continue;  // loosened aspect ratio
 
             boxes.add(new RectF(
                 Math.max(0f, cx - w/2),
@@ -640,7 +644,7 @@ public class PureShieldService extends Service {
         }
 
         Log.d(TAG, "👤 BlazeFace raw detections: " + boxes.size());
-        return nonMaxSuppression(boxes, 0.3f);
+        return nonMaxSuppression(boxes, NMS_IOU_THRESHOLD);
     }
 
     private List<RectF> decodeSingleOutput(float[][][] output) {
