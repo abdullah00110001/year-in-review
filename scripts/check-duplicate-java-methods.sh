@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Detect duplicate method signatures inside a single Java class file.
 # Catches the "method X is already defined" build failure earlier than Gradle.
+# Strips /* ... */ block comments and // line comments before matching.
 set -euo pipefail
 
 ROOT="android/app/src/main/java"
@@ -8,11 +9,17 @@ ROOT="android/app/src/main/java"
 
 fail=0
 while IFS= read -r -d '' file; do
-  # Extract method signatures (rough): "modifier returnType name("
-  # Normalize whitespace and capture "name(args" without body braces.
-  sigs=$(grep -nE '^[[:space:]]*(public|private|protected)[^=;]*\([^)]*\)[[:space:]]*\{?[[:space:]]*$' "$file" \
+  # Strip block comments (multiline) + line comments, then extract signatures.
+  stripped=$(python3 -c "
+import re, sys
+src = open('$file').read()
+src = re.sub(r'/\*.*?\*/', '', src, flags=re.DOTALL)
+src = re.sub(r'//[^\n]*', '', src)
+sys.stdout.write(src)
+")
+  sigs=$(printf '%s\n' "$stripped" \
+    | grep -E '^[[:space:]]*(public|private|protected)[^=;]*\([^)]*\)[[:space:]]*\{?[[:space:]]*$' \
     | sed -E 's/[[:space:]]+/ /g' \
-    | sed -E 's/^[0-9]+://' \
     | sed -E 's/\{[[:space:]]*$//' \
     | sort | uniq -c | awk '$1 > 1 { print }')
   if [[ -n "$sigs" ]]; then
