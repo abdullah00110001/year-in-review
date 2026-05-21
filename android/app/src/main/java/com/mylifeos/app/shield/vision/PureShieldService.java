@@ -820,11 +820,19 @@ public class PureShieldService extends Service {
     private RectF scaleToScreenCoords(RectF box, int captureW, int captureH) {
         float scaleX = (float) screenWidth  / captureW;
         float scaleY = (float) screenHeight / captureH;
+        // ✅ Expand blur region by 20% on each axis so partial detections
+        // still fully cover the face (hair, jaw, ears).
+        float left   = box.left   * captureW * scaleX;
+        float top    = box.top    * captureH * scaleY;
+        float right  = box.right  * captureW * scaleX;
+        float bottom = box.bottom * captureH * scaleY;
+        float padX = (right - left) * 0.20f;
+        float padY = (bottom - top) * 0.25f; // a bit more vertical for hair/chin
         return new RectF(
-            box.left   * captureW * scaleX,
-            box.top    * captureH * scaleY,
-            box.right  * captureW * scaleX,
-            box.bottom * captureH * scaleY
+            Math.max(0, left   - padX),
+            Math.max(0, top    - padY),
+            Math.min(screenWidth,  right  + padX),
+            Math.min(screenHeight, bottom + padY)
         );
     }
 
