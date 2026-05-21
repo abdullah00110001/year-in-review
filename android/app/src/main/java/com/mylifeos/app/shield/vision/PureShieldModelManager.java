@@ -115,15 +115,20 @@ public class PureShieldModelManager {
      * LOW:  mediapipe_face.tflite (128x128)
      */
     public String getFaceDetectorModel() {
+        // ✅ All tiers use BlazeFace 128x128 variants — same 896-anchor decoder.
+        // HIGH: original BlazeFace (slightly higher accuracy)
+        // MID/LOW: short-range BlazeFace (smaller, faster, ~230KB)
+        // mediapipe_face.tflite is NOT used (unreliable output format) — kept
+        // in assets only as defensive fallback inside PureShieldService.
         switch (selectedTier) {
             case HIGH:
                 return "blazeface.tflite";
             case MID:
                 return "blaze_face_short_range.tflite";
             case LOW:
-                return "mediapipe_face.tflite";
+                return "blaze_face_short_range.tflite";
             default:
-                return "mediapipe_face.tflite";
+                return "blaze_face_short_range.tflite";
         }
     }
 
@@ -243,9 +248,9 @@ public class PureShieldModelManager {
 
     public String getTierDescription() {
         switch (selectedTier) {
-            case HIGH: return "Best accuracy, BlazeFace + Gender model (uses more GPU)";
-            case MID:  return "Good balance, BlazeFace short-range + Gender model";
-            case LOW:  return "Fastest, MediaPipe + Gender model (minimal battery)";
+            case HIGH: return "Best accuracy — BlazeFace (128x128) + Gender, GPU when available";
+            case MID:  return "Balanced — BlazeFace short-range + Gender, smaller capture";
+            case LOW:  return "Battery saver — BlazeFace short-range, low capture, CPU";
             default:   return "Unknown";
         }
     }

@@ -282,20 +282,22 @@ public class PureShieldService extends Service {
             return false;
         }
 
-        // ✅ Use real BlazeFace models
+        // ✅ Use BlazeFace 128x128 family — known decoder, 896 anchors.
         String faceModel = modelManager.getFaceDetectorModel();
 
-        // Fallback chain: tier model → blaze_face_short_range → mediapipe
+        // Fallback chain: tier model → blaze_face_short_range → blazeface
+        // (mediapipe_face.tflite is NOT in the chain — its output format
+        // is incompatible with our BlazeFace decoder.)
         if (!assetExists(faceModel)) {
             Log.w(TAG, "⚠️ " + faceModel + " missing, trying blaze_face_short_range");
             faceModel = "blaze_face_short_range.tflite";
         }
         if (!assetExists(faceModel)) {
-            Log.w(TAG, "⚠️ blaze_face_short_range missing, trying mediapipe_face");
-            faceModel = "mediapipe_face.tflite";
+            Log.w(TAG, "⚠️ blaze_face_short_range missing, trying blazeface");
+            faceModel = "blazeface.tflite";
         }
         if (!assetExists(faceModel)) {
-            broadcastModelStatus("MODEL_EMPTY", "No face model found");
+            broadcastModelStatus("MODEL_EMPTY", "No usable BlazeFace model in assets");
             return false;
         }
 
@@ -574,7 +576,7 @@ public class PureShieldService extends Service {
             outputs.put(1, classifiers);
 
             faceDetector.runForMultipleInputsOutputs(new Object[]{input}, outputs);
-            List<RectF> faces = decodeBlazeFace(regressors, classifiers, inputW, inputH, 0.5f);
+            List<RectF> faces = decodeBlazeFace(regressors, classifiers, inputW, inputH, DETECT_THRESHOLD);
             Log.d(TAG, "✅ BlazeFace multi-output: " + faces.size() + " faces");
             return faces;
         } catch (Throwable t) {
@@ -606,8 +608,11 @@ public class PureShieldService extends Service {
         }
     }
 
-    private static final float DETECT_THRESHOLD = 0.55f;  // ✅ Higher = fewer false positives
-    private static final float NMS_IOU_THRESHOLD = 0.40f;  // ✅ Better NMS
+    // ✅ Tuned for higher recall — was missing too many real faces on screen.
+    private static final float DETECT_THRESHOLD  = 0.45f;
+    private static final float NMS_IOU_THRESHOLD = 0.35f;
+    private static final float MIN_FACE_FRAC     = 0.025f; // min face size as fraction of frame
+    private static final float MAX_FACE_FRAC     = 0.95f;
 
     private List<RectF> decodeBlazeFace(float[][][] regressors, float[][][] classifiers,
                                          int inputW, int inputH, float threshold) {
@@ -625,9 +630,10 @@ public class PureShieldService extends Service {
             float w  = regressors[0][i][2] / inputW;
             float h  = regressors[0][i][3] / inputH;
 
-            if (w < 0.04f || h < 0.04f) continue;  // min face size
+            if (w < MIN_FACE_FRAC || h < MIN_FACE_FRAC) continue;
+            if (w > MAX_FACE_FRAC || h > MAX_FACE_FRAC) continue;
             float ar = (h > 0) ? w/h : 1f;
-            if (ar < 0.4f || ar > 2.5f) continue;  // aspect ratio filter
+            if (ar < 0.35f || ar > 3.0f) continue;  // loosened aspect ratio
 
             boxes.add(new RectF(
                 Math.max(0f, cx - w/2),
@@ -638,7 +644,7 @@ public class PureShieldService extends Service {
         }
 
         Log.d(TAG, "👤 BlazeFace raw detections: " + boxes.size());
-        return nonMaxSuppression(boxes, 0.3f);
+        return nonMaxSuppression(boxes, NMS_IOU_THRESHOLD);
     }
 
     private List<RectF> decodeSingleOutput(float[][][] output) {
@@ -814,11 +820,19 @@ public class PureShieldService extends Service {
     private RectF scaleToScreenCoords(RectF box, int captureW, int captureH) {
         float scaleX = (float) screenWidth  / captureW;
         float scaleY = (float) screenHeight / captureH;
+        // ✅ Expand blur region by 20% on each axis so partial detections
+        // still fully cover the face (hair, jaw, ears).
+        float left   = box.left   * captureW * scaleX;
+        float top    = box.top    * captureH * scaleY;
+        float right  = box.right  * captureW * scaleX;
+        float bottom = box.bottom * captureH * scaleY;
+        float padX = (right - left) * 0.20f;
+        float padY = (bottom - top) * 0.25f; // a bit more vertical for hair/chin
         return new RectF(
-            box.left   * captureW * scaleX,
-            box.top    * captureH * scaleY,
-            box.right  * captureW * scaleX,
-            box.bottom * captureH * scaleY
+            Math.max(0, left   - padX),
+            Math.max(0, top    - padY),
+            Math.min(screenWidth,  right  + padX),
+            Math.min(screenHeight, bottom + padY)
         );
     }
 
