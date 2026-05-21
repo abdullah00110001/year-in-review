@@ -282,20 +282,22 @@ public class PureShieldService extends Service {
             return false;
         }
 
-        // ✅ Use real BlazeFace models
+        // ✅ Use BlazeFace 128x128 family — known decoder, 896 anchors.
         String faceModel = modelManager.getFaceDetectorModel();
 
-        // Fallback chain: tier model → blaze_face_short_range → mediapipe
+        // Fallback chain: tier model → blaze_face_short_range → blazeface
+        // (mediapipe_face.tflite is NOT in the chain — its output format
+        // is incompatible with our BlazeFace decoder.)
         if (!assetExists(faceModel)) {
             Log.w(TAG, "⚠️ " + faceModel + " missing, trying blaze_face_short_range");
             faceModel = "blaze_face_short_range.tflite";
         }
         if (!assetExists(faceModel)) {
-            Log.w(TAG, "⚠️ blaze_face_short_range missing, trying mediapipe_face");
-            faceModel = "mediapipe_face.tflite";
+            Log.w(TAG, "⚠️ blaze_face_short_range missing, trying blazeface");
+            faceModel = "blazeface.tflite";
         }
         if (!assetExists(faceModel)) {
-            broadcastModelStatus("MODEL_EMPTY", "No face model found");
+            broadcastModelStatus("MODEL_EMPTY", "No usable BlazeFace model in assets");
             return false;
         }
 
