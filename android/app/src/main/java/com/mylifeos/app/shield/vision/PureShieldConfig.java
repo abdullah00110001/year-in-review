@@ -19,7 +19,7 @@ public class PureShieldConfig {
 
     private BlurGender blurGender         = BlurGender.FEMALE;
     private PureShieldBlurView.BlurStyle blurStyle = PureShieldBlurView.BlurStyle.PIXELATE;
-    private float confidenceThreshold     = 0.72f;
+    private float confidenceThreshold = 0.40f;
     private int blurOpacity               = 100;
     private int blurPaddingPct            = 15;
     private boolean debugOverlay          = false;

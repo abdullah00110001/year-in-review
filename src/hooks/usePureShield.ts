@@ -108,7 +108,19 @@ export function usePureShield() {
 
   const requestProjection = useCallback(async () => {
     const r = await PureShieldPlugin.requestMediaProjection();
-    setPermissions(p => ({ ...p, projection: r.granted }));
+    if (r.granted) {
+      let runningState = await PureShieldPlugin.isRunning().catch(() => ({ running: false }));
+      for (let i = 0; i < 10 && !runningState.running; i++) {
+        await new Promise(resolve => setTimeout(resolve, 300));
+        runningState = await PureShieldPlugin.isRunning().catch(() => ({ running: false }));
+      }
+      setRunning(runningState.running);
+      setPermissions(p => ({ ...p, projection: runningState.running }));
+      const model = await PureShieldPlugin.getModelStatus().catch(() => null);
+      if (model) setModelStatus(model);
+    } else {
+      setPermissions(p => ({ ...p, projection: false }));
+    }
     return r.granted;
   }, []);
 

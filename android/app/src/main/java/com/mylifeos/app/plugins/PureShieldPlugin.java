@@ -57,7 +57,10 @@ public class PureShieldPlugin extends Plugin {
     public void checkPermissions(PluginCall call) {
         JSObject result = new JSObject();
         result.put("overlay", hasOverlayPermission());
-        result.put("projection", isProjectionApprovedOnce() || isPureShieldRunning());
+        // MediaProjection tokens are one-time runtime grants. A previous approval
+        // cannot be reused after the capture service stops, so only report it as
+        // granted while PureShield is actually running.
+        result.put("projection", isPureShieldRunning());
         call.resolve(result);
     }
 
@@ -97,7 +100,6 @@ public class PureShieldPlugin extends Plugin {
         intent.setAction(PureShieldService.Actions.START_PROJECTION);
         intent.putExtra("resultCode", result.getResultCode());
         intent.putExtra("data", result.getData());
-        setProjectionApprovedOnce(true);
         startPureShieldService(intent);
         resolveGranted(call, true);
     }

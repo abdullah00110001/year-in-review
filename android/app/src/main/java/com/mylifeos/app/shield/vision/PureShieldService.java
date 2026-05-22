@@ -19,6 +19,7 @@ import androidx.core.app.NotificationCompat;
 import com.mylifeos.app.R;
 
 import org.tensorflow.lite.Interpreter;
+import org.tensorflow.lite.DataType;
 import org.tensorflow.lite.gpu.GpuDelegate;
 
 import java.io.*;
@@ -45,6 +46,12 @@ public class PureShieldService extends Service {
     private GpuDelegate gpuDelegate;
     private int genderInputWidth = 64;
     private int genderInputHeight = 64;
+    private DataType genderInputDataType = DataType.FLOAT32;
+    private DataType genderOutputDataType = DataType.FLOAT32;
+    private float genderInputScale = 1f;
+    private int genderInputZeroPoint = 0;
+    private float genderOutputScale = 1f;
+    private int genderOutputZeroPoint = 0;
 
     private WindowManager windowManager;
     private final List<View> blurOverlays = new CopyOnWriteArrayList<>();
@@ -61,6 +68,7 @@ public class PureShieldService extends Service {
     private PureShieldConfig config;
     private Set<String> targetPackages = new HashSet<>();
     private String currentForegroundPackage = "";
+    private long lastForegroundSignalAtMs = 0L;
     private boolean restartOnDestroy = true;
 
     // ✅ Debug Counters
@@ -256,7 +264,14 @@ public class PureShieldService extends Service {
             imageReader.getSurface(), null, null
         );
 
-        loadModels();
+        if (!loadModels()) {
+            restartOnDestroy = false;
+            isRunning.set(false);
+            clearAllOverlays();
+            releaseProjection();
+            stopSelf();
+            return;
+        }
         isRunning.set(true);
         startSampler();
         lastDebugMessage = "Projection started: " + captureW + "x" + captureH;
@@ -340,7 +355,14 @@ public class PureShieldService extends Service {
                         genderInputHeight = genderShape[1];
                         genderInputWidth = genderShape[2];
                     }
-                    Log.i(TAG, "✅ Gender model loaded — input=" + genderInputWidth + "x" + genderInputHeight);
+                    genderInputDataType = genderClassifier.getInputTensor(0).dataType();
+                    genderOutputDataType = genderClassifier.getOutputTensor(0).dataType();
+                    genderInputScale = genderClassifier.getInputTensor(0).quantizationParams().getScale();
+                    genderInputZeroPoint = genderClassifier.getInputTensor(0).quantizationParams().getZeroPoint();
+                    genderOutputScale = genderClassifier.getOutputTensor(0).quantizationParams().getScale();
+                    genderOutputZeroPoint = genderClassifier.getOutputTensor(0).quantizationParams().getZeroPoint();
+                    Log.i(TAG, "✅ Gender model loaded — input=" + genderInputWidth + "x" + genderInputHeight
+                        + " type=" + genderInputDataType + " output=" + genderOutputDataType);
                 } catch (Throwable gt) {
                     genderClassifier = null;
                     Log.w(TAG, "⚠️ Gender model load failed — falling back to blur-all-faces: " + gt.getMessage());
@@ -446,7 +468,8 @@ public class PureShieldService extends Service {
         //   3) we haven't received any foreground signal yet (bootstrap before
         //      Accessibility delivers TYPE_WINDOW_STATE_CHANGED).
         boolean noTargets   = targetPackages.isEmpty();
-        boolean noFgSignal  = currentForegroundPackage == null || currentForegroundPackage.isEmpty();
+        boolean noFgSignal  = currentForegroundPackage == null || currentForegroundPackage.isEmpty()
+            || SystemClock.elapsedRealtime() - lastForegroundSignalAtMs > 5000;
         boolean isOurTarget = isTargetAppInForeground();
 
         if (!noTargets && !noFgSignal && !isOurTarget) {
@@ -708,25 +731,54 @@ public class PureShieldService extends Service {
         Bitmap resized = Bitmap.createScaledBitmap(face, inputW, inputH, true);
         face.recycle();
 
-        float[][][][] input = new float[1][inputH][inputW][3];
-        int[] pixels = new int[inputW * inputH];
-        resized.getPixels(pixels, 0, inputW, 0, 0, inputW, inputH);
-        resized.recycle();
-
-        // Normalize [0, 255] → [0, 1]
-        for (int i = 0; i < pixels.length; i++) {
-            int p = pixels[i];
-            int y = i / inputW, x = i % inputW;
-            input[0][y][x][0] = ((p >> 16) & 0xFF) / 255f;
-            input[0][y][x][1] = ((p >> 8)  & 0xFF) / 255f;
-            input[0][y][x][2] = (p & 0xFF)          / 255f;
-        }
-
         try {
-            float[][] output = new float[1][2];
-            genderClassifier.run(input, output);
-            float femaleProbability = output[0][0];
-            float maleProbability   = output[0][1];
+            int[] pixels = new int[inputW * inputH];
+            resized.getPixels(pixels, 0, inputW, 0, 0, inputW, inputH);
+            resized.recycle();
+
+            float femaleProbability;
+            float maleProbability;
+            if (genderInputDataType == DataType.UINT8 || genderInputDataType == DataType.INT8) {
+                byte[][][][] input = new byte[1][inputH][inputW][3];
+                for (int i = 0; i < pixels.length; i++) {
+                    int p = pixels[i];
+                    int y = i / inputW, x = i % inputW;
+                    input[0][y][x][0] = quantizePixel((p >> 16) & 0xFF);
+                    input[0][y][x][1] = quantizePixel((p >> 8) & 0xFF);
+                    input[0][y][x][2] = quantizePixel(p & 0xFF);
+                }
+
+                if (genderOutputDataType == DataType.UINT8 || genderOutputDataType == DataType.INT8) {
+                    byte[][] output = new byte[1][2];
+                    genderClassifier.run(input, output);
+                    femaleProbability = dequantizeOutput(output[0][0]);
+                    maleProbability = dequantizeOutput(output[0][1]);
+                } else {
+                    float[][] output = new float[1][2];
+                    genderClassifier.run(input, output);
+                    femaleProbability = output[0][0];
+                    maleProbability = output[0][1];
+                }
+            } else {
+                float[][][][] input = new float[1][inputH][inputW][3];
+                for (int i = 0; i < pixels.length; i++) {
+                    int p = pixels[i];
+                    int y = i / inputW, x = i % inputW;
+                    input[0][y][x][0] = ((p >> 16) & 0xFF) / 255f;
+                    input[0][y][x][1] = ((p >> 8) & 0xFF) / 255f;
+                    input[0][y][x][2] = (p & 0xFF) / 255f;
+                }
+                float[][] output = new float[1][2];
+                genderClassifier.run(input, output);
+                femaleProbability = output[0][0];
+                maleProbability = output[0][1];
+            }
+
+            float sum = femaleProbability + maleProbability;
+            if (sum > 0.01f) {
+                femaleProbability /= sum;
+                maleProbability /= sum;
+            }
 
             // ✅ Safety: if model output is garbage (NaN, both near-zero, or
             // not a proper distribution), fall back to "match" so FEMALE/MALE
@@ -757,6 +809,25 @@ public class PureShieldService extends Service {
             case BOTH:   return true;
             default:     return false;
         }
+    }
+
+    private byte quantizePixel(int pixelValue) {
+        if (genderInputDataType == DataType.INT8 && (genderInputScale == 0f || genderInputScale == 1f)) {
+            return (byte) (pixelValue - 128);
+        }
+        if (genderInputScale > 0f) {
+            int quantized = Math.round((pixelValue / 255f) / genderInputScale) + genderInputZeroPoint;
+            if (genderInputDataType == DataType.UINT8) quantized = Math.max(0, Math.min(255, quantized));
+            else quantized = Math.max(-128, Math.min(127, quantized));
+            return (byte) quantized;
+        }
+        return (byte) pixelValue;
+    }
+
+    private float dequantizeOutput(byte value) {
+        int raw = genderOutputDataType == DataType.UINT8 ? (value & 0xFF) : value;
+        float scale = genderOutputScale > 0f ? genderOutputScale : 1f;
+        return (raw - genderOutputZeroPoint) * scale;
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -842,6 +913,7 @@ public class PureShieldService extends Service {
 
     public void onForegroundAppChanged(String packageName) {
         currentForegroundPackage = packageName != null ? packageName : "";
+        lastForegroundSignalAtMs = SystemClock.elapsedRealtime();
         boolean isTarget = isTargetAppInForeground();
         Log.d(TAG, "📱 App changed: " + currentForegroundPackage
             + " | isTarget: " + isTarget
