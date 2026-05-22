@@ -17,13 +17,13 @@ public class PureShieldBlurView extends View {
     public enum BlurStyle { PIXELATE, FROSTED, SOLID, MOSAIC }
 
     private BlurStyle blurStyle = BlurStyle.FROSTED;
-    private int overlayAlpha = 240;
+    private int overlayAlpha = 255;
     private boolean debugOverlay = false;
     private final Paint paint;
     private final Paint edgePaint;
     private final Paint pixelPaint;
 
-    private static final int PIXEL_BLOCK = 12;
+    private static final int PIXEL_BLOCK = 18;
 
     public PureShieldBlurView(Context context) {
         super(context);
