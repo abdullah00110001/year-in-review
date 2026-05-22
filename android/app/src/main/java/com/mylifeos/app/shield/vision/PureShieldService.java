@@ -688,9 +688,9 @@ public class PureShieldService extends Service {
     }
 
     // ✅ Tuned for higher recall — was missing too many real faces on screen.
-    private static final float DETECT_THRESHOLD  = 0.45f;
-    private static final float NMS_IOU_THRESHOLD = 0.35f;
-    private static final float MIN_FACE_FRAC     = 0.025f; // min face size as fraction of frame
+    private static final float DETECT_THRESHOLD  = 0.40f;
+    private static final float NMS_IOU_THRESHOLD = 0.30f; // a bit tighter → keep overlapping faces
+    private static final float MIN_FACE_FRAC     = 0.020f; // smaller min size → catch thumbnails
     private static final float MAX_FACE_FRAC     = 0.95f;
 
     private List<RectF> decodeBlazeFace(float[][][] regressors, float[][][] classifiers,
