@@ -187,6 +187,7 @@ public class PureShieldService extends Service {
 
     @Override
     public void onDestroy() {
+       if (adaptiveEngine != null) adaptiveEngine.destroy();
         isRunning.set(false);
         stopSampler();
         releaseProjection();
