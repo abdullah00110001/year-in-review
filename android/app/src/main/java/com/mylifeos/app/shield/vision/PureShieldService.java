@@ -82,6 +82,15 @@ public class PureShieldService extends Service {
     public static volatile String lastModelStatus       = "UNKNOWN";
     public static volatile String lastModelStatusReason = null;
 
+    // ✅ Anti-flicker / temporal smoothing
+    private static final int   MISS_GRACE_FRAMES = 4;   // keep overlays for N empty frames
+    private static final long  STICKY_TTL_MS     = 900; // and drop them after this hard TTL
+    private static final float SMOOTH_LERP       = 0.45f; // 0 = no smoothing, 1 = snap
+    private static final float MATCH_IOU         = 0.20f;
+    private int missFrameCount = 0;
+    private long lastFaceFrameAtMs = 0L;
+    private List<RectF> lastBlurRegions = new ArrayList<>();
+
     // ─────────────────────────────────────────────────────────────────────────
     // Lifecycle
     // ─────────────────────────────────────────────────────────────────────────
