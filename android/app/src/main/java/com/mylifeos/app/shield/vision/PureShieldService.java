@@ -82,6 +82,15 @@ public class PureShieldService extends Service {
     public static volatile String lastModelStatus       = "UNKNOWN";
     public static volatile String lastModelStatusReason = null;
 
+    // ✅ Anti-flicker / temporal smoothing
+    private static final int   MISS_GRACE_FRAMES = 4;   // keep overlays for N empty frames
+    private static final long  STICKY_TTL_MS     = 900; // and drop them after this hard TTL
+    private static final float SMOOTH_LERP       = 0.45f; // 0 = no smoothing, 1 = snap
+    private static final float MATCH_IOU         = 0.20f;
+    private int missFrameCount = 0;
+    private long lastFaceFrameAtMs = 0L;
+    private List<RectF> lastBlurRegions = new ArrayList<>();
+
     // ─────────────────────────────────────────────────────────────────────────
     // Lifecycle
     // ─────────────────────────────────────────────────────────────────────────
@@ -536,12 +545,26 @@ public class PureShieldService extends Service {
             + " | App: " + currentForegroundPackage);
 
         if (faceCount == 0) {
-            lastDebugMessage = "Frame #" + totalFramesProcessed.get() + ": No faces detected";
-            clearAllOverlays();
+            // ✅ Don't clear overlays instantly — model can miss 1-2 frames in a row.
+            // Hold the last set briefly to prevent the visible blink the user reported.
+            missFrameCount++;
+            boolean expired = (System.currentTimeMillis() - lastFaceFrameAtMs) > STICKY_TTL_MS;
+            if (missFrameCount >= MISS_GRACE_FRAMES || expired || lastBlurRegions.isEmpty()) {
+                lastBlurRegions = new ArrayList<>();
+                lastDebugMessage = "Frame #" + totalFramesProcessed.get() + ": No faces";
+                clearAllOverlays();
+            } else {
+                // Keep prior overlays visible for this miss frame.
+                lastDebugMessage = "Frame #" + totalFramesProcessed.get() + ": holding ("
+                    + missFrameCount + "/" + MISS_GRACE_FRAMES + ")";
+            }
             return;
         }
 
-        List<RectF> toBlur = new ArrayList<>();
+        missFrameCount = 0;
+        lastFaceFrameAtMs = System.currentTimeMillis();
+
+        List<RectF> rawBlur = new ArrayList<>();
         for (RectF face : faces) {
             GenderResult result = estimateGender(bitmap, face);
             boolean blur = shouldBlur(result);
@@ -551,10 +574,15 @@ public class PureShieldService extends Service {
                 + " → blur=" + blur);
 
             if (blur) {
-                toBlur.add(scaleToScreenCoords(face, bitmap.getWidth(), bitmap.getHeight()));
+                rawBlur.add(scaleToScreenCoords(face, bitmap.getWidth(), bitmap.getHeight()));
                 totalFacesBlurred.incrementAndGet();
             }
         }
+
+        // ✅ Temporal smoothing: match current boxes to previous boxes by IoU and
+        // lerp toward the new position so overlays glide instead of jumping.
+        List<RectF> toBlur = smoothRegions(rawBlur);
+        lastBlurRegions = toBlur;
 
         lastDebugMessage = "Frame #" + totalFramesProcessed.get()
             + " | Detected: " + faceCount
@@ -566,6 +594,34 @@ public class PureShieldService extends Service {
 
         new Handler(Looper.getMainLooper()).post(() -> updateOverlays(toBlur));
     }
+
+    private List<RectF> smoothRegions(List<RectF> incoming) {
+        if (lastBlurRegions.isEmpty() || incoming.isEmpty()) return incoming;
+        List<RectF> out = new ArrayList<>(incoming.size());
+        boolean[] usedPrev = new boolean[lastBlurRegions.size()];
+        for (RectF cur : incoming) {
+            int bestIdx = -1; float bestIou = MATCH_IOU;
+            for (int i = 0; i < lastBlurRegions.size(); i++) {
+                if (usedPrev[i]) continue;
+                float v = iou(cur, lastBlurRegions.get(i));
+                if (v > bestIou) { bestIou = v; bestIdx = i; }
+            }
+            if (bestIdx >= 0) {
+                usedPrev[bestIdx] = true;
+                RectF prev = lastBlurRegions.get(bestIdx);
+                out.add(new RectF(
+                    lerp(prev.left,   cur.left),
+                    lerp(prev.top,    cur.top),
+                    lerp(prev.right,  cur.right),
+                    lerp(prev.bottom, cur.bottom)));
+            } else {
+                out.add(cur);
+            }
+        }
+        return out;
+    }
+
+    private float lerp(float a, float b) { return a + (b - a) * SMOOTH_LERP; }
 
     // ─────────────────────────────────────────────────────────────────────────
     // ✅ Unified face detection with dynamic input size
@@ -632,9 +688,9 @@ public class PureShieldService extends Service {
     }
 
     // ✅ Tuned for higher recall — was missing too many real faces on screen.
-    private static final float DETECT_THRESHOLD  = 0.45f;
-    private static final float NMS_IOU_THRESHOLD = 0.35f;
-    private static final float MIN_FACE_FRAC     = 0.025f; // min face size as fraction of frame
+    private static final float DETECT_THRESHOLD  = 0.40f;
+    private static final float NMS_IOU_THRESHOLD = 0.30f; // a bit tighter → keep overlapping faces
+    private static final float MIN_FACE_FRAC     = 0.020f; // smaller min size → catch thumbnails
     private static final float MAX_FACE_FRAC     = 0.95f;
 
     private List<RectF> decodeBlazeFace(float[][][] regressors, float[][][] classifiers,

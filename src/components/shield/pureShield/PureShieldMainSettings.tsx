@@ -63,19 +63,25 @@ export function PureShieldMainSettings({ onBack }: PureShieldMainSettingsProps) 
 
   const handleToggle = async (v: boolean) => {
     if (loading) return; // prevent multi-tap
-    if (v && !allPermsGranted) {
-      toast.info('Please grant permissions first');
-      return;
-    }
     try {
       if (v) {
-        const ok = await start();
-        if (ok) {
-          await updateConfig({ enabled: true });
-          toast.success('PureShield activated 🛡️');
-        } else {
-          toast.error('Could not start — re-grant Screen Capture permission');
+        // Overlay permission is sticky — request once.
+        if (!permissions.overlay) {
+          const granted = await requestOverlay();
+          if (!granted) {
+            toast.error('Overlay permission required');
+            return;
+          }
         }
+        // Screen capture token is one-shot — always re-request when starting.
+        // This is normal Android behavior, not an error.
+        const projOk = await requestProjection();
+        if (!projOk) {
+          toast.error('Screen capture permission denied');
+          return;
+        }
+        await updateConfig({ enabled: true });
+        toast.success('PureShield activated 🛡️');
       } else {
         await stop();
         await updateConfig({ enabled: false });
