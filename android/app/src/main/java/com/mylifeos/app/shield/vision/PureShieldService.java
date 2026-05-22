@@ -83,13 +83,20 @@ public class PureShieldService extends Service {
     public static volatile String lastModelStatusReason = null;
 
     // ✅ Anti-flicker / temporal smoothing
-    private static final int   MISS_GRACE_FRAMES = 4;   // keep overlays for N empty frames
-    private static final long  STICKY_TTL_MS     = 900; // and drop them after this hard TTL
-    private static final float SMOOTH_LERP       = 0.45f; // 0 = no smoothing, 1 = snap
+    private static final int   MISS_GRACE_FRAMES = 4;
+    private static final long  STICKY_TTL_MS     = 900;
+    private static final float SMOOTH_LERP       = 0.45f;
     private static final float MATCH_IOU         = 0.20f;
     private int missFrameCount = 0;
     private long lastFaceFrameAtMs = 0L;
     private List<RectF> lastBlurRegions = new ArrayList<>();
+
+    // ✅ FIX 1: Detection threshold কমানো হয়েছে — বেশি face detect হবে
+    // ছিল 0.40f → এখন 0.30f — thumbnail এবং ছোট face ও catch হবে
+    private static final float DETECT_THRESHOLD  = 0.30f;
+    private static final float NMS_IOU_THRESHOLD = 0.30f;
+    private static final float MIN_FACE_FRAC     = 0.015f; // ছিল 0.020f → আরো ছোট face detect হবে
+    private static final float MAX_FACE_FRAC     = 0.95f;
 
     // ─────────────────────────────────────────────────────────────────────────
     // Lifecycle
@@ -187,7 +194,7 @@ public class PureShieldService extends Service {
 
     @Override
     public void onDestroy() {
-       if (adaptiveEngine != null) adaptiveEngine.destroy();
+        if (adaptiveEngine != null) adaptiveEngine.destroy();
         isRunning.set(false);
         stopSampler();
         releaseProjection();
@@ -295,7 +302,7 @@ public class PureShieldService extends Service {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // Model Loading — ✅ Fixed for real models
+    // Model Loading
     // ─────────────────────────────────────────────────────────────────────────
 
     private boolean loadModels() {
@@ -307,12 +314,8 @@ public class PureShieldService extends Service {
             return false;
         }
 
-        // ✅ Use BlazeFace 128x128 family — known decoder, 896 anchors.
         String faceModel = modelManager.getFaceDetectorModel();
 
-        // Fallback chain: tier model → blaze_face_short_range → blazeface
-        // (mediapipe_face.tflite is NOT in the chain — its output format
-        // is incompatible with our BlazeFace decoder.)
         if (!assetExists(faceModel)) {
             Log.w(TAG, "⚠️ " + faceModel + " missing, trying blaze_face_short_range");
             faceModel = "blaze_face_short_range.tflite";
@@ -330,8 +333,6 @@ public class PureShieldService extends Service {
             Log.i(TAG, "📂 Loading face model: " + faceModel);
             try {
                 faceDetector = new Interpreter(loadModelFile(faceModel), options);
-                // ✅ Sanity-check: run a tiny dummy inference to catch GPU
-                // delegate failures NOW instead of silently every frame.
                 int[] s = faceDetector.getInputTensor(0).shape();
                 float[][][][] dummy = new float[1][s[1]][s[2]][3];
                 int nOut = faceDetector.getOutputTensorCount();
@@ -350,11 +351,9 @@ public class PureShieldService extends Service {
                 faceDetector = new Interpreter(loadModelFile(faceModel), buildCpuInterpreterOptions());
             }
 
-            // ✅ Detect model input size dynamically
             int[] inputShape = faceDetector.getInputTensor(0).shape();
             Log.i(TAG, "✅ Model input shape: " + Arrays.toString(inputShape));
 
-            // ✅ Load gender model on CPU (small model, GPU not worth it)
             String genderModelFile = modelManager.getGenderClassifierModel();
             if (genderModelFile != null && assetExists(genderModelFile)) {
                 try {
@@ -371,11 +370,10 @@ public class PureShieldService extends Service {
                     genderInputZeroPoint = genderClassifier.getInputTensor(0).quantizationParams().getZeroPoint();
                     genderOutputScale = genderClassifier.getOutputTensor(0).quantizationParams().getScale();
                     genderOutputZeroPoint = genderClassifier.getOutputTensor(0).quantizationParams().getZeroPoint();
-                    Log.i(TAG, "✅ Gender model loaded — input=" + genderInputWidth + "x" + genderInputHeight
-                        + " type=" + genderInputDataType + " output=" + genderOutputDataType);
+                    Log.i(TAG, "✅ Gender model loaded — input=" + genderInputWidth + "x" + genderInputHeight);
                 } catch (Throwable gt) {
                     genderClassifier = null;
-                    Log.w(TAG, "⚠️ Gender model load failed — falling back to blur-all-faces: " + gt.getMessage());
+                    Log.w(TAG, "⚠️ Gender model load failed — blur-all-faces fallback: " + gt.getMessage());
                 }
             } else {
                 Log.w(TAG, "⚠️ No gender model found — blur-all-faces fallback active");
@@ -398,7 +396,7 @@ public class PureShieldService extends Service {
             AssetFileDescriptor fd = getAssets().openFd(name);
             long size = fd.getDeclaredLength();
             fd.close();
-            return size > 10000; // Must be > 10KB
+            return size > 10000;
         } catch (Throwable t) { return false; }
     }
 
@@ -472,11 +470,6 @@ public class PureShieldService extends Service {
     private void captureAndProcess() {
         if (!isRunning.get() || isProcessing.get()) return;
 
-        // ✅ Allow processing if:
-        //   1) target app is in foreground (normal case), OR
-        //   2) targetPackages is empty (universal mode — protect everywhere), OR
-        //   3) we haven't received any foreground signal yet (bootstrap before
-        //      Accessibility delivers TYPE_WINDOW_STATE_CHANGED).
         boolean noTargets   = targetPackages.isEmpty();
         boolean noFgSignal  = currentForegroundPackage == null || currentForegroundPackage.isEmpty()
             || SystemClock.elapsedRealtime() - lastForegroundSignalAtMs > 5000;
@@ -515,7 +508,7 @@ public class PureShieldService extends Service {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // Inference — ✅ Fixed with dynamic input size + debug counters
+    // Inference
     // ─────────────────────────────────────────────────────────────────────────
 
     private void processFrame(Bitmap bitmap) {
@@ -526,7 +519,6 @@ public class PureShieldService extends Service {
 
         long startMs = System.currentTimeMillis();
 
-        // ✅ Get real input size from model
         int[] inputShape = faceDetector.getInputTensor(0).shape();
         int inputH = inputShape[1];
         int inputW = inputShape[2];
@@ -539,15 +531,13 @@ public class PureShieldService extends Service {
         int faceCount = faces.size();
         totalFacesDetected.addAndGet(faceCount);
 
-        // ✅ Debug log every frame
+        // ✅ FIX 2: Debug log — multiple face count দেখাবে
         Log.d(TAG, "🔍 Frame #" + totalFramesProcessed.get()
-            + " | Faces: " + faceCount
+            + " | Faces detected: " + faceCount
             + " | Time: " + inferMs + "ms"
             + " | App: " + currentForegroundPackage);
 
         if (faceCount == 0) {
-            // ✅ Don't clear overlays instantly — model can miss 1-2 frames in a row.
-            // Hold the last set briefly to prevent the visible blink the user reported.
             missFrameCount++;
             boolean expired = (System.currentTimeMillis() - lastFaceFrameAtMs) > STICKY_TTL_MS;
             if (missFrameCount >= MISS_GRACE_FRAMES || expired || lastBlurRegions.isEmpty()) {
@@ -555,7 +545,6 @@ public class PureShieldService extends Service {
                 lastDebugMessage = "Frame #" + totalFramesProcessed.get() + ": No faces";
                 clearAllOverlays();
             } else {
-                // Keep prior overlays visible for this miss frame.
                 lastDebugMessage = "Frame #" + totalFramesProcessed.get() + ": holding ("
                     + missFrameCount + "/" + MISS_GRACE_FRAMES + ")";
             }
@@ -565,32 +554,34 @@ public class PureShieldService extends Service {
         missFrameCount = 0;
         lastFaceFrameAtMs = System.currentTimeMillis();
 
+        // ✅ FIX 3: Multiple face support — সব face এর জন্য loop করো
         List<RectF> rawBlur = new ArrayList<>();
         for (RectF face : faces) {
             GenderResult result = estimateGender(bitmap, face);
             boolean blur = shouldBlur(result);
 
-            Log.d(TAG, "👤 Face | female=" + String.format("%.2f", result.femaleProbability)
+            Log.d(TAG, "👤 Face " + (rawBlur.size() + 1) + "/" + faceCount
+                + " | female=" + String.format("%.2f", result.femaleProbability)
                 + " male=" + String.format("%.2f", result.maleProbability)
                 + " → blur=" + blur);
 
             if (blur) {
-                rawBlur.add(scaleToScreenCoords(face, bitmap.getWidth(), bitmap.getHeight()));
+                RectF screenRect = scaleToScreenCoords(face, bitmap.getWidth(), bitmap.getHeight());
+                rawBlur.add(screenRect);
                 totalFacesBlurred.incrementAndGet();
             }
         }
 
-        // ✅ Temporal smoothing: match current boxes to previous boxes by IoU and
-        // lerp toward the new position so overlays glide instead of jumping.
+        Log.d(TAG, "🎯 Faces to blur: " + rawBlur.size() + " / " + faceCount);
+
         List<RectF> toBlur = smoothRegions(rawBlur);
         lastBlurRegions = toBlur;
 
         lastDebugMessage = "Frame #" + totalFramesProcessed.get()
             + " | Detected: " + faceCount
             + " | Blurred: " + toBlur.size()
-            + " | Total blurred: " + totalFacesBlurred.get();
+            + " | Total: " + totalFacesBlurred.get();
 
-        // ✅ Update notification with live stats
         updateNotificationStats();
 
         new Handler(Looper.getMainLooper()).post(() -> updateOverlays(toBlur));
@@ -616,7 +607,7 @@ public class PureShieldService extends Service {
                     lerp(prev.right,  cur.right),
                     lerp(prev.bottom, cur.bottom)));
             } else {
-                out.add(cur);
+                out.add(cur); // নতুন face — সরাসরি যোগ করো
             }
         }
         return out;
@@ -625,7 +616,7 @@ public class PureShieldService extends Service {
     private float lerp(float a, float b) { return a + (b - a) * SMOOTH_LERP; }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // ✅ Unified face detection with dynamic input size
+    // Face detection
     // ─────────────────────────────────────────────────────────────────────────
 
     private List<RectF> detectFaces(Bitmap src, int inputW, int inputH) {
@@ -636,7 +627,7 @@ public class PureShieldService extends Service {
         resized.getPixels(pixels, 0, inputW, 0, 0, inputW, inputH);
         resized.recycle();
 
-        // ✅ MediaPipe/BlazeFace normalization: [-1, 1]
+        // MediaPipe/BlazeFace normalization: [-1, 1]
         for (int i = 0; i < pixels.length; i++) {
             int p = pixels[i];
             int y = i / inputW, x = i % inputW;
@@ -645,10 +636,8 @@ public class PureShieldService extends Service {
             input[0][y][x][2] = ((p & 0xFF)          / 127.5f) - 1f;
         }
 
-        // ✅ Try multi-output first (BlazeFace format)
+        // BlazeFace multi-output
         try {
-            // BlazeFace short range: 896 anchors
-            // BlazeFace full range: 896 anchors
             float[][][] regressors  = new float[1][896][16];
             float[][][] classifiers = new float[1][896][1];
             Map<Integer, Object> outputs = new HashMap<>();
@@ -663,21 +652,8 @@ public class PureShieldService extends Service {
             Log.w(TAG, "⚠️ Multi-output failed: " + t.getMessage());
         }
 
-        // ✅ Fallback: single output
+        // Fallback: single output
         try {
-            // Try common output shapes
-            int numOutputs = faceDetector.getOutputTensorCount();
-            Log.d(TAG, "Model has " + numOutputs + " outputs");
-
-            if (numOutputs >= 2) {
-                // Try 2-output format
-                int[] shape0 = faceDetector.getOutputTensor(0).shape();
-                int[] shape1 = faceDetector.getOutputTensor(1).shape();
-                Log.d(TAG, "Output 0 shape: " + Arrays.toString(shape0));
-                Log.d(TAG, "Output 1 shape: " + Arrays.toString(shape1));
-            }
-
-            // Single output fallback
             float[][][] single = new float[1][896][16];
             faceDetector.run(input, single);
             return decodeSingleOutput(single);
@@ -687,12 +663,6 @@ public class PureShieldService extends Service {
             return Collections.emptyList();
         }
     }
-
-    // ✅ Tuned for higher recall — was missing too many real faces on screen.
-    private static final float DETECT_THRESHOLD  = 0.40f;
-    private static final float NMS_IOU_THRESHOLD = 0.30f; // a bit tighter → keep overlapping faces
-    private static final float MIN_FACE_FRAC     = 0.020f; // smaller min size → catch thumbnails
-    private static final float MAX_FACE_FRAC     = 0.95f;
 
     private List<RectF> decodeBlazeFace(float[][][] regressors, float[][][] classifiers,
                                          int inputW, int inputH, float threshold) {
@@ -713,7 +683,7 @@ public class PureShieldService extends Service {
             if (w < MIN_FACE_FRAC || h < MIN_FACE_FRAC) continue;
             if (w > MAX_FACE_FRAC || h > MAX_FACE_FRAC) continue;
             float ar = (h > 0) ? w/h : 1f;
-            if (ar < 0.35f || ar > 3.0f) continue;  // loosened aspect ratio
+            if (ar < 0.35f || ar > 3.0f) continue;
 
             boxes.add(new RectF(
                 Math.max(0f, cx - w/2),
@@ -747,33 +717,20 @@ public class PureShieldService extends Service {
     // ─────────────────────────────────────────────────────────────────────────
 
     private GenderResult estimateGender(Bitmap src, RectF faceBox) {
-        // BOTH mode — blur everything, skip gender model
         if (config.getBlurGender() == PureShieldConfig.BlurGender.BOTH) {
             return new GenderResult(0.9f, 0.9f);
         }
-
-        // ✅ Use real gender model if available
         if (genderClassifier != null) {
             return classifyGenderReal(src, faceBox);
         }
-
-        // ⚠️ No gender model — safe fallback: treat every face as a match
-        // so FEMALE / MALE modes still blur visible faces instead of doing nothing.
         return new GenderResult(0.9f, 0.9f);
     }
 
-    /**
-     * ✅ Real gender classification using bundled MobileNetV2 TFLite model.
-     * Input: dynamic RGB tensor size, normalized [0,1]
-     * Output: [1,2] → [female_prob, male_prob]
-     * Works for ALL races — Bengali, Chinese, European, African etc.
-     */
     private GenderResult classifyGenderReal(Bitmap src, RectF faceBox) {
         int inputW = Math.max(1, genderInputWidth);
         int inputH = Math.max(1, genderInputHeight);
         int bw = src.getWidth(), bh = src.getHeight();
 
-        // Add padding around face for better accuracy
         float padX = faceBox.width()  * bw * 0.25f;
         float padY = faceBox.height() * bh * 0.25f;
 
@@ -795,6 +752,7 @@ public class PureShieldService extends Service {
 
             float femaleProbability;
             float maleProbability;
+
             if (genderInputDataType == DataType.UINT8 || genderInputDataType == DataType.INT8) {
                 byte[][][][] input = new byte[1][inputH][inputW][3];
                 for (int i = 0; i < pixels.length; i++) {
@@ -804,7 +762,6 @@ public class PureShieldService extends Service {
                     input[0][y][x][1] = quantizePixel((p >> 8) & 0xFF);
                     input[0][y][x][2] = quantizePixel(p & 0xFF);
                 }
-
                 if (genderOutputDataType == DataType.UINT8 || genderOutputDataType == DataType.INT8) {
                     byte[][] output = new byte[1][2];
                     genderClassifier.run(input, output);
@@ -837,14 +794,10 @@ public class PureShieldService extends Service {
                 maleProbability /= sum;
             }
 
-            // ✅ Safety: if model output is garbage (NaN, both near-zero, or
-            // not a proper distribution), fall back to "match" so FEMALE/MALE
-            // mode still blurs faces instead of doing nothing silently.
             boolean nan = Float.isNaN(femaleProbability) || Float.isNaN(maleProbability);
             boolean tooLow = (femaleProbability < 0.1f && maleProbability < 0.1f);
             if (nan || tooLow) {
-                Log.w(TAG, "⚠️ Gender output unreliable (f=" + femaleProbability
-                    + " m=" + maleProbability + ") — treating as match");
+                Log.w(TAG, "⚠️ Gender output unreliable — treating as match");
                 return new GenderResult(0.9f, 0.9f);
             }
 
@@ -853,7 +806,6 @@ public class PureShieldService extends Service {
             return new GenderResult(femaleProbability, maleProbability);
         } catch (Throwable t) {
             Log.w(TAG, "⚠️ Gender classification failed: " + t.getMessage());
-            // Safe fallback: treat as match so the face still gets blurred
             return new GenderResult(0.9f, 0.9f);
         }
     }
@@ -888,20 +840,24 @@ public class PureShieldService extends Service {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // Overlay
+    // Overlay — ✅ FIX 4: Multiple face overlay ঠিকমতো manage করা হচ্ছে
     // ─────────────────────────────────────────────────────────────────────────
 
     private void updateOverlays(List<RectF> regions) {
+        // ✅ বেশি overlay থাকলে remove করো
         while (blurOverlays.size() > regions.size()) {
             View v = blurOverlays.remove(blurOverlays.size() - 1);
             try { windowManager.removeView(v); } catch (Exception ignored) {}
         }
+        // ✅ কম overlay থাকলে নতুন যোগ করো
         while (blurOverlays.size() < regions.size()) {
             blurOverlays.add(createBlurOverlayView());
         }
+        // ✅ সব face এর position update করো
         for (int i = 0; i < regions.size(); i++) {
             positionOverlay(blurOverlays.get(i), regions.get(i));
         }
+        Log.d(TAG, "🖼️ Overlay count: " + blurOverlays.size() + " for " + regions.size() + " faces");
     }
 
     private View createBlurOverlayView() {
@@ -913,23 +869,38 @@ public class PureShieldService extends Service {
             : WindowManager.LayoutParams.TYPE_PHONE;
 
         WindowManager.LayoutParams params = new WindowManager.LayoutParams(
-            0, 0, 0, 0, type,
+            1, 1, // ✅ শুরুতে 1x1 রাখো, positionOverlay এ update হবে
+            0, 0, type,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
                 | WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
                 | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
-            PixelFormat.TRANSLUCENT
+            PixelFormat.TRANSLUCENT // ✅ TRANSLUCENT — oval এর বাইরে transparent থাকবে
         );
         params.gravity = Gravity.TOP | Gravity.LEFT;
-        windowManager.addView(view, params);
+        // ✅ প্রতিটা overlay এর আলাদা title দাও — WindowManager bug এড়াতে
+        params.setTitle("PureShieldFace_" + System.currentTimeMillis() + "_" + blurOverlays.size());
+
+        try {
+            windowManager.addView(view, params);
+        } catch (Exception e) {
+            Log.e(TAG, "❌ addView failed: " + e.getMessage());
+        }
         return view;
     }
 
     private void positionOverlay(View view, RectF rect) {
+        if (rect.width() <= 0 || rect.height() <= 0) return;
         WindowManager.LayoutParams p = (WindowManager.LayoutParams) view.getLayoutParams();
-        p.x = (int) rect.left; p.y = (int) rect.top;
-        p.width = (int) rect.width(); p.height = (int) rect.height();
-        try { windowManager.updateViewLayout(view, p); }
-        catch (Exception e) { Log.w(TAG, "Overlay update failed: " + e.getMessage()); }
+        if (p == null) return;
+        p.x = (int) rect.left;
+        p.y = (int) rect.top;
+        p.width  = (int) rect.width();
+        p.height = (int) rect.height();
+        try {
+            windowManager.updateViewLayout(view, p);
+        } catch (Exception e) {
+            Log.w(TAG, "Overlay update failed: " + e.getMessage());
+        }
     }
 
     private void clearAllOverlays() {
@@ -938,24 +909,29 @@ public class PureShieldService extends Service {
                 try { windowManager.removeView(v); } catch (Exception ignored) {}
             }
             blurOverlays.clear();
+            Log.d(TAG, "🗑️ All overlays cleared");
         });
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // Coords
+    // Screen coordinates — ✅ FIX 5: padding একটু কমানো হয়েছে
+    // বেশি padding দিলে face এর বাইরে blur যায়
     // ─────────────────────────────────────────────────────────────────────────
 
     private RectF scaleToScreenCoords(RectF box, int captureW, int captureH) {
         float scaleX = (float) screenWidth  / captureW;
         float scaleY = (float) screenHeight / captureH;
-        // ✅ Expand blur region by 20% on each axis so partial detections
-        // still fully cover the face (hair, jaw, ears).
+
         float left   = box.left   * captureW * scaleX;
         float top    = box.top    * captureH * scaleY;
         float right  = box.right  * captureW * scaleX;
         float bottom = box.bottom * captureH * scaleY;
-        float padX = (right - left) * 0.20f;
-        float padY = (bottom - top) * 0.25f; // a bit more vertical for hair/chin
+
+        // ✅ Padding: ছিল 0.20f/0.25f → এখন 0.15f/0.20f
+        // বেশি padding দিলে ছোট face এ অনেক বড় blur দেখায়
+        float padX = (right - left) * 0.15f;
+        float padY = (bottom - top) * 0.20f;
+
         return new RectF(
             Math.max(0, left   - padX),
             Math.max(0, top    - padY),
@@ -1005,11 +981,10 @@ public class PureShieldService extends Service {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // Notification with live stats
+    // Notification
     // ─────────────────────────────────────────────────────────────────────────
 
     private void updateNotificationStats() {
-        // Update every 10 frames to avoid spam
         if (totalFramesProcessed.get() % 10 != 0) return;
         try {
             NotificationManager nm = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
@@ -1063,7 +1038,7 @@ public class PureShieldService extends Service {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // Bitmap
+    // Bitmap conversion
     // ─────────────────────────────────────────────────────────────────────────
 
     private Bitmap imageToBitmap(Image image) {
@@ -1088,7 +1063,7 @@ public class PureShieldService extends Service {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // Math
+    // Math utilities
     // ─────────────────────────────────────────────────────────────────────────
 
     private float sigmoid(float x) { return 1f / (1f + (float) Math.exp(-x)); }
@@ -1097,6 +1072,7 @@ public class PureShieldService extends Service {
         if (boxes.isEmpty()) return boxes;
         List<RectF> result = new ArrayList<>();
         List<RectF> sorted = new ArrayList<>(boxes);
+        // ✅ Score নেই তাই area দিয়ে sort — বড় face আগে
         sorted.sort((a, b) -> Float.compare(b.width() * b.height(), a.width() * a.height()));
         boolean[] suppressed = new boolean[sorted.size()];
         for (int i = 0; i < sorted.size(); i++) {
@@ -1119,7 +1095,7 @@ public class PureShieldService extends Service {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // Constants
+    // Constants & inner classes
     // ─────────────────────────────────────────────────────────────────────────
 
     public static final class Actions {

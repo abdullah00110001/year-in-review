@@ -6,6 +6,12 @@ import android.view.View;
 
 /**
  * PureShieldBlurView — Face blur overlay
+ * ✅ FIXED:
+ *   1. সব style এ proper oval clipping — rectangular bleeding নেই
+ *   2. Transparent background — oval এর বাইরে কিছু দেখাবে না
+ *   3. canvas.save()/restore() — clip state leak নেই
+ *   4. drawBlur, drawFrosted, drawSolid এ oval clip যোগ করা হয়েছে
+ *
  * Styles: PIXELATE, SMUDGE, DOTS, BLUR, FROSTED, SOLID, MOSAIC
  */
 public class PureShieldBlurView extends View {
@@ -33,7 +39,11 @@ public class PureShieldBlurView extends View {
     public PureShieldBlurView(Context context) {
         super(context);
         setWillNotDraw(false);
+
+        // ✅ FIX 1: Software layer + transparent background
+        // Hardware layer এ clipPath কাজ করে না properly
         setLayerType(LAYER_TYPE_SOFTWARE, null);
+        setBackgroundColor(Color.TRANSPARENT);
 
         paint = new Paint(Paint.ANTI_ALIAS_FLAG);
         paint.setStyle(Paint.Style.FILL);
@@ -47,7 +57,7 @@ public class PureShieldBlurView extends View {
     }
 
     public void setBlurStyle(BlurStyle style) {
-        this.blurStyle = style;
+        this.blurStyle = (style != null) ? style : BlurStyle.BLUR;
         invalidate();
     }
 
@@ -61,11 +71,18 @@ public class PureShieldBlurView extends View {
         invalidate();
     }
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // onDraw — ✅ FIX 2: সবার আগে canvas clear করো
+    // ─────────────────────────────────────────────────────────────────────────
+
     @Override
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
         int w = getWidth(), h = getHeight();
         if (w <= 0 || h <= 0) return;
+
+        // ✅ Clear any previous frame's pixels (transparent)
+        canvas.drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR);
 
         switch (blurStyle) {
             case PIXELATE: drawPixelate(canvas, w, h); break;
@@ -81,14 +98,31 @@ public class PureShieldBlurView extends View {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // 1. BLUR — soft gaussian-style radial blur (ছবির Blur style)
+    // Helper — oval clip path তৈরি করে canvas.save() করে clip করে
+    // প্রতিটা draw method এ এটা দিয়ে শুরু করো, শেষে canvas.restore()
     // ─────────────────────────────────────────────────────────────────────────
+
+    private Path makeOvalPath(int w, int h) {
+        Path path = new Path();
+        path.addOval(new RectF(0, 0, w, h), Path.Direction.CW);
+        return path;
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // 1. BLUR — soft gaussian-style radial blur
+    // ✅ FIX 3: oval clip যোগ করা হয়েছে
+    // ─────────────────────────────────────────────────────────────────────────
+
     private void drawBlur(Canvas canvas, int w, int h) {
+        // ✅ Clip to oval — এর বাইরে কিছু draw হবে না
+        canvas.save();
+        canvas.clipPath(makeOvalPath(w, h));
+
         // Base: semi-opaque white fill
+        paint.setShader(null);
         paint.setColor(Color.argb(200, 255, 255, 255));
         canvas.drawOval(new RectF(0, 0, w, h), paint);
 
-        // Multiple layered radial gradients to simulate gaussian blur
         float cx = w / 2f, cy = h / 2f;
         float radius = Math.max(w, h) / 1.4f;
 
@@ -131,32 +165,32 @@ public class PureShieldBlurView extends View {
         canvas.drawOval(new RectF(0, 0, w, h), paint);
         paint.setShader(null);
 
-        // Feathered oval border
+        canvas.restore(); // ✅ clip মুক্ত করো
+
+        // Feathered border — oval এর বাইরে আঁকো (clip ছাড়া)
         drawFeatheredOvalEdge(canvas, w, h, Color.argb(60, 180, 200, 235));
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // 2. SMUDGE — smear/swirl lines effect (ছবির Smudge style)
+    // 2. SMUDGE — smear/swirl lines effect
+    // ✅ ইতোমধ্যে oval clip আছে — কিন্তু canvas.save()/restore() ঠিক করা হয়েছে
     // ─────────────────────────────────────────────────────────────────────────
-    private void drawSmudge(Canvas canvas, int w, int h) {
-        // Clip to oval
-        Path ovalPath = new Path();
-        ovalPath.addOval(new RectF(0, 0, w, h), Path.Direction.CW);
-        canvas.save();
-        canvas.clipPath(ovalPath);
 
-        // Background — light grey-white base
+    private void drawSmudge(Canvas canvas, int w, int h) {
+        canvas.save();
+        canvas.clipPath(makeOvalPath(w, h));
+
+        // Background
+        paint.setShader(null);
         paint.setColor(Color.argb(240, 248, 250, 255));
         canvas.drawRect(0, 0, w, h, paint);
 
-        // Draw smudge strokes — diagonal & curved lines
         Paint strokePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         strokePaint.setStyle(Paint.Style.STROKE);
         strokePaint.setStrokeCap(Paint.Cap.ROUND);
         strokePaint.setStrokeJoin(Paint.Join.ROUND);
         strokePaint.setMaskFilter(new BlurMaskFilter(8f, BlurMaskFilter.Blur.NORMAL));
 
-        // Light grey smudge strokes at different angles
         int[][] smudgeColors = {
             {160, 165, 175, 80},
             {140, 148, 165, 70},
@@ -203,30 +237,25 @@ public class PureShieldBlurView extends View {
         }
 
         canvas.restore();
-
-        // Oval border
         drawFeatheredOvalEdge(canvas, w, h, Color.argb(70, 140, 150, 170));
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // 3. DOTS — dot grid pattern (ছবির Dots style)
+    // 3. DOTS — dot grid pattern
     // ─────────────────────────────────────────────────────────────────────────
+
     private void drawDots(Canvas canvas, int w, int h) {
-        // Clip to oval
-        Path ovalPath = new Path();
-        ovalPath.addOval(new RectF(0, 0, w, h), Path.Direction.CW);
         canvas.save();
-        canvas.clipPath(ovalPath);
+        canvas.clipPath(makeOvalPath(w, h));
 
         // Background
+        paint.setShader(null);
         paint.setColor(Color.argb(230, 245, 247, 255));
         canvas.drawRect(0, 0, w, h, paint);
 
-        // Dot grid
         int dotSpacing = Math.max(8, Math.min(w, h) / 9);
         float dotRadius = dotSpacing * 0.32f;
 
-        // Dot colors — varied for visual depth
         int[] dotColors = {
             Color.argb(200, 60,  80, 120),
             Color.argb(180, 80, 100, 150),
@@ -238,29 +267,24 @@ public class PureShieldBlurView extends View {
             for (int x = dotSpacing / 2; x < w; x += dotSpacing) {
                 int hash = Math.abs(x / dotSpacing * 7 + y / dotSpacing * 13) % dotColors.length;
                 pixelPaint.setColor(dotColors[hash]);
-
-                // Slight size variation for organic feel
-                float sizeVar = ((x / dotSpacing + y / dotSpacing) % 3 == 0) ? dotRadius * 1.2f : dotRadius;
+                float sizeVar = ((x / dotSpacing + y / dotSpacing) % 3 == 0)
+                    ? dotRadius * 1.2f : dotRadius;
                 canvas.drawCircle(x, y, sizeVar, pixelPaint);
             }
         }
 
         canvas.restore();
-
-        // Border
         drawFeatheredOvalEdge(canvas, w, h, Color.argb(80, 60, 80, 140));
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // 4. PIXELATE — skin-tone pixel blocks (ছবির Pixel style)
+    // 4. PIXELATE — skin-tone pixel blocks
     // ─────────────────────────────────────────────────────────────────────────
-    private void drawPixelate(Canvas canvas, int w, int h) {
-        Path ovalPath = new Path();
-        ovalPath.addOval(new RectF(0, 0, w, h), Path.Direction.CW);
-        canvas.save();
-        canvas.clipPath(ovalPath);
 
-        // Skin-tone + neutral palette
+    private void drawPixelate(Canvas canvas, int w, int h) {
+        canvas.save();
+        canvas.clipPath(makeOvalPath(w, h));
+
         int[] colors = {
             Color.rgb(210, 170, 130),
             Color.rgb(185, 145, 105),
@@ -281,27 +305,34 @@ public class PureShieldBlurView extends View {
                     Math.min(y + PIXEL_BLOCK, h), pixelPaint);
             }
         }
-        canvas.restore();
 
+        canvas.restore();
         drawFeatheredOvalEdge(canvas, w, h, Color.argb(80, 100, 70, 50));
     }
 
     // ─────────────────────────────────────────────────────────────────────────
     // 5. FROSTED — frosted glass oval
+    // ✅ FIX 4: oval clip যোগ করা হয়েছে
     // ─────────────────────────────────────────────────────────────────────────
-    private void drawFrosted(Canvas canvas, int w, int h) {
-        RectF oval = new RectF(0, 0, w, h);
 
-        // Outer glow rings
+    private void drawFrosted(Canvas canvas, int w, int h) {
+        // ✅ Outer glow rings — clip এর বাইরে, তাই save/restore দিয়ে আলাদা
         for (int ring = 8; ring >= 1; ring--) {
             float s = 1f + ring * 0.025f;
+            edgePaint.setShader(null);
             edgePaint.setColor(Color.argb(ring * 8, 180, 200, 240));
             float cx = w / 2f, cy = h / 2f;
-            canvas.drawOval(new RectF(cx - (w/2f)*s, cy - (h/2f)*s,
-                cx + (w/2f)*s, cy + (h/2f)*s), edgePaint);
+            canvas.drawOval(new RectF(
+                cx - (w / 2f) * s, cy - (h / 2f) * s,
+                cx + (w / 2f) * s, cy + (h / 2f) * s), edgePaint);
         }
 
-        // Main glass body
+        // ✅ Main glass body — oval clip এর ভেতরে
+        canvas.save();
+        canvas.clipPath(makeOvalPath(w, h));
+
+        RectF oval = new RectF(0, 0, w, h);
+
         RadialGradient gradient = new RadialGradient(
             w / 2f, h * 0.38f,
             Math.max(w, h) / 1.5f,
@@ -317,7 +348,7 @@ public class PureShieldBlurView extends View {
         canvas.drawOval(oval, paint);
         paint.setShader(null);
 
-        // Shimmer
+        // Shimmer highlight
         RadialGradient shimmer = new RadialGradient(
             w * 0.38f, h * 0.22f, w * 0.45f,
             new int[]{Color.argb(120, 255, 255, 255), Color.argb(0, 255, 255, 255)},
@@ -326,20 +357,29 @@ public class PureShieldBlurView extends View {
         canvas.drawOval(oval, paint);
         paint.setShader(null);
 
+        canvas.restore();
         drawFeatheredOvalEdge(canvas, w, h, Color.argb(90, 120, 150, 200));
     }
 
     // ─────────────────────────────────────────────────────────────────────────
     // 6. SOLID — dark oval
+    // ✅ FIX 5: oval clip যোগ করা হয়েছে
     // ─────────────────────────────────────────────────────────────────────────
+
     private void drawSolid(Canvas canvas, int w, int h) {
+        // Shadow rings — clip এর বাইরে
         for (int ring = 6; ring >= 1; ring--) {
             float scale = 1f - (ring * 0.04f);
+            edgePaint.setShader(null);
             edgePaint.setColor(Color.argb(ring * 12, 20, 30, 50));
             float cx = w / 2f, cy = h / 2f;
             float hw = (w / 2f) * scale, hh = (h / 2f) * scale;
             canvas.drawOval(new RectF(cx - hw, cy - hh, cx + hw, cy + hh), edgePaint);
         }
+
+        // ✅ Main body — oval clip এর ভেতরে
+        canvas.save();
+        canvas.clipPath(makeOvalPath(w, h));
 
         RadialGradient gradient = new RadialGradient(
             w / 2f, h / 3f, Math.max(w, h) * 0.7f,
@@ -349,17 +389,18 @@ public class PureShieldBlurView extends View {
         canvas.drawOval(new RectF(0, 0, w, h), paint);
         paint.setShader(null);
 
+        canvas.restore();
+
         drawShieldIcon(canvas, w, h, Color.argb(180, 255, 255, 255));
     }
 
     // ─────────────────────────────────────────────────────────────────────────
     // 7. MOSAIC — colorful tiled mosaic
     // ─────────────────────────────────────────────────────────────────────────
+
     private void drawMosaic(Canvas canvas, int w, int h) {
-        Path ovalPath = new Path();
-        ovalPath.addOval(new RectF(0, 0, w, h), Path.Direction.CW);
         canvas.save();
-        canvas.clipPath(ovalPath);
+        canvas.clipPath(makeOvalPath(w, h));
 
         int block = Math.max(10, Math.min(w, h) / 7);
         int[] colors = {
@@ -384,8 +425,8 @@ public class PureShieldBlurView extends View {
                     3f, 3f, pixelPaint);
             }
         }
-        canvas.restore();
 
+        canvas.restore();
         drawFeatheredOvalEdge(canvas, w, h, Color.argb(100, 8, 145, 178));
     }
 
@@ -393,15 +434,21 @@ public class PureShieldBlurView extends View {
     // Shared helpers
     // ─────────────────────────────────────────────────────────────────────────
 
+    /**
+     * Feathered oval border — clip এর বাইরে আঁকো যাতে edge টা smooth দেখায়।
+     * এটা clip ছাড়াই call করো।
+     */
     private void drawFeatheredOvalEdge(Canvas canvas, int w, int h, int color) {
+        paint.setShader(null);
+        edgePaint.setShader(null);
         for (int ring = 4; ring >= 1; ring--) {
             float s = 1f - ring * 0.03f;
             edgePaint.setColor(Color.argb(ring * 18,
                 Color.red(color), Color.green(color), Color.blue(color)));
             float cx = w / 2f, cy = h / 2f;
             canvas.drawOval(new RectF(
-                cx - (w/2f)*s, cy - (h/2f)*s,
-                cx + (w/2f)*s, cy + (h/2f)*s), edgePaint);
+                cx - (w / 2f) * s, cy - (h / 2f) * s,
+                cx + (w / 2f) * s, cy + (h / 2f) * s), edgePaint);
         }
         paint.setStyle(Paint.Style.STROKE);
         paint.setStrokeWidth(1.8f);
@@ -413,6 +460,7 @@ public class PureShieldBlurView extends View {
     private void drawShieldIcon(Canvas canvas, int w, int h, int color) {
         float size = Math.min(w, h) * 0.28f;
         if (size < 8f) return;
+        paint.setShader(null);
         paint.setColor(color);
         paint.setTextSize(size);
         paint.setTextAlign(Paint.Align.CENTER);
