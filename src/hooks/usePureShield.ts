@@ -7,10 +7,11 @@ import {
   type InstalledApp,
   type ModelStatus,
 } from '@/lib/capacitor/pureShieldPlugin';
+import type { BlurStyle } from '@/components/shield/pureShield/types';
 
 const DEFAULT_CONFIG: PureShieldConfig = {
   blurGender: 'FEMALE',
-  blurStyle: 'PIXELATE',
+  blurStyle: 'BLUR' as BlurStyle,   // ✅ new default
   confidenceThreshold: 0.72,
   enabled: false,
   pauseOnBatteryBelow20: true,
@@ -27,16 +28,15 @@ export interface LiveStats {
 }
 
 export function usePureShield() {
-  const [config, setConfig] = useState<PureShieldConfig>(DEFAULT_CONFIG);
+  const [config, setConfig]           = useState<PureShieldConfig>(DEFAULT_CONFIG);
   const [permissions, setPermissions] = useState<PermissionStatus>({ overlay: false, projection: false });
-  const [running, setRunning] = useState(false);
-  const [status, setStatus] = useState<AdaptiveStatus | null>(null);
-  const [targetApps, setTargetApps] = useState<string[]>([]);
+  const [running, setRunning]         = useState(false);
+  const [status, setStatus]           = useState<AdaptiveStatus | null>(null);
+  const [targetApps, setTargetApps]   = useState<string[]>([]);
   const [installedApps, setInstalledApps] = useState<InstalledApp[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading]         = useState(false);
   const [modelStatus, setModelStatus] = useState<ModelStatus>({ status: 'UNKNOWN' });
 
-  // ✅ Live stats
   const [liveStats, setLiveStats] = useState<LiveStats>({
     totalFrames: 0,
     totalFaces: 0,
@@ -48,6 +48,9 @@ export function usePureShield() {
 
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // ─────────────────────────────────────────────────────────────────────────
+  // Refresh all state from native
+  // ─────────────────────────────────────────────────────────────────────────
   const refresh = useCallback(async () => {
     try {
       const [p, c, r, t, m] = await Promise.all([
@@ -58,6 +61,7 @@ export function usePureShield() {
         PureShieldPlugin.getModelStatus().catch(() => ({ status: 'UNKNOWN' as const })),
       ]);
       setPermissions(p);
+      // ✅ Merge with defaults so unknown/old saved values don't break UI
       setConfig({ ...DEFAULT_CONFIG, ...c });
       setRunning(r.running);
       setTargetApps(t.packages);
@@ -67,19 +71,31 @@ export function usePureShield() {
     }
   }, []);
 
+  // ─────────────────────────────────────────────────────────────────────────
+  // Config
+  // ─────────────────────────────────────────────────────────────────────────
   const updateConfig = useCallback(async (patch: Partial<PureShieldConfig>) => {
     const next = { ...config, ...patch };
     setConfig(next);
-    try { await PureShieldPlugin.setConfig(patch); } catch (e) { console.warn(e); }
+    try {
+      await PureShieldPlugin.setConfig(patch);
+    } catch (e) {
+      console.warn('setConfig failed', e);
+    }
   }, [config]);
 
+  // ─────────────────────────────────────────────────────────────────────────
+  // Start / Stop
+  // ─────────────────────────────────────────────────────────────────────────
   const start = useCallback(async () => {
     setLoading(true);
     try {
       const res = await PureShieldPlugin.startPureShield();
       setRunning(!!res.started);
       return !!res.started;
-    } finally { setLoading(false); }
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   const stop = useCallback(async () => {
@@ -87,7 +103,7 @@ export function usePureShield() {
     try {
       await PureShieldPlugin.stopPureShield();
       setRunning(false);
-      // Reset live stats on stop
+      setStatus(null);
       setLiveStats({
         totalFrames: 0,
         totalFaces: 0,
@@ -96,10 +112,14 @@ export function usePureShield() {
         lastDebugMessage: 'Stopped',
         modelStatus: 'UNKNOWN',
       });
-      setStatus(null);
-    } finally { setLoading(false); }
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
+  // ─────────────────────────────────────────────────────────────────────────
+  // Permissions
+  // ─────────────────────────────────────────────────────────────────────────
   const requestOverlay = useCallback(async () => {
     const r = await PureShieldPlugin.requestOverlayPermission();
     setPermissions(p => ({ ...p, overlay: r.granted }));
@@ -109,6 +129,7 @@ export function usePureShield() {
   const requestProjection = useCallback(async () => {
     const r = await PureShieldPlugin.requestMediaProjection();
     if (r.granted) {
+      // ✅ Poll until service confirms it's running (up to 3 seconds)
       let runningState = await PureShieldPlugin.isRunning().catch(() => ({ running: false }));
       for (let i = 0; i < 10 && !runningState.running; i++) {
         await new Promise(resolve => setTimeout(resolve, 300));
@@ -124,11 +145,16 @@ export function usePureShield() {
     return r.granted;
   }, []);
 
+  // ─────────────────────────────────────────────────────────────────────────
+  // Apps
+  // ─────────────────────────────────────────────────────────────────────────
   const loadInstalledApps = useCallback(async () => {
     try {
       const { apps } = await PureShieldPlugin.getInstalledApps();
       setInstalledApps(apps);
-    } catch (e) { console.warn(e); }
+    } catch (e) {
+      console.warn('loadInstalledApps failed', e);
+    }
   }, []);
 
   const toggleTargetApp = useCallback(async (pkg: string) => {
@@ -136,12 +162,21 @@ export function usePureShield() {
       ? targetApps.filter(p => p !== pkg)
       : [...targetApps, pkg];
     setTargetApps(next);
-    try { await PureShieldPlugin.setTargetApps({ packages: next }); } catch (e) { console.warn(e); }
+    try {
+      await PureShieldPlugin.setTargetApps({ packages: next });
+    } catch (e) {
+      console.warn('setTargetApps failed', e);
+    }
   }, [targetApps]);
 
-  // ✅ Poll live stats when running
+  // ─────────────────────────────────────────────────────────────────────────
+  // ✅ Live stats polling — runs while service is active
+  // ─────────────────────────────────────────────────────────────────────────
   useEffect(() => {
-    if (pollRef.current) clearInterval(pollRef.current);
+    if (pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
 
     if (!running) return;
 
@@ -150,20 +185,20 @@ export function usePureShield() {
         const [adaptive, model, stats] = await Promise.all([
           PureShieldPlugin.getAdaptiveStatus().catch(() => null),
           PureShieldPlugin.getModelStatus().catch(() => null),
-          // ✅ getLiveStats — add to pureShieldPlugin.ts
           (PureShieldPlugin as any).getLiveStats?.().catch(() => null),
         ]);
 
         if (adaptive) setStatus(adaptive);
-        if (model) setModelStatus(model);
+        if (model)    setModelStatus(model);
+
         if (stats) {
           setLiveStats({
-            totalFrames: stats.totalFrames ?? 0,
-            totalFaces: stats.totalFaces ?? 0,
-            totalBlurred: stats.totalBlurred ?? 0,
-            lastInferenceMs: stats.lastInferenceMs ?? 0,
+            totalFrames:      stats.totalFrames      ?? 0,
+            totalFaces:       stats.totalFaces       ?? 0,
+            totalBlurred:     stats.totalBlurred     ?? 0,
+            lastInferenceMs:  stats.lastInferenceMs  ?? 0,
             lastDebugMessage: stats.lastDebugMessage ?? '',
-            modelStatus: stats.modelStatus ?? 'UNKNOWN',
+            modelStatus:      stats.modelStatus      ?? 'UNKNOWN',
           });
         }
       } catch (e) {
@@ -171,14 +206,20 @@ export function usePureShield() {
       }
     };
 
-    poll(); // immediate first call
-    pollRef.current = setInterval(poll, 1500); // poll every 1.5s
+    poll(); // immediate
+    pollRef.current = setInterval(poll, 1500);
 
     return () => {
-      if (pollRef.current) clearInterval(pollRef.current);
+      if (pollRef.current) {
+        clearInterval(pollRef.current);
+        pollRef.current = null;
+      }
     };
   }, [running]);
 
+  // ─────────────────────────────────────────────────────────────────────────
+  // Init
+  // ─────────────────────────────────────────────────────────────────────────
   useEffect(() => { refresh(); }, [refresh]);
 
   return {
@@ -187,7 +228,7 @@ export function usePureShield() {
     running,
     status,
     modelStatus,
-    liveStats,        // ✅ NEW
+    liveStats,
     targetApps,
     installedApps,
     loading,
