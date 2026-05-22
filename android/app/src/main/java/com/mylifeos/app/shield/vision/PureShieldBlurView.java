@@ -79,43 +79,35 @@ public class PureShieldBlurView extends View {
         RectF oval = new RectF(0, 0, w, h);
         float rx = w / 2f, ry = h / 2f;
 
-        // ✅ Feathered edge — soft blur border
-        for (int ring = 8; ring >= 1; ring--) {
-            float scale = 1f - (ring * 0.03f);
-            float alpha = ring * 8;
-            edgePaint.setColor(Color.argb((int) alpha, 200, 210, 255));
-            RectF r = new RectF(
-                w * (1 - scale) / 2f,
-                h * (1 - scale) / 2f,
-                w - w * (1 - scale) / 2f,
-                h - h * (1 - scale) / 2f
-            );
-            canvas.drawRoundRect(r, rx * scale, ry * scale, edgePaint);
-        }
-
-        // ✅ Main frosted glass body — oval shape
+        // ✅ Fully opaque smooth frosted glass — no transparent checkerboard
+        // bleeding through anymore.
         RadialGradient gradient = new RadialGradient(
-            w / 2f, h / 2f,
-            Math.max(w, h) / 2f,
+            w / 2f, h * 0.4f,
+            Math.max(w, h) / 1.6f,
             new int[]{
-                Color.argb(withAlphaInt(0xDD), 240, 245, 255),
-                Color.argb(withAlphaInt(0xCC), 220, 235, 255),
-                Color.argb(withAlphaInt(0xBB), 200, 220, 250),
+                Color.argb(255, 245, 248, 255),
+                Color.argb(255, 220, 230, 248),
+                Color.argb(255, 190, 205, 235),
+                Color.argb(255, 160, 180, 220),
             },
-            new float[]{0f, 0.6f, 1f},
+            new float[]{0f, 0.45f, 0.78f, 1f},
             Shader.TileMode.CLAMP
         );
         paint.setShader(gradient);
-        canvas.drawRoundRect(oval, rx * 0.95f, ry * 0.95f, paint);
+        canvas.drawOval(oval, paint);
         paint.setShader(null);
 
-        // ✅ Inner glow
-        paint.setColor(Color.argb(40, 255, 255, 255));
-        RectF inner = new RectF(w * 0.1f, h * 0.05f, w * 0.9f, h * 0.45f);
+        // Soft inner highlight (top)
+        paint.setColor(Color.argb(70, 255, 255, 255));
+        RectF inner = new RectF(w * 0.12f, h * 0.06f, w * 0.88f, h * 0.42f);
         canvas.drawOval(inner, paint);
 
-        // ✅ Shield icon in center
-        drawShieldIcon(canvas, w, h, Color.argb(120, 80, 100, 180));
+        // Outline
+        paint.setStyle(Paint.Style.STROKE);
+        paint.setStrokeWidth(2.5f);
+        paint.setColor(Color.argb(110, 100, 120, 170));
+        canvas.drawOval(new RectF(1.5f, 1.5f, w - 1.5f, h - 1.5f), paint);
+        paint.setStyle(Paint.Style.FILL);
     }
 
     // ─────────────────────────────────────────────────────────────────────────
