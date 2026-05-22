@@ -120,12 +120,13 @@ public class PureShieldBlurView extends View {
         canvas.save();
         canvas.clipPath(ovalPath);
 
-        // ✅ Pixelate blocks
+        // ✅ Pixelate blocks — fully opaque, no transparency bleed-through
         int[] colors = {
-            Color.argb(withAlphaInt(0xFF), 210, 215, 230),
-            Color.argb(withAlphaInt(0xFF), 195, 200, 220),
-            Color.argb(withAlphaInt(0xFF), 180, 190, 215),
-            Color.argb(withAlphaInt(0xFF), 200, 208, 225),
+            Color.rgb(210, 215, 230),
+            Color.rgb(195, 200, 220),
+            Color.rgb(180, 190, 215),
+            Color.rgb(200, 208, 225),
+            Color.rgb(170, 180, 210),
         };
         int idx = 0;
         for (int y = 0; y < h; y += PIXEL_BLOCK) {
@@ -140,12 +141,10 @@ public class PureShieldBlurView extends View {
 
         // ✅ Soft oval border
         paint.setStyle(Paint.Style.STROKE);
-        paint.setStrokeWidth(2f);
-        paint.setColor(Color.argb(80, 150, 160, 200));
-        canvas.drawOval(new RectF(1, 1, w - 1, h - 1), paint);
+        paint.setStrokeWidth(2.5f);
+        paint.setColor(Color.argb(120, 120, 140, 180));
+        canvas.drawOval(new RectF(1.5f, 1.5f, w - 1.5f, h - 1.5f), paint);
         paint.setStyle(Paint.Style.FILL);
-
-        drawShieldIcon(canvas, w, h, Color.argb(100, 60, 80, 150));
     }
 
     // ─────────────────────────────────────────────────────────────────────────
