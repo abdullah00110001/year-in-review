@@ -5,7 +5,7 @@ import { registerPlugin } from '@capacitor/core';
 // ─────────────────────────────────────────────────────────────────────────────
 
 export type BlurGender = 'FEMALE' | 'MALE' | 'BOTH';
-export type BlurStyle  = 'PIXELATE' | 'FROSTED' | 'SOLID' | 'MOSAIC';
+export type BlurStyle  = 'BLUR' | 'PIXELATE' | 'SMUDGE' | 'DOTS' | 'FROSTED' | 'MOSAIC' | 'SOLID';
 
 export interface PureShieldConfig {
   blurGender:           BlurGender;

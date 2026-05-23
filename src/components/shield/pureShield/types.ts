@@ -1,5 +1,5 @@
 export type BlurGender = 'FEMALE' | 'MALE' | 'BOTH';
-export type BlurStyle = 'PIXELATE' | 'FROSTED' | 'SOLID' | 'MOSAIC';
+export type BlurStyle = 'BLUR' | 'PIXELATE' | 'SMUDGE' | 'DOTS' | 'FROSTED' | 'MOSAIC' | 'SOLID';
 
 export interface PureShieldOptions {
   pauseOnBatteryBelow20: boolean;

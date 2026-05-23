@@ -1,1 +1,10 @@
 project_id = "nxvtoviyldffcqbtgriw"
+
+[functions.wake-broadcast]
+verify_jwt = true
+
+[functions.group-lifecycle-cron]
+verify_jwt = false
+
+[functions.group-roll-call]
+verify_jwt = false

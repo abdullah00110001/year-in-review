@@ -281,6 +281,42 @@ export type Database = {
           },
         ]
       }
+      admin_group_settings: {
+        Row: {
+          auto_delete_enabled: boolean
+          chat_enabled_global: boolean
+          id: boolean
+          inactive_threshold_pct: number
+          inactive_window_days: number
+          leader_broadcast_per_day: number
+          max_capacity: number
+          member_wake_per_day: number
+          updated_at: string
+        }
+        Insert: {
+          auto_delete_enabled?: boolean
+          chat_enabled_global?: boolean
+          id?: boolean
+          inactive_threshold_pct?: number
+          inactive_window_days?: number
+          leader_broadcast_per_day?: number
+          max_capacity?: number
+          member_wake_per_day?: number
+          updated_at?: string
+        }
+        Update: {
+          auto_delete_enabled?: boolean
+          chat_enabled_global?: boolean
+          id?: boolean
+          inactive_threshold_pct?: number
+          inactive_window_days?: number
+          leader_broadcast_per_day?: number
+          max_capacity?: number
+          member_wake_per_day?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       admin_roles: {
         Row: {
           created_at: string | null
@@ -1598,6 +1634,60 @@ export type Database = {
           },
         ]
       }
+      group_chat_messages: {
+        Row: {
+          content: string
+          created_at: string
+          deleted_at: string | null
+          edited_at: string | null
+          group_id: string
+          id: string
+          is_system: boolean
+          reactions: Json
+          reply_to: string | null
+          user_id: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          deleted_at?: string | null
+          edited_at?: string | null
+          group_id: string
+          id?: string
+          is_system?: boolean
+          reactions?: Json
+          reply_to?: string | null
+          user_id: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          deleted_at?: string | null
+          edited_at?: string | null
+          group_id?: string
+          id?: string
+          is_system?: boolean
+          reactions?: Json
+          reply_to?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "group_chat_messages_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "lifeos_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "group_chat_messages_reply_to_fkey"
+            columns: ["reply_to"]
+            isOneToOne: false
+            referencedRelation: "group_chat_messages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       group_nudges: {
         Row: {
           created_at: string
@@ -1629,6 +1719,47 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "group_nudges_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "lifeos_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      group_roll_calls: {
+        Row: {
+          created_at: string
+          earliest_wake_time: string | null
+          group_id: string
+          id: string
+          roll_date: string
+          total_members: number
+          woke_count: number
+          woke_user_ids: string[]
+        }
+        Insert: {
+          created_at?: string
+          earliest_wake_time?: string | null
+          group_id: string
+          id?: string
+          roll_date: string
+          total_members: number
+          woke_count: number
+          woke_user_ids?: string[]
+        }
+        Update: {
+          created_at?: string
+          earliest_wake_time?: string | null
+          group_id?: string
+          id?: string
+          roll_date?: string
+          total_members?: number
+          woke_count?: number
+          woke_user_ids?: string[]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "group_roll_calls_group_id_fkey"
             columns: ["group_id"]
             isOneToOne: false
             referencedRelation: "lifeos_groups"
@@ -1686,6 +1817,38 @@ export type Database = {
           },
         ]
       }
+      group_trusted_wakers: {
+        Row: {
+          created_at: string
+          grantee_id: string
+          grantor_id: string
+          group_id: string
+          id: string
+        }
+        Insert: {
+          created_at?: string
+          grantee_id: string
+          grantor_id: string
+          group_id: string
+          id?: string
+        }
+        Update: {
+          created_at?: string
+          grantee_id?: string
+          grantor_id?: string
+          group_id?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "group_trusted_wakers_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "lifeos_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       group_wake_alarms: {
         Row: {
           created_at: string
@@ -1723,6 +1886,44 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "group_wake_alarms_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "lifeos_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      group_wake_broadcasts: {
+        Row: {
+          created_at: string
+          group_id: string
+          id: string
+          kind: string
+          message: string | null
+          sender_id: string
+          target_user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          group_id: string
+          id?: string
+          kind: string
+          message?: string | null
+          sender_id: string
+          target_user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          group_id?: string
+          id?: string
+          kind?: string
+          message?: string | null
+          sender_id?: string
+          target_user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "group_wake_broadcasts_group_id_fkey"
             columns: ["group_id"]
             isOneToOne: false
             referencedRelation: "lifeos_groups"
@@ -2281,37 +2482,49 @@ export type Database = {
       }
       lifeos_groups: {
         Row: {
+          chat_enabled: boolean
           created_at: string
           created_by: string
+          deleted_at: string | null
           description: string | null
           goal: string
           id: string
           invite_code: string
+          is_deleted: boolean
           is_public: boolean
+          last_activity_at: string
           name: string
           type: Database["public"]["Enums"]["lifeos_group_type"]
           updated_at: string
         }
         Insert: {
+          chat_enabled?: boolean
           created_at?: string
           created_by: string
+          deleted_at?: string | null
           description?: string | null
           goal: string
           id?: string
           invite_code?: string
+          is_deleted?: boolean
           is_public?: boolean
+          last_activity_at?: string
           name: string
           type: Database["public"]["Enums"]["lifeos_group_type"]
           updated_at?: string
         }
         Update: {
+          chat_enabled?: boolean
           created_at?: string
           created_by?: string
+          deleted_at?: string | null
           description?: string | null
           goal?: string
           id?: string
           invite_code?: string
+          is_deleted?: boolean
           is_public?: boolean
+          last_activity_at?: string
           name?: string
           type?: Database["public"]["Enums"]["lifeos_group_type"]
           updated_at?: string
@@ -4333,6 +4546,11 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      can_send_leader_wake: { Args: { _group_id: string }; Returns: boolean }
+      can_send_member_wake: {
+        Args: { _group_id: string; _target: string }
+        Returns: boolean
+      }
       generate_invoice_number: { Args: never; Returns: string }
       get_user_role: {
         Args: { _user_id: string }

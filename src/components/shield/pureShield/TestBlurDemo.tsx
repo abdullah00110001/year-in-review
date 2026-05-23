@@ -4,11 +4,12 @@ import { X, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { cn } from '@/lib/utils';
+import type { BlurStyle } from './types';
 
 interface TestBlurDemoProps {
   open: boolean;
   onClose: () => void;
-  style?: 'PIXELATE' | 'FROSTED' | 'SOLID' | 'MOSAIC';
+  style?: BlurStyle;
 }
 
 /**
