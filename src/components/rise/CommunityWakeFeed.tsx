@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils';
 import { useNearbyWakers, type FilterMode } from '@/hooks/useNearbyWakers';
 import { useWakeLocation } from '@/hooks/useWakeLocation';
 import { NearbyWakerCard } from './NearbyWakerCard';
-import { WakeMapView } from './WakeMapView';
+import { BangladeshMapView } from './BangladeshMapView';
 import { LocationPrivacySheet } from './LocationPrivacySheet';
 
 const FILTERS: { mode: FilterMode; icon: any; label: string }[] = [
@@ -32,11 +32,14 @@ export function CommunityWakeFeed() {
   const tab = (active: boolean) =>
     cn(
       'flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-full text-xs font-medium transition-all',
-      active ? 'bg-[#6C63FF] text-white shadow-[0_0_18px_rgba(108,99,255,0.4)]' : 'text-white/60 hover:text-white'
+      active
+        ? 'bg-[#6C63FF] text-white shadow-[0_0_18px_rgba(108,99,255,0.4)]'
+        : 'text-white/60 hover:text-white',
     );
 
   return (
     <div className="space-y-3 text-white">
+
       {/* Header */}
       <div className="rounded-2xl bg-[#111118] border border-white/[0.06] p-4">
         <div className="flex items-center justify-between">
@@ -45,38 +48,32 @@ export function CommunityWakeFeed() {
               <Sunrise className="h-4 w-4 text-[#FFD740]" /> আজকের Wakers
             </div>
             <div className="text-xs text-white/50 mt-0.5">
-              {totalToday} জন উঠেছে {filterMode === 'global' ? 'সারা বিশ্বে' : filterMode === 'city' ? `${userLocation?.city || 'your city'}-এ` : '5 km এ'}
+              {totalToday} জন উঠেছে{' '}
+              {filterMode === 'global'
+                ? 'সারা বিশ্বে'
+                : filterMode === 'city'
+                ? `${userLocation?.city || 'your city'}-এ`
+                : '5 km এ'}
             </div>
           </div>
-          <Button size="icon" variant="ghost" className="text-white/60 hover:text-white" onClick={() => setSettingsOpen(true)}>
+          <Button
+            size="icon"
+            variant="ghost"
+            className="text-white/60 hover:text-white"
+            onClick={() => setSettingsOpen(true)}
+          >
             <SettingsIcon className="h-4 w-4" />
           </Button>
         </div>
 
+        {/* Filter tabs */}
         <div className="flex items-center gap-1 mt-3 p-1 bg-black/30 rounded-full">
-          {FILTERS.map(f => (
+          {FILTERS.map((f) => (
             <button key={f.mode} onClick={() => setFilterMode(f.mode)} className={tab(filterMode === f.mode)}>
               <f.icon className="h-3.5 w-3.5" /> {f.label}
             </button>
           ))}
         </div>
-      </div>
-
-      {/* Stats */}
-      <div className="grid grid-cols-3 gap-2">
-        {[
-          { icon: '🌍', n: totalToday, l: 'Global' },
-          { icon: '🏙️', n: cityCount, l: 'City' },
-          { icon: '📍', n: nearbyCount, l: 'Nearby' },
-        ].map(s => (
-          <Card key={s.l} className="bg-[#111118] border-white/[0.06]">
-            <CardContent className="p-3 text-center">
-              <div className="text-xl">{s.icon}</div>
-              <div className="text-lg font-bold text-white">{s.n}</div>
-              <div className="text-[10px] text-white/50 uppercase tracking-wide">{s.l}</div>
-            </CardContent>
-          </Card>
-        ))}
       </div>
 
       {/* My status */}
@@ -87,20 +84,23 @@ export function CommunityWakeFeed() {
             <div className="flex gap-2">
               <Input
                 value={emojiInput}
-                onChange={e => setEmojiInput(e.target.value)}
+                onChange={(e) => setEmojiInput(e.target.value)}
                 placeholder="🕌"
                 className="w-14 bg-black/30 border-white/10 text-center"
                 maxLength={2}
               />
               <Input
                 value={statusInput}
-                onChange={e => setStatusInput(e.target.value)}
+                onChange={(e) => setStatusInput(e.target.value)}
                 placeholder={myEvent.status_text || 'কী করছেন এখন?'}
                 className="bg-black/30 border-white/10 text-white"
                 maxLength={60}
               />
               <Button
-                onClick={() => statusInput.trim() && updateMyStatus(statusInput.trim(), emojiInput.trim() || undefined)}
+                onClick={() =>
+                  statusInput.trim() &&
+                  updateMyStatus(statusInput.trim(), emojiInput.trim() || undefined)
+                }
                 className="bg-[#6C63FF] hover:bg-[#5b52ff]"
               >
                 Save
@@ -110,7 +110,7 @@ export function CommunityWakeFeed() {
         </Card>
       )}
 
-      {/* View toggle */}
+      {/* View toggle: Feed / Map */}
       <div className="flex gap-1 p-1 bg-[#111118] border border-white/[0.06] rounded-full">
         <button onClick={() => setView('feed')} className={tab(view === 'feed')}>
           <List className="h-3.5 w-3.5" /> Feed
@@ -122,7 +122,11 @@ export function CommunityWakeFeed() {
 
       {/* Content */}
       {view === 'map' ? (
-        <WakeMapView wakers={wakers} myLat={userLocation?.lat ?? null} myLng={userLocation?.lng ?? null} />
+        <BangladeshMapView
+          wakers={wakers}
+          myLat={userLocation?.lat ?? null}
+          myLng={userLocation?.lng ?? null}
+        />
       ) : (
         <div className="space-y-2">
           {isLoading && wakers.length === 0 ? (
@@ -131,17 +135,24 @@ export function CommunityWakeFeed() {
             <Card className="bg-[#111118] border-white/[0.06]">
               <CardContent className="p-8 text-center">
                 <div className="text-4xl mb-2">🌙</div>
-                <div className="text-sm font-medium">এখনো কেউ {filterMode === 'nearby' ? 'কাছে' : 'এখানে'} নেই</div>
+                <div className="text-sm font-medium">
+                  এখনো কেউ {filterMode === 'nearby' ? 'কাছে' : 'এখানে'} নেই
+                </div>
                 <div className="text-xs text-white/50 mt-1">আপনিই প্রথম! 🎉</div>
                 {filterMode !== 'global' && (
-                  <Button size="sm" variant="outline" className="mt-3 border-white/20 text-white" onClick={() => setFilterMode('global')}>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="mt-3 border-white/20 text-white"
+                    onClick={() => setFilterMode('global')}
+                  >
                     Switch to Global feed
                   </Button>
                 )}
               </CardContent>
             </Card>
           ) : (
-            wakers.map(w => (
+            wakers.map((w) => (
               <NearbyWakerCard
                 key={w.id}
                 waker={w}
