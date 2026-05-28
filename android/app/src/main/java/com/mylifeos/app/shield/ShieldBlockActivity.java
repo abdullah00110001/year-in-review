@@ -10,9 +10,6 @@ import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.GradientDrawable;
-import android.media.Ringtone;
-import android.media.RingtoneManager;
-import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.VibrationEffect;
@@ -32,23 +29,16 @@ public class ShieldBlockActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        // ============ 🟢 VIBRATION PART 🟢 ============
+        // ============ 🟢 VIBRATION — একবার ============
         try {
             Vibrator v = (Vibrator) getSystemService(Context.VIBRATOR_SERVICE);
             if (v != null && v.hasVibrator()) {
                 if (Build.VERSION.SDK_INT >= 26) {
-                    v.vibrate(VibrationEffect.createWaveform(new long[]{0, 200, 100, 200}, -1));
+                    v.vibrate(VibrationEffect.createOneShot(200, VibrationEffect.DEFAULT_AMPLITUDE));
                 } else {
-                    v.vibrate(new long[]{0, 200, 100, 200}, -1);
+                    v.vibrate(200);
                 }
             }
-        } catch (Exception ignored) {}
-        
-        // ============ 🟢 SOUND PART 🟢 ============
-        try {
-            Uri notif = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);
-            Ringtone r = RingtoneManager.getRingtone(getApplicationContext(), notif);
-            if (r != null) r.play();
         } catch (Exception ignored) {}
 
         // ফুল স্ক্রিন এবং স্ট্যাটাস বার ট্রান্সপারেন্ট করা
@@ -63,7 +53,7 @@ public class ShieldBlockActivity extends Activity {
         String appName = extractAppName(pkgName);
 
         // ==========================================
-        // 💾 রিঅ্যাক্ট থেকে ইউজারের কাস্টম ডেটা পড়া
+        // 💾 রিঅ্যাক্ট থেকে ইউজারের কাস্টম ডেটা পড়া
         // ==========================================
         SharedPreferences prefs = getSharedPreferences("CapacitorStorage", MODE_PRIVATE);
         String selectedTheme = prefs.getString("shield_block_screen_theme", "default");

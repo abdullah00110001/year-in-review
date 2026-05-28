@@ -205,17 +205,6 @@ export function RiseSettings() {
           <SettingItem icon={<Settings className="h-5 w-5" />} title="Mute limit" description="Mute will be ignored after the limit" value="3 times" hasChevron />
         </CardContent>
       </Card>
-
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm flex items-center gap-2"><Settings className="h-4 w-4" />General</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2">
-          <SettingItem icon={<Bell className="h-5 w-5" />} title="Notifications" hasChevron iconColor="text-primary" />
-          <SettingItem icon={<HelpCircle className="h-5 w-5" />} title="FAQ" hasChevron />
-          <SettingItem icon={<MessageSquare className="h-5 w-5" />} title="Send feedback" hasChevron />
-        </CardContent>
-      </Card>
     </div>
   );
 }

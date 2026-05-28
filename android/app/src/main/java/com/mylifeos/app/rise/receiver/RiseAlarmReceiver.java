@@ -19,17 +19,6 @@ import com.mylifeos.app.rise.recovery.AlarmRecoveryReceiver;
 import com.mylifeos.app.rise.service.AlarmSoundService;
 import com.mylifeos.app.rise.state.AlarmStateManager;
 
-/**
- * RiseAlarmReceiver
- * Package: com.mylifeos.app.rise.receiver  ← CORRECT
- *
- * ⚠️ এই file এ কোনো inner/nested class নেই।
- * RiseRingActivity আলাদা file এ আছে: rise/ui/RiseRingActivity.java
- *
- * Build error fix:
- * "class RiseRingActivity is public, should be declared in a file named RiseRingActivity.java"
- * → সেই class এখান থেকে সরানো হয়েছে।
- */
 public class RiseAlarmReceiver extends BroadcastReceiver {
 
     private static final String TAG        = "RiseAlarmReceiver";
@@ -39,53 +28,46 @@ public class RiseAlarmReceiver extends BroadcastReceiver {
     public void onReceive(Context context, Intent intent) {
         if (intent == null) return;
 
-        int    alarmId = intent.getIntExtra("ALARM_ID", 0);
-        String uuid    = intent.getStringExtra("ALARM_UUID");
-        String title   = intent.getStringExtra("ALARM_TITLE");
-        String body    = intent.getStringExtra("ALARM_BODY");
+        int     alarmId   = intent.getIntExtra("ALARM_ID", 0);
+        String  uuid      = intent.getStringExtra("ALARM_UUID");
+        String  title     = intent.getStringExtra("ALARM_TITLE");
+        String  body      = intent.getStringExtra("ALARM_BODY");
+        boolean extraLoud = intent.getBooleanExtra("EXTRA_LOUD", false);
 
         if (uuid  == null) uuid  = String.valueOf(alarmId);
         if (title == null) title = "Rise Alarm";
         if (body  == null) body  = "Time to wake up!";
 
-        Log.d(TAG, "⏰ Alarm triggered! id=" + alarmId + " uuid=" + uuid);
+        Log.d(TAG, "⏰ Alarm triggered! id=" + alarmId
+                + " uuid=" + uuid + " extraLoud=" + extraLoud);
 
-        // 1. Persistent state সেট করো
         AlarmStateManager.setRinging(context, alarmId, uuid, title, body, 3);
-
-        // 2. Foreground sound service start করো
-        startSoundService(context, alarmId, uuid, title, body);
-
-        // 3. Short WakeLock (screen জাগাও)
+        startSoundService(context, alarmId, uuid, title, body, extraLoud);
         acquireWakeLock(context);
-
-        // 4. Full screen notification
         showFullScreenNotification(context, alarmId, uuid, title, body);
-
-        // 5. Force open ring screen (backup)
         forceOpenApp(context, uuid);
-
-        // 6. Recovery watchdog schedule করো
         AlarmRecoveryReceiver.schedule(context);
 
         Log.d(TAG, "✅ All alarm actions dispatched");
     }
 
     private void startSoundService(Context ctx, int id, String uuid,
-                                    String title, String body) {
+                                    String title, String body,
+                                    boolean extraLoud) {
         try {
             Intent svc = new Intent(ctx, AlarmSoundService.class);
             svc.putExtra("ALARM_ID",    id);
             svc.putExtra("ALARM_UUID",  uuid);
             svc.putExtra("ALARM_TITLE", title);
             svc.putExtra("ALARM_BODY",  body);
+            svc.putExtra("EXTRA_LOUD",  extraLoud);
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 ctx.startForegroundService(svc);
             } else {
                 ctx.startService(svc);
             }
-            Log.d(TAG, "AlarmSoundService started");
+            Log.d(TAG, "AlarmSoundService started extraLoud=" + extraLoud);
         } catch (Exception e) {
             Log.e(TAG, "startSoundService failed", e);
         }
@@ -99,7 +81,7 @@ public class RiseAlarmReceiver extends BroadcastReceiver {
                 PowerManager.FULL_WAKE_LOCK | PowerManager.ACQUIRE_CAUSES_WAKEUP,
                 "RiseAlarm:ReceiverWL"
             );
-            wl.acquire(30_000L); // 30 seconds — service takes over after
+            wl.acquire(30_000L);
         } catch (Exception e) {
             Log.e(TAG, "acquireWakeLock failed", e);
         }
@@ -137,7 +119,6 @@ public class RiseAlarmReceiver extends BroadcastReceiver {
                 .setContentIntent(tapPi)
                 .build());
 
-            Log.d(TAG, "Full screen notification shown");
         } catch (Exception e) {
             Log.e(TAG, "showFullScreenNotification failed", e);
         }
@@ -145,9 +126,7 @@ public class RiseAlarmReceiver extends BroadcastReceiver {
 
     private void forceOpenApp(Context ctx, String uuid) {
         try {
-            Intent i = buildRingIntent(ctx, uuid);
-            ctx.startActivity(i);
-            Log.d(TAG, "Force opened ring screen");
+            ctx.startActivity(buildRingIntent(ctx, uuid));
         } catch (Exception e) {
             Log.e(TAG, "forceOpenApp failed", e);
         }
@@ -169,7 +148,6 @@ public class RiseAlarmReceiver extends BroadcastReceiver {
         return PendingIntent.getActivity(ctx, reqCode, buildRingIntent(ctx, uuid), flags);
     }
 
-    /** Plugin এর stopRinging() এখান থেকে call করে */
     public static void stopSound(Context context) {
         AlarmSoundService.stop(context);
         AlarmRecoveryReceiver.cancel(context);

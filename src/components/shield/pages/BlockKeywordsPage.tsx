@@ -4,7 +4,6 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
-import { isNative } from '@/lib/capacitor/platform';
 import ShieldPlugin from '@/lib/capacitor/shieldPlugin';
 
 interface BlockKeywordsPageProps {
@@ -25,9 +24,10 @@ export function BlockKeywordsPage({ onBack }: BlockKeywordsPageProps) {
   const persist = async (next: string[]) => {
     setKeywords(next);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-    if (isNative) {
-      try { await ShieldPlugin.blockKeywords({ keywords: next }); } catch (e) { console.error(e); }
-    }
+    // isNative চেক ছাড়াই সবসময় Android কে জানাবো
+    try {
+      await ShieldPlugin.blockKeywords({ keywords: next });
+    } catch (e) { console.error(e); }
   };
 
   const add = (raw: string) => {
@@ -45,10 +45,14 @@ export function BlockKeywordsPage({ onBack }: BlockKeywordsPageProps) {
     <div className="min-h-screen bg-background pb-24">
       <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-lg border-b border-border">
         <div className="flex items-center gap-3 px-4 py-3">
-          <Button variant="ghost" size="icon" onClick={onBack}><ArrowLeft className="h-5 w-5" /></Button>
+          <Button variant="ghost" size="icon" onClick={onBack}>
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
           <div className="flex-1">
             <h1 className="text-lg font-bold">Block Keywords</h1>
-            <p className="text-xs text-muted-foreground">{keywords.length} keyword{keywords.length !== 1 && 's'}</p>
+            <p className="text-xs text-muted-foreground">
+              {keywords.length} keyword{keywords.length !== 1 && 's'}
+            </p>
           </div>
         </div>
         <div className="px-4 pb-3 flex gap-2">
@@ -59,16 +63,22 @@ export function BlockKeywordsPage({ onBack }: BlockKeywordsPageProps) {
             onKeyDown={(e) => { if (e.key === 'Enter') add(draft); }}
             className="h-11 rounded-xl"
           />
-          <Button onClick={() => add(draft)} className="h-11 px-4 rounded-xl"><Plus className="h-4 w-4" /></Button>
+          <Button onClick={() => add(draft)} className="h-11 px-4 rounded-xl">
+            <Plus className="h-4 w-4" />
+          </Button>
         </div>
       </div>
 
       <div className="px-4 py-3 space-y-2">
         {keywords.length === 0 ? (
-          <Card className="border-dashed"><CardContent className="p-8 text-center text-muted-foreground">
-            <p className="text-sm">No keywords yet.</p>
-            <p className="text-xs mt-1">Add words you don&apos;t want to search for. Shield will navigate away when typed.</p>
-          </CardContent></Card>
+          <Card className="border-dashed">
+            <CardContent className="p-8 text-center text-muted-foreground">
+              <p className="text-sm">No keywords yet.</p>
+              <p className="text-xs mt-1">
+                Shield will navigate away when a blocked keyword is typed anywhere.
+              </p>
+            </CardContent>
+          </Card>
         ) : keywords.map(kw => (
           <Card key={kw}>
             <CardContent className="p-3 flex items-center gap-3">

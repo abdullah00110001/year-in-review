@@ -2,13 +2,22 @@ import { useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Globe, Building2, MapPin, List, Map as MapIcon, Sunrise, Settings as SettingsIcon } from 'lucide-react';
+import {
+  Globe, Building2, MapPin, List, Map as MapIcon,
+  Sunrise, Settings as SettingsIcon,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useNearbyWakers, type FilterMode } from '@/hooks/useNearbyWakers';
 import { useWakeLocation } from '@/hooks/useWakeLocation';
+import { useStreakSystem } from '@/hooks/useStreakSystem';
+import { useWeeklyRecap } from '@/hooks/useWeeklyRecap';
 import { NearbyWakerCard } from './NearbyWakerCard';
 import { BangladeshMapView } from './BangladeshMapView';
 import { LocationPrivacySheet } from './LocationPrivacySheet';
+import { HeroStatsBar } from './HeroStatsBar';
+import { OwnStatusCard } from './OwnStatusCard';
+import { MilestoneBanner } from './MilestoneBanner';
+import { WeeklyRecapSheet } from './WeeklyRecapSheet';
 
 const FILTERS: { mode: FilterMode; icon: any; label: string }[] = [
   { mode: 'global', icon: Globe, label: 'Global' },
@@ -23,6 +32,8 @@ export function CommunityWakeFeed() {
     updateMyStatus, refreshFeed,
   } = useNearbyWakers();
   const { locationSettings } = useWakeLocation();
+  const { streakData } = useStreakSystem();
+  const { recap, recapOpen, setRecapOpen } = useWeeklyRecap();
 
   const [view, setView] = useState<'feed' | 'map'>('feed');
   const [statusInput, setStatusInput] = useState('');
@@ -37,56 +48,77 @@ export function CommunityWakeFeed() {
         : 'text-white/60 hover:text-white',
     );
 
+  // Check if user is first in their area today
+  const isFirstInArea = myEvent
+    ? wakers.filter(w =>
+        w.city === myEvent.city && w.id !== myEvent.id
+      ).length === 0
+    : false;
+
   return (
     <div className="space-y-3 text-white">
+      {/* Milestone banner — fixed position overlay */}
+      <MilestoneBanner globalCount={totalToday} />
 
       {/* Header */}
       <div className="rounded-2xl bg-[#111118] border border-white/[0.06] p-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <div className="text-base font-semibold flex items-center gap-2">
-              <Sunrise className="h-4 w-4 text-[#FFD740]" /> আজকের Wakers
-            </div>
-            <div className="text-xs text-white/50 mt-0.5">
-              {totalToday} জন উঠেছে{' '}
-              {filterMode === 'global'
-                ? 'সারা বিশ্বে'
-                : filterMode === 'city'
-                ? `${userLocation?.city || 'your city'}-এ`
-                : '5 km এ'}
-            </div>
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <Sunrise className="h-4 w-4 text-[#FFD740]" />
+            <span className="text-base font-semibold">আজকের Wakers</span>
           </div>
           <Button
             size="icon"
             variant="ghost"
-            className="text-white/60 hover:text-white"
+            className="text-white/60 hover:text-white h-8 w-8"
             onClick={() => setSettingsOpen(true)}
           >
             <SettingsIcon className="h-4 w-4" />
           </Button>
         </div>
 
+        {/* Hero Stats Bar — tappable counts */}
+        <HeroStatsBar
+          globalCount={totalToday}
+          cityCount={cityCount}
+          nearbyCount={nearbyCount}
+          activeFilter={filterMode}
+          onTabClick={setFilterMode}
+        />
+
         {/* Filter tabs */}
         <div className="flex items-center gap-1 mt-3 p-1 bg-black/30 rounded-full">
           {FILTERS.map((f) => (
-            <button key={f.mode} onClick={() => setFilterMode(f.mode)} className={tab(filterMode === f.mode)}>
+            <button
+              key={f.mode}
+              onClick={() => setFilterMode(f.mode)}
+              className={tab(filterMode === f.mode)}
+            >
               <f.icon className="h-3.5 w-3.5" /> {f.label}
             </button>
           ))}
         </div>
       </div>
 
-      {/* My status */}
+      {/* Own Status Card — always visible */}
+      <OwnStatusCard
+        myEvent={myEvent}
+        streak={streakData.currentStreak}
+        isFirstInArea={isFirstInArea}
+        areaName={myEvent?.city ?? userLocation?.city}
+      />
+
+      {/* My status update input — only if woken */}
       {myEvent && (
-        <Card className="bg-[#111118] border-[#6C63FF]/30">
+        <Card className="bg-[#111118] border-[#6C63FF]/20">
           <CardContent className="p-3">
-            <div className="text-xs text-white/60 mb-2">Your status</div>
+            <div className="text-xs text-white/40 mb-2">Status update করো</div>
             <div className="flex gap-2">
               <Input
                 value={emojiInput}
                 onChange={(e) => setEmojiInput(e.target.value)}
                 placeholder="🕌"
-                className="w-14 bg-black/30 border-white/10 text-center"
+                className="w-14 bg-black/30 border-white/10 text-center text-base"
                 maxLength={2}
               />
               <Input
@@ -101,7 +133,7 @@ export function CommunityWakeFeed() {
                   statusInput.trim() &&
                   updateMyStatus(statusInput.trim(), emojiInput.trim() || undefined)
                 }
-                className="bg-[#6C63FF] hover:bg-[#5b52ff]"
+                className="bg-[#6C63FF] hover:bg-[#5b52ff] shrink-0"
               >
                 Save
               </Button>
@@ -140,14 +172,26 @@ export function CommunityWakeFeed() {
                 </div>
                 <div className="text-xs text-white/50 mt-1">আপনিই প্রথম! 🎉</div>
                 {filterMode !== 'global' && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="mt-3 border-white/20 text-white"
-                    onClick={() => setFilterMode('global')}
-                  >
-                    Switch to Global feed
-                  </Button>
+                  <div className="flex gap-2 justify-center mt-3">
+                    {filterMode === 'nearby' && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="border-white/20 text-white text-xs"
+                        onClick={() => setFilterMode('city')}
+                      >
+                        City দেখো
+                      </Button>
+                    )}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="border-white/20 text-white text-xs"
+                      onClick={() => setFilterMode('global')}
+                    >
+                      Global দেখো
+                    </Button>
+                  </div>
                 )}
               </CardContent>
             </Card>
@@ -164,10 +208,18 @@ export function CommunityWakeFeed() {
         </div>
       )}
 
+      {/* Settings sheet */}
       <LocationPrivacySheet
         open={settingsOpen}
         onOpenChange={setSettingsOpen}
         onSaved={() => void refreshFeed()}
+      />
+
+      {/* Weekly Recap sheet */}
+      <WeeklyRecapSheet
+        open={recapOpen}
+        onOpenChange={setRecapOpen}
+        data={recap ? { ...recap, currentStreak: streakData.currentStreak } : null}
       />
     </div>
   );

@@ -29,45 +29,28 @@ import com.mylifeos.app.rise.core.AlarmConstants;
 import com.mylifeos.app.rise.recovery.AlarmRecoveryReceiver;
 import com.mylifeos.app.rise.state.AlarmStateManager;
 
-/**
- * AlarmSoundService — Alarmy-level foreground sound service।
- *
- * Architecture:
- * ──────────────────────────────────────────────────────────────
- * ✅ START_STICKY       → system kill করলে restart
- * ✅ WakeLock           → screen + CPU জাগিয়ে রাখে
- * ✅ Audio focus        → DND bypass, অন্য app mute
- * ✅ Volume force max   → alarm stream max করে
- * ✅ MediaPlayer recovery → error হলে 2s এ restart
- * ✅ Vibration          → hardware vibrator (continuous)
- * ✅ Auto-stop          → 30 min পরে battery protect
- * ✅ null intent recovery → system restart এ state থেকে recover
- * ✅ stopWithTask=false  → app swipe এ মরে না
- * ──────────────────────────────────────────────────────────────
- */
 public class AlarmSoundService extends Service {
 
     private static final String TAG = "AlarmSoundService";
 
-    // Public flag — RecoveryReceiver check করে
     public static volatile boolean isRunning = false;
 
-    private MediaPlayer     mediaPlayer;
+    private MediaPlayer           mediaPlayer;
     private PowerManager.WakeLock wakeLock;
-    private AudioManager    audioManager;
-    private Vibrator        vibrator;
-    private Handler         recoveryHandler;
-    private Runnable        recoveryRunnable;
-    private Handler         autoStopHandler;
+    private AudioManager          audioManager;
+    private Vibrator              vibrator;
+    private Handler               recoveryHandler;
+    private Runnable              recoveryRunnable;
+    private Handler               autoStopHandler;
+    private Handler               crescendoHandler;   // ← NEW
 
-    // API 26+ audio focus
     private AudioFocusRequest audioFocusRequest;
 
-    // Current alarm info (recovery এর জন্য)
-    private int    currentAlarmId;
-    private String currentUuid;
-    private String currentTitle;
-    private String currentBody;
+    private int     currentAlarmId;
+    private String  currentUuid;
+    private String  currentTitle;
+    private String  currentBody;
+    private boolean extraLoud = false;               // ← NEW
 
     // ──────────────────────────────────────────
     @Override
@@ -77,14 +60,13 @@ public class AlarmSoundService extends Service {
         vibrator        = (Vibrator)     getSystemService(Context.VIBRATOR_SERVICE);
         recoveryHandler = new Handler(Looper.getMainLooper());
         autoStopHandler = new Handler(Looper.getMainLooper());
+        crescendoHandler = new Handler(Looper.getMainLooper());
         Log.d(TAG, "Service created");
     }
 
     // ──────────────────────────────────────────
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-
-        // null intent = system restarted service after kill
         if (intent == null) {
             Log.w(TAG, "Null intent — recovering from state");
             recoverFromState();
@@ -95,18 +77,18 @@ public class AlarmSoundService extends Service {
         currentUuid    = intent.getStringExtra(AlarmConstants.EXTRA_ALARM_UUID);
         currentTitle   = intent.getStringExtra(AlarmConstants.EXTRA_ALARM_TITLE);
         currentBody    = intent.getStringExtra(AlarmConstants.EXTRA_ALARM_BODY);
+        extraLoud      = intent.getBooleanExtra("EXTRA_LOUD", false);  // ← NEW
 
         if (currentUuid  == null) currentUuid  = String.valueOf(currentAlarmId);
         if (currentTitle == null) currentTitle = "Rise Alarm";
         if (currentBody  == null) currentBody  = "Time to wake up!";
 
-        Log.d(TAG, "Starting: id=" + currentAlarmId + " uuid=" + currentUuid);
+        Log.d(TAG, "Starting: id=" + currentAlarmId
+                + " uuid=" + currentUuid + " extraLoud=" + extraLoud);
 
-        // Foreground দিয়ে start করো (required)
         startForeground(AlarmConstants.NOTIF_ID_SOUND_SERVICE,
                         buildNotification(currentTitle, currentBody, currentUuid, currentAlarmId));
 
-        // সব setup
         acquireWakeLock();
         requestAudioFocus();
         forceMaxVolume();
@@ -114,7 +96,6 @@ public class AlarmSoundService extends Service {
         startVibration();
         scheduleAutoStop();
 
-        // Recovery watchdog schedule
         AlarmRecoveryReceiver.schedule(this);
 
         isRunning = true;
@@ -123,17 +104,12 @@ public class AlarmSoundService extends Service {
     }
 
     // ──────────────────────────────────────────
-    // NULL INTENT RECOVERY
-    // ──────────────────────────────────────────
     private void recoverFromState() {
-        // Alarm আর active না থাকলে বন্ধ হও
         if (!AlarmStateManager.isRinging(this)) {
-            Log.d(TAG, "No active alarm in state — stopping");
+            Log.d(TAG, "No active alarm — stopping");
             stopSelf();
             return;
         }
-
-        // 30 min check
         if (AlarmStateManager.shouldAutoStop(this)) {
             Log.w(TAG, "Auto-stop on recovery");
             AlarmStateManager.clearRinging(this);
@@ -145,6 +121,8 @@ public class AlarmSoundService extends Service {
         currentUuid    = AlarmStateManager.getActiveUuid(this);
         currentTitle   = AlarmStateManager.getAlarmTitle(this);
         currentBody    = AlarmStateManager.getAlarmBody(this);
+        // Recovery তে extraLoud false — state এ save করা নেই
+        extraLoud = false;
 
         Log.d(TAG, "Recovered: id=" + currentAlarmId + " uuid=" + currentUuid);
 
@@ -161,13 +139,12 @@ public class AlarmSoundService extends Service {
     }
 
     // ──────────────────────────────────────────
-    // 🔊 AUDIO FOCUS — DND bypass
+    // 🔊 AUDIO FOCUS
     // ──────────────────────────────────────────
     private void requestAudioFocus() {
         if (audioManager == null) return;
         try {
             AudioManager.OnAudioFocusChangeListener focusListener = focusChange -> {
-                // অন্য app audio নিতে চাইলেও ছাড়বো না
                 if (focusChange == AudioManager.AUDIOFOCUS_LOSS ||
                     focusChange == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT) {
                     Log.w(TAG, "Audio focus lost — re-acquiring in 1s");
@@ -184,7 +161,7 @@ public class AlarmSoundService extends Service {
                 audioFocusRequest = new AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
                     .setAudioAttributes(attrs)
                     .setAcceptsDelayedFocusGain(false)
-                    .setWillPauseWhenDucked(false)  // volume কমতে দেবো না
+                    .setWillPauseWhenDucked(false)
                     .setOnAudioFocusChangeListener(focusListener)
                     .build();
 
@@ -194,7 +171,6 @@ public class AlarmSoundService extends Service {
                 audioManager.requestAudioFocus(focusListener,
                     AudioManager.STREAM_ALARM, AudioManager.AUDIOFOCUS_GAIN);
             }
-
             Log.d(TAG, "Audio focus acquired");
         } catch (Exception e) {
             Log.e(TAG, "requestAudioFocus failed", e);
@@ -202,26 +178,22 @@ public class AlarmSoundService extends Service {
     }
 
     // ──────────────────────────────────────────
-    // 🔊 FORCE MAX VOLUME — Alarmy style
+    // 🔊 FORCE MAX VOLUME
     // ──────────────────────────────────────────
     private void forceMaxVolume() {
         if (audioManager == null) return;
         try {
-            // Alarm stream max
             int maxAlarm = audioManager.getStreamMaxVolume(AudioManager.STREAM_ALARM);
             audioManager.setStreamVolume(AudioManager.STREAM_ALARM, maxAlarm, 0);
 
-            // Ring stream max (silent mode bypass attempt)
             int maxRing = audioManager.getStreamMaxVolume(AudioManager.STREAM_RING);
             audioManager.setStreamVolume(AudioManager.STREAM_RING, maxRing, 0);
 
-            // Ringer mode NORMAL (DND bypass — might be blocked by policy)
             try {
                 audioManager.setRingerMode(AudioManager.RINGER_MODE_NORMAL);
             } catch (SecurityException e) {
-                Log.w(TAG, "Cannot change ringer mode (DND policy) — alarm stream still max");
+                Log.w(TAG, "Cannot change ringer mode (DND policy)");
             }
-
             Log.d(TAG, "Volume forced to max");
         } catch (Exception e) {
             Log.e(TAG, "forceMaxVolume failed", e);
@@ -229,33 +201,38 @@ public class AlarmSoundService extends Service {
     }
 
     // ──────────────────────────────────────────
-    // 🎵 SOUND — with error recovery
+    // 🎵 SOUND — with crescendo support
     // ──────────────────────────────────────────
     private void startSound() {
         try {
             releaseMediaPlayer();
 
-            // Alarm sound URI
             Uri sound = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM);
             if (sound == null) sound = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE);
             if (sound == null) sound = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);
 
             mediaPlayer = new MediaPlayer();
-
             mediaPlayer.setAudioAttributes(new AudioAttributes.Builder()
                 .setUsage(AudioAttributes.USAGE_ALARM)
                 .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                .setFlags(AudioAttributes.FLAG_AUDIBILITY_ENFORCED) // DND bypass flag
+                .setFlags(AudioAttributes.FLAG_AUDIBILITY_ENFORCED)
                 .build()
             );
-
             mediaPlayer.setDataSource(this, sound);
-            mediaPlayer.setLooping(true);      // infinite loop
-            mediaPlayer.setVolume(1.0f, 1.0f); // max volume
+            mediaPlayer.setLooping(true);
 
             mediaPlayer.setOnPreparedListener(mp -> {
-                mp.start();
-                Log.d(TAG, "🔊 Sound playing");
+                if (extraLoud) {
+                    // Crescendo: 0 → 1.0 over 30 seconds
+                    mp.setVolume(0f, 0f);
+                    mp.start();
+                    startCrescendo(mp);
+                    Log.d(TAG, "🔊 Sound playing — CRESCENDO mode");
+                } else {
+                    mp.setVolume(1.0f, 1.0f);
+                    mp.start();
+                    Log.d(TAG, "🔊 Sound playing — normal");
+                }
             });
 
             mediaPlayer.setOnErrorListener((mp, what, extra) -> {
@@ -264,18 +241,48 @@ public class AlarmSoundService extends Service {
                 return true;
             });
 
-            // looping=true তে সাধারণত আসে না, কিন্তু safety
             mediaPlayer.setOnCompletionListener(mp -> {
                 Log.w(TAG, "MediaPlayer completed unexpectedly — restarting");
                 scheduleMediaPlayerRecovery();
             });
 
-            mediaPlayer.prepareAsync(); // non-blocking
+            mediaPlayer.prepareAsync();
 
         } catch (Exception e) {
             Log.e(TAG, "startSound failed", e);
             scheduleMediaPlayerRecovery();
         }
+    }
+
+    // ── Crescendo: volume 0 → 1.0 in 30 seconds ──────────────────────────────
+    private void startCrescendo(MediaPlayer mp) {
+        if (crescendoHandler != null) {
+            crescendoHandler.removeCallbacksAndMessages(null);
+        }
+
+        final int   STEPS     = 60;
+        final long  INTERVAL  = 500L;   // 500ms × 60 = 30 seconds
+        final float INCREMENT = 1.0f / STEPS;
+        final float[] vol     = {0f};
+
+        Runnable ramp = new Runnable() {
+            @Override
+            public void run() {
+                if (mp == null || !isRunning) return;
+                vol[0] = Math.min(1.0f, vol[0] + INCREMENT);
+                try {
+                    mp.setVolume(vol[0], vol[0]);
+                } catch (Exception ignored) {}
+
+                if (vol[0] < 1.0f) {
+                    crescendoHandler.postDelayed(this, INTERVAL);
+                } else {
+                    Log.d(TAG, "🔊 Crescendo complete — max volume");
+                }
+            }
+        };
+        crescendoHandler.postDelayed(ramp, INTERVAL);
+        Log.d(TAG, "Crescendo started (30s ramp)");
     }
 
     private void scheduleMediaPlayerRecovery() {
@@ -291,6 +298,10 @@ public class AlarmSoundService extends Service {
     }
 
     private void releaseMediaPlayer() {
+        // Stop crescendo first
+        if (crescendoHandler != null) {
+            crescendoHandler.removeCallbacksAndMessages(null);
+        }
         try {
             if (mediaPlayer != null) {
                 if (mediaPlayer.isPlaying()) mediaPlayer.stop();
@@ -304,12 +315,11 @@ public class AlarmSoundService extends Service {
     }
 
     // ──────────────────────────────────────────
-    // 📳 VIBRATION — continuous pattern
+    // 📳 VIBRATION
     // ──────────────────────────────────────────
     private void startVibration() {
         if (vibrator == null || !vibrator.hasVibrator()) return;
         try {
-            // 600ms on, 400ms off — repeat
             long[] pattern = {0, 600, 400, 600, 600};
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 vibrator.vibrate(VibrationEffect.createWaveform(pattern, 0));
@@ -330,9 +340,7 @@ public class AlarmSoundService extends Service {
         try {
             PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
             if (pm == null) return;
-
             if (wakeLock != null && wakeLock.isHeld()) wakeLock.release();
-
             wakeLock = pm.newWakeLock(
                 PowerManager.FULL_WAKE_LOCK       |
                 PowerManager.ACQUIRE_CAUSES_WAKEUP |
@@ -340,18 +348,18 @@ public class AlarmSoundService extends Service {
                 AlarmConstants.WAKELOCK_SERVICE
             );
             wakeLock.acquire(AlarmConstants.MAX_ALARM_DURATION_MS);
-            Log.d(TAG, "WakeLock acquired (30 min)");
+            Log.d(TAG, "WakeLock acquired");
         } catch (Exception e) {
             Log.e(TAG, "acquireWakeLock failed", e);
         }
     }
 
     // ──────────────────────────────────────────
-    // ⏰ AUTO-STOP after 30 min
+    // ⏰ AUTO-STOP
     // ──────────────────────────────────────────
     private void scheduleAutoStop() {
         autoStopHandler.postDelayed(() -> {
-            Log.w(TAG, "⏰ Auto-stop triggered after 30 minutes");
+            Log.w(TAG, "⏰ Auto-stop after 30 min");
             AlarmStateManager.clearRinging(this);
             AlarmRecoveryReceiver.cancel(this);
             stopSelf();
@@ -359,7 +367,7 @@ public class AlarmSoundService extends Service {
     }
 
     // ──────────────────────────────────────────
-    // 📢 FOREGROUND NOTIFICATION
+    // 📢 NOTIFICATION
     // ──────────────────────────────────────────
     private Notification buildNotification(String title, String body,
                                             String uuid, int alarmId) {
@@ -385,9 +393,9 @@ public class AlarmSoundService extends Service {
             .setPriority(NotificationCompat.PRIORITY_MAX)
             .setCategory(NotificationCompat.CATEGORY_ALARM)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-            .setOngoing(true)          // swipe dismiss করা যাবে না
+            .setOngoing(true)
             .setAutoCancel(false)
-            .setFullScreenIntent(tapPi, true) // lockscreen ভেদ করে
+            .setFullScreenIntent(tapPi, true)
             .setContentIntent(tapPi)
             .build();
     }
@@ -396,21 +404,20 @@ public class AlarmSoundService extends Service {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return;
         NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
         if (nm == null) return;
-
         NotificationChannel ch = new NotificationChannel(
             AlarmConstants.CHANNEL_ALARM_SOUND,
             "Rise Alarm Sound",
             NotificationManager.IMPORTANCE_HIGH
         );
         ch.setBypassDnd(true);
-        ch.setSound(null, null);        // MediaPlayer নিজেই বাজাচ্ছে
-        ch.enableVibration(false);      // Service নিজেই vibrate করছে
+        ch.setSound(null, null);
+        ch.enableVibration(false);
         ch.setLockscreenVisibility(NotificationCompat.VISIBILITY_PUBLIC);
         nm.createNotificationChannel(ch);
     }
 
     // ──────────────────────────────────────────
-    // 🛑 STATIC STOP (plugin/receiver থেকে call)
+    // 🛑 STATIC STOP
     // ──────────────────────────────────────────
     public static void stop(Context context) {
         context.stopService(new Intent(context, AlarmSoundService.class));
@@ -426,17 +433,14 @@ public class AlarmSoundService extends Service {
         isRunning = false;
         Log.d(TAG, "onDestroy — cleaning up");
 
-        // Handlers
         if (recoveryRunnable != null) recoveryHandler.removeCallbacks(recoveryRunnable);
         autoStopHandler.removeCallbacksAndMessages(null);
+        if (crescendoHandler != null) crescendoHandler.removeCallbacksAndMessages(null);
 
-        // MediaPlayer
         releaseMediaPlayer();
 
-        // Vibrator
         try { if (vibrator != null) vibrator.cancel(); } catch (Exception ignored) {}
 
-        // WakeLock
         try {
             if (wakeLock != null && wakeLock.isHeld()) {
                 wakeLock.release();
@@ -444,10 +448,10 @@ public class AlarmSoundService extends Service {
             }
         } catch (Exception ignored) {}
 
-        // Audio focus
         try {
             if (audioManager != null) {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && audioFocusRequest != null) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
+                        && audioFocusRequest != null) {
                     audioManager.abandonAudioFocusRequest(audioFocusRequest);
                 }
             }

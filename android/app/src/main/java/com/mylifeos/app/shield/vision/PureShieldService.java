@@ -919,22 +919,21 @@ public class PureShieldService extends Service {
     // ─────────────────────────────────────────────────────────────────────────
 
     private RectF scaleToScreenCoords(RectF box, int captureW, int captureH) {
-        float scaleX = (float) screenWidth  / captureW;
-        float scaleY = (float) screenHeight / captureH;
+        // ✅ BlazeFace normalized [0,1] → screen pixels directly
+        float left   = box.left   * screenWidth;
+        float top    = box.top    * screenHeight;
+        float right  = box.right  * screenWidth;
+        float bottom = box.bottom * screenHeight;
 
-        float left   = box.left   * captureW * scaleX;
-        float top    = box.top    * captureH * scaleY;
-        float right  = box.right  * captureW * scaleX;
-        float bottom = box.bottom * captureH * scaleY;
-
-        // ✅ Padding: ছিল 0.20f/0.25f → এখন 0.15f/0.20f
-        // বেশি padding দিলে ছোট face এ অনেক বড় blur দেখায়
-        float padX = (right - left) * 0.15f;
-        float padY = (bottom - top) * 0.20f;
+        // ✅ Tight padding — face shape ধরে রাখতে
+        float w = right - left;
+        float h = bottom - top;
+        float padX = w * 0.08f;
+        float padY = h * 0.10f;
 
         return new RectF(
-            Math.max(0, left   - padX),
-            Math.max(0, top    - padY),
+            Math.max(0,            left   - padX),
+            Math.max(0,            top    - padY),
             Math.min(screenWidth,  right  + padX),
             Math.min(screenHeight, bottom + padY)
         );

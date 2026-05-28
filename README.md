@@ -333,11 +333,7 @@ The following are auto-configured via Supabase integration:
 - `VITE_SUPABASE_PROJECT_ID`
 
 ---
-
-## 📄 License
-
-This project is proprietary software. All rights reserved.
-
+<!-- This project is proprietary software. All rights reserved. -->
 ---
 
 <p align="center">

@@ -8,6 +8,7 @@ import android.util.Log;
 import android.widget.Toast;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.Bundle;
 
 import java.util.Set;
 import java.util.List;
@@ -16,7 +17,7 @@ import java.io.InputStreamReader;
 import java.io.IOException;
 import java.util.HashSet;
 
-import com.mylifeos.app.MainActivity; // 🟢 আপনার মেইন অ্যাক্টিভিটি ইম্পোর্ট করুন
+import com.mylifeos.app.MainActivity;
 
 public class ShieldAccessibilityService extends AccessibilityService {
 
@@ -26,12 +27,10 @@ public class ShieldAccessibilityService extends AccessibilityService {
     private String lastBlockedPackage = "";
     private String lastBlockedUrl = "";
 
-    // 🟢 Throttling Variables to prevent phone from lagging
     private long lastActionTime = 0;
     private long lastScanTime = 0;
     private static final long SCAN_COOLDOWN_MS = 700;
 
-    // 📂 ফাইল থেকে পড়া কিওয়ার্ড রাখার সেট
     private Set<String> adultKeywordsSet = new HashSet<>();
 
     private static final String[] BROWSER_PACKAGES = new String[]{
@@ -56,17 +55,43 @@ public class ShieldAccessibilityService extends AccessibilityService {
 
     private void loadAdultKeywordsFromAssets() {
         try {
-            BufferedReader reader = new BufferedReader(new InputStreamReader(getAssets().open("adult_keywords.txt")));
+            BufferedReader reader = new BufferedReader(
+                new InputStreamReader(getAssets().open("adult_keywords.txt")));
             String line;
             while ((line = reader.readLine()) != null) {
                 String trimmed = line.trim().toLowerCase();
-                if (!trimmed.isEmpty()) {
-                    adultKeywordsSet.add(trimmed);
-                }
+                if (!trimmed.isEmpty()) adultKeywordsSet.add(trimmed);
             }
             reader.close();
         } catch (IOException e) {
             Log.e(TAG, "Error loading adult keywords from assets", e);
+        }
+    }
+
+    // ==========================================
+    // 🧹 Text Clear Helper — দুটো method একসাথে
+    // ==========================================
+    private void clearFocusedInput() {
+        try {
+            AccessibilityNodeInfo root = getRootInActiveWindow();
+            if (root == null) return;
+            AccessibilityNodeInfo input = root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT);
+            if (input != null) {
+                // Method 1: SET_TEXT দিয়ে clear
+                Bundle args = new Bundle();
+                args.putCharSequence(
+                    AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, "");
+                boolean cleared = input.performAction(
+                    AccessibilityNodeInfo.ACTION_SET_TEXT, args);
+
+                // Method 2: কাজ না করলে select all + delete
+                if (!cleared) {
+                    input.performAction(AccessibilityNodeInfo.ACTION_SELECT);
+                    performGlobalAction(GLOBAL_ACTION_BACK);
+                }
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "clearFocusedInput failed", e);
         }
     }
 
@@ -79,13 +104,14 @@ public class ShieldAccessibilityService extends AccessibilityService {
 
         int type = event.getEventType();
 
-        // ✅ PureShield notify FIRST — independent of Shield (app-blocker) enabled state.
-        // PureShield works even when classic Shield is OFF.
+        // ✅ PureShield — সবসময় চলবে, isEnabled() এর উপর নির্ভর করে না
         if (type == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
             try {
-                com.mylifeos.app.shield.vision.PureShieldService svc = com.mylifeos.app.shield.vision.PureShieldService.instance;
+                com.mylifeos.app.shield.vision.PureShieldService svc =
+                    com.mylifeos.app.shield.vision.PureShieldService.instance;
                 if (svc != null && svc.isPureShieldRunning()) {
-                    Intent pureShieldIntent = new Intent(this, com.mylifeos.app.shield.vision.PureShieldService.class);
+                    Intent pureShieldIntent = new Intent(
+                        this, com.mylifeos.app.shield.vision.PureShieldService.class);
                     pureShieldIntent.setAction("PureShield.FOREGROUND_APP_CHANGED");
                     pureShieldIntent.putExtra("package", packageName);
                     startService(pureShieldIntent);
@@ -93,11 +119,11 @@ public class ShieldAccessibilityService extends AccessibilityService {
             } catch (Throwable ignored) {}
         }
 
-        // Classic Shield features below require Shield to be enabled.
-        if (preferences == null || !preferences.isEnabled()) return;
+        // 🟢 isEnabled() চেক নেই — mode on/off যাই থাকুক সবসময় চলবে
+        if (preferences == null) return;
 
         // ==========================================
-        // 🛑 ফিচার ১: ডাইরেক্ট অ্যাপ ব্লক (FAST)
+        // 🛑 ফিচার ১: ডাইরেক্ট অ্যাপ ব্লক
         // ==========================================
         if (type == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
             Set<String> blockedApps = preferences.getBlockedApps();
@@ -117,17 +143,21 @@ public class ShieldAccessibilityService extends AccessibilityService {
         // 🔒 ফিচার ২: হার্ডকোর প্রোটেকশন
         // ==========================================
         if (type == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED && isSystemUI(packageName)) {
-            if (preferences.isBlockRecentAppsEnabled() && (packageName.contains("recents") || packageName.contains("launcher"))) {
+            if (preferences.isBlockRecentAppsEnabled() &&
+                (packageName.contains("recents") || packageName.contains("launcher"))) {
                 triggerHomeAction("Recent Apps Blocked!");
                 return;
             }
             AccessibilityNodeInfo root = getRootInActiveWindow();
             if (root != null) {
-                if (preferences.isBlockSplitScreenEnabled() && scanForTextFast(root, "Split screen", 0)) {
+                if (preferences.isBlockSplitScreenEnabled() &&
+                    scanForTextFast(root, "Split screen", 0)) {
                     triggerBackAction("Split Screen Blocked!");
                     return;
                 }
-                if (preferences.isBlockPowerOffEnabled() && (scanForTextFast(root, "Power off", 0) || scanForTextFast(root, "Restart", 0))) {
+                if (preferences.isBlockPowerOffEnabled() &&
+                    (scanForTextFast(root, "Power off", 0) ||
+                     scanForTextFast(root, "Restart", 0))) {
                     triggerBackAction("Power Menu Blocked!");
                     return;
                 }
@@ -135,13 +165,14 @@ public class ShieldAccessibilityService extends AccessibilityService {
         }
 
         // ==========================================
-        // 🌐 ফিচার ৩: URL ব্লকিং (Browser) + 🔞 অ্যাডাল্ট URL
+        // 🌐 ফিচার ৩: URL ব্লকিং + Adult URL
         // ==========================================
         if (isBrowser(packageName) && type == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
             String url = extractUrlFromBrowser(getRootInActiveWindow());
             if (url != null && !url.isEmpty() && !url.equals(lastBlockedUrl)) {
                 String lowerUrl = url.toLowerCase();
-                // 🔞 অ্যাডাল্ট URL ব্লকিং (সবসময় একটিভ)
+
+                // 🔞 Adult URL — সবসময় block
                 for (String kw : adultKeywordsSet) {
                     if (lowerUrl.contains(kw)) {
                         lastBlockedUrl = url;
@@ -149,11 +180,16 @@ public class ShieldAccessibilityService extends AccessibilityService {
                         return;
                     }
                 }
-                if (preferences.isReelsBlockEnabled() && (lowerUrl.contains("/shorts") || lowerUrl.contains("/reels"))) {
+
+                // 🎬 Reels/Shorts
+                if (preferences.isReelsBlockEnabled() &&
+                    (lowerUrl.contains("/shorts") || lowerUrl.contains("/reels"))) {
                     lastBlockedUrl = url;
                     triggerBackActionWithPopup("Browser Shorts", "REELS");
                     return;
                 }
+
+                // 🚫 User এর blocked sites
                 Set<String> blockedSites = preferences.getBlockedSites();
                 if (blockedSites != null) {
                     for (String site : blockedSites) {
@@ -169,7 +205,7 @@ public class ShieldAccessibilityService extends AccessibilityService {
         }
 
         // ==========================================
-        // 🚫 ফিচার ৪: রিলস এবং 🔞 অ্যাডাল্ট স্ক্রিন স্ক্যানার (THROTTLED)
+        // 🚫 ফিচার ৪: Reels + Adult Screen Scanner (THROTTLED)
         // ==========================================
         if (type == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
             long currentTime = System.currentTimeMillis();
@@ -181,7 +217,9 @@ public class ShieldAccessibilityService extends AccessibilityService {
                         triggerBackActionWithPopup("Adult Screen Content", "ADULT");
                         return;
                     }
-                    if (preferences.isReelsBlockEnabled() && isSocialMediaApp(packageName) && scanForReelsFast(rootNode, 0)) {
+                    if (preferences.isReelsBlockEnabled() &&
+                        isSocialMediaApp(packageName) &&
+                        scanForReelsFast(rootNode, 0)) {
                         triggerBackActionWithPopup("Reels/Shorts Detected", "REELS");
                         return;
                     }
@@ -190,27 +228,31 @@ public class ShieldAccessibilityService extends AccessibilityService {
         }
 
         // ==========================================
-        // ⌨️ ফিচার ৫: Keyword ব্লকিং (Text Input - Everywhere)
+        // ⌨️ ফিচার ৫: Keyword Typing Block — সবসময় চলবে
         // ==========================================
         if (type == AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED) {
-            CharSequence text = event.getText() != null && !event.getText().isEmpty() ? event.getText().get(0) : null;
+            CharSequence text = event.getText() != null && !event.getText().isEmpty()
+                ? event.getText().get(0) : null;
             if (text != null && text.length() > 0) {
                 String typed = text.toString().toLowerCase();
-                // 🔞 ১. ফাইল থেকে আসা অ্যাডাল্ট কিওয়ার্ড চেক
+
+                // 🔞 Adult keyword — text clear + back
                 for (String kw : adultKeywordsSet) {
                     if (typed.contains(kw)) {
+                        clearFocusedInput();
                         triggerBackActionWithPopup("Typed Adult Keyword", "ADULT");
                         return;
                     }
                 }
-                // 🚫 ২. ইউজারের নিজের সেট করা রেগুলার কিওয়ার্ড চেক
+
+                // 🚫 User এর blocked keywords — text clear + back
                 Set<String> blockedKeywords = preferences.getBlockedKeywords();
                 if (blockedKeywords != null) {
                     for (String kw : blockedKeywords) {
                         if (kw == null || kw.isEmpty()) continue;
                         if (typed.contains(kw.toLowerCase())) {
                             preferences.incrementBlockedAttempts();
-                            performGlobalAction(GLOBAL_ACTION_BACK);
+                            clearFocusedInput();
                             triggerBackActionWithPopup("Forbidden Keyword Typed", "NORMAL");
                             return;
                         }
@@ -221,7 +263,7 @@ public class ShieldAccessibilityService extends AccessibilityService {
     }
 
     // ==========================================
-    // 🛠️ কাস্টম পপ-আপ এবং ব্যাক অ্যাকশন
+    // 🛠️ Popup + Back Actions
     // ==========================================
     private void triggerBackActionWithPopup(String reason, String popupType) {
         long currentTime = System.currentTimeMillis();
@@ -233,20 +275,23 @@ public class ShieldAccessibilityService extends AccessibilityService {
             new Handler(Looper.getMainLooper()).postDelayed(() -> {
                 if (popupType.equals("ADULT")) {
                     Intent intent = new Intent(this, MainActivity.class);
-                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK |
+                        Intent.FLAG_ACTIVITY_CLEAR_TOP);
                     intent.putExtra("SHIELD_EVENT", "SHOW_ADULT_WARNING");
                     startActivity(intent);
                 } else if (popupType.equals("REELS")) {
-                    Toast.makeText(getApplicationContext(), "Shorts / Reels Blocked 🚫", Toast.LENGTH_LONG).show();
+                    Toast.makeText(getApplicationContext(),
+                        "Shorts / Reels Blocked 🚫", Toast.LENGTH_LONG).show();
                 } else {
-                    Toast.makeText(getApplicationContext(), "Blocked by Shield 🛡️", Toast.LENGTH_LONG).show();
+                    Toast.makeText(getApplicationContext(),
+                        "Blocked by Shield 🛡️", Toast.LENGTH_LONG).show();
                 }
             }, 150);
         }
     }
 
     // ==========================================
-    // 🛠️ হেল্পার ফাংশন
+    // 🛠️ Helper Functions
     // ==========================================
     private boolean scanForAdultContent(AccessibilityNodeInfo node, int depth) {
         if (node == null || depth > 10) return false;
@@ -272,18 +317,22 @@ public class ShieldAccessibilityService extends AccessibilityService {
     private String extractUrlFromBrowser(AccessibilityNodeInfo root) {
         if (root == null) return null;
         try {
-            List<AccessibilityNodeInfo> nodes = root.findAccessibilityNodeInfosByViewId("com.android.chrome:id/url_bar");
+            List<AccessibilityNodeInfo> nodes = root.findAccessibilityNodeInfosByViewId(
+                "com.android.chrome:id/url_bar");
             if (nodes != null && !nodes.isEmpty() && nodes.get(0).getText() != null) {
                 return nodes.get(0).getText().toString();
             }
-        } catch (Exception e) {
-        }
+        } catch (Exception e) {}
         return null;
     }
 
     private boolean urlMatches(String url, String pattern) {
         if (url == null || pattern == null) return false;
-        return url.toLowerCase().contains(pattern.toLowerCase().replace("https://", "").replace("http://", "").replace("www.", ""));
+        return url.toLowerCase().contains(
+            pattern.toLowerCase()
+                .replace("https://", "")
+                .replace("http://", "")
+                .replace("www.", ""));
     }
 
     private boolean scanForTextFast(AccessibilityNodeInfo node, String targetText, int depth) {
@@ -316,13 +365,16 @@ public class ShieldAccessibilityService extends AccessibilityService {
     }
 
     private boolean isSystemUI(String pkg) {
-        return pkg.equals("com.android.systemui") || pkg.equals("android") || pkg.contains("launcher");
+        return pkg.equals("com.android.systemui") ||
+               pkg.equals("android") ||
+               pkg.contains("launcher");
     }
 
     private boolean isSocialMediaApp(String pkg) {
-        return pkg.contains("youtube") || pkg.contains("facebook") || pkg.contains("instagram") || pkg.contains("tiktok") || pkg.contains("orca") || // Messenger
-                pkg.contains("telegram") || // Telegram
-                pkg.contains("whatsapp"); // WhatsApp
+        return pkg.contains("youtube") || pkg.contains("facebook") ||
+               pkg.contains("instagram") || pkg.contains("tiktok") ||
+               pkg.contains("orca") || pkg.contains("telegram") ||
+               pkg.contains("whatsapp");
     }
 
     private void triggerBackAction(String reason) {
@@ -348,7 +400,10 @@ public class ShieldAccessibilityService extends AccessibilityService {
     private void showBlockScreen(String packageName) {
         Intent intent = new Intent(this, ShieldBlockActivity.class);
         intent.putExtra("BLOCKED_PACKAGE", packageName);
-        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK | Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS | Intent.FLAG_ACTIVITY_NO_ANIMATION);
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK |
+                Intent.FLAG_ACTIVITY_CLEAR_TASK |
+                Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS |
+                Intent.FLAG_ACTIVITY_NO_ANIMATION);
         startActivity(intent);
     }
 

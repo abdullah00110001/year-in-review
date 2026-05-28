@@ -15,7 +15,6 @@ import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
 
-// ✅ FIXED imports — correct packages
 import com.mylifeos.app.rise.core.AlarmConstants;
 import com.mylifeos.app.rise.receiver.RiseAlarmReceiver;
 import com.mylifeos.app.rise.recovery.AlarmRecoveryReceiver;
@@ -34,10 +33,6 @@ public class RiseAlarmPlugin extends Plugin {
         alarmManager = (AlarmManager) getContext().getSystemService(Context.ALARM_SERVICE);
         Log.d(TAG, "Plugin loaded");
     }
-
-    // ──────────────────────────────────────────────
-    // PERMISSION
-    // ──────────────────────────────────────────────
 
     @PluginMethod
     public void canScheduleExactAlarms(PluginCall call) {
@@ -108,10 +103,6 @@ public class RiseAlarmPlugin extends Plugin {
         call.resolve(ret);
     }
 
-    // ──────────────────────────────────────────────
-    // SCHEDULE / CANCEL
-    // ──────────────────────────────────────────────
-
     @PluginMethod
     public void scheduleAlarm(PluginCall call) {
         Integer id        = call.getInt("id");
@@ -119,6 +110,9 @@ public class RiseAlarmPlugin extends Plugin {
         String title      = call.getString("title", "Rise Alarm");
         String body       = call.getString("body",  "Wake up!");
         String uuid       = call.getString("uuid");
+
+        // ── Extra Loud flag ──
+        boolean extraLoud = Boolean.TRUE.equals(call.getBoolean("extraLoud", false));
 
         if (id == null || timeInMillis == null) {
             call.reject("Missing required: id, timeInMillis");
@@ -133,9 +127,10 @@ public class RiseAlarmPlugin extends Plugin {
         }
 
         try {
-            // ✅ Uses correct RiseAlarmScheduler from rise.scheduler package
-            RiseAlarmScheduler.scheduleAlarm(getContext(), id, timeInMillis, title, body, uuid);
-            Log.d(TAG, "Scheduled id=" + id + " uuid=" + uuid);
+            RiseAlarmScheduler.scheduleAlarm(
+                getContext(), id, timeInMillis, title, body, uuid, extraLoud
+            );
+            Log.d(TAG, "Scheduled id=" + id + " uuid=" + uuid + " extraLoud=" + extraLoud);
 
             JSObject ret = new JSObject();
             ret.put("success", true);
@@ -159,10 +154,6 @@ public class RiseAlarmPlugin extends Plugin {
         }
     }
 
-    // ──────────────────────────────────────────────
-    // STOP RINGING
-    // ──────────────────────────────────────────────
-
     @PluginMethod
     public void stopRinging(PluginCall call) {
         try {
@@ -181,10 +172,6 @@ public class RiseAlarmPlugin extends Plugin {
             call.reject("stopRinging failed", e);
         }
     }
-
-    // ──────────────────────────────────────────────
-    // STATE READS
-    // ──────────────────────────────────────────────
 
     @PluginMethod
     public void getRingingAlarmId(PluginCall call) {

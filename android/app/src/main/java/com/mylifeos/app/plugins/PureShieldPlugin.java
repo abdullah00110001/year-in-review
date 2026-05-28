@@ -57,10 +57,7 @@ public class PureShieldPlugin extends Plugin {
     public void checkPermissions(PluginCall call) {
         JSObject result = new JSObject();
         result.put("overlay", hasOverlayPermission());
-        // MediaProjection tokens are one-time runtime grants. A previous approval
-        // cannot be reused after the capture service stops, so only report it as
-        // granted while PureShield is actually running.
-        result.put("projection", isPureShieldRunning());
+        result.put("projection", isProjectionApprovedOnce() || isPureShieldRunning());
         call.resolve(result);
     }
 
@@ -100,6 +97,7 @@ public class PureShieldPlugin extends Plugin {
         intent.setAction(PureShieldService.Actions.START_PROJECTION);
         intent.putExtra("resultCode", result.getResultCode());
         intent.putExtra("data", result.getData());
+        setProjectionApprovedOnce(true);
         startPureShieldService(intent);
         resolveGranted(call, true);
     }
@@ -141,7 +139,14 @@ public class PureShieldPlugin extends Plugin {
             if (blurGender != null) config.setBlurGender(PureShieldConfig.BlurGender.valueOf(blurGender));
 
             String blurStyle = call.getString("blurStyle");
-            if (blurStyle != null) config.setBlurStyle(PureShieldBlurView.BlurStyle.valueOf(blurStyle));
+            if (blurStyle != null) {
+                try {
+                    config.setBlurStyle(PureShieldBlurView.BlurStyle.valueOf(blurStyle));
+                } catch (IllegalArgumentException e) {
+                    // Unknown style — use default BLUR
+                    config.setBlurStyle(PureShieldBlurView.BlurStyle.BLUR);
+                }
+            }
 
             Double threshold = call.getDouble("confidenceThreshold");
             if (threshold != null) config.setConfidenceThreshold(threshold.floatValue());

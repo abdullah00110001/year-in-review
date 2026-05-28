@@ -7,6 +7,8 @@ import { useAuth } from '@/hooks/useAuth';
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { isNative } from '@/lib/capacitor/platform';
+import { WhySection, FeatureDeepDive, HowItWorks, FaqSection } from '@/components/landing/LandingSections';
+import { LandingFooter } from '@/components/landing/LandingFooter';
 
 export default function LandingPage() {
   const { user, loading } = useAuth();
@@ -95,8 +97,9 @@ export default function LandingPage() {
           </div>
           <div className="hidden md:flex items-center gap-6 text-sm text-muted-foreground">
             <a href="#features" className="hover:text-foreground transition-colors">Features</a>
+            <a href="#how-it-works" className="hover:text-foreground transition-colors">How It Works</a>
             <a href="#pricing" className="hover:text-foreground transition-colors">Pricing</a>
-            <a href="#testimonials" className="hover:text-foreground transition-colors">Reviews</a>
+            <a href="#faq" className="hover:text-foreground transition-colors">FAQ</a>
           </div>
           <div className="flex items-center gap-3">
             <Button asChild variant="ghost" className="hidden sm:flex">
@@ -154,6 +157,9 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* Why Life OS */}
+      <WhySection />
+
       {/* Features Section */}
       <section id="features" className="py-24 px-4 relative">
         <div className="absolute inset-0 bg-gradient-to-b from-muted/30 via-muted/50 to-muted/30" />
@@ -181,6 +187,12 @@ export default function LandingPage() {
           </div>
         </div>
       </section>
+
+      {/* Feature deep-dive */}
+      <FeatureDeepDive />
+
+      {/* How It Works */}
+      <HowItWorks />
 
       {/* App Screenshots */}
       <section className="py-24 px-4">
@@ -302,6 +314,9 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* FAQ */}
+      <FaqSection />
+
       {/* Final CTA */}
       <section className="py-24 px-4 relative">
         <div className="mx-auto max-w-4xl text-center relative">
@@ -321,20 +336,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="border-t border-border/50 py-12 px-4">
-        <div className="mx-auto max-w-6xl">
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <img src="/icons/app-icon.png" alt="Life OS" className="h-9 w-9 rounded-xl" />
-              <span className="font-semibold text-foreground">Life OS</span>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              © {new Date().getFullYear()} Life OS. Build better habits, transform your life.
-            </p>
-          </div>
-        </div>
-      </footer>
+      <LandingFooter />
     </div>
   );
 }

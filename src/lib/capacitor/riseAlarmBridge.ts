@@ -18,6 +18,7 @@ export interface RisePluginType {
     title: string;
     body: string;
     uuid: string;
+    extraLoud?: boolean;  // ← NEW
   }): Promise<{ success: boolean; id: number; uuid: string }>;
   cancelAlarm(options: { id: number }): Promise<void>;
 
@@ -121,15 +122,16 @@ export const scheduleRiseAlarm = async (
   timeInMillis: number,
   title: string,
   body: string,
-  uuid: string
+  uuid: string,
+  extraLoud = false,   // ← NEW
 ): Promise<boolean> => {
   if (!isNativePlatform) {
     console.log(`[RiseBridge-Web] Mock: id=${id} @ ${new Date(timeInMillis).toLocaleString()}`);
     return true;
   }
   try {
-    await RisePlugin.scheduleAlarm({ id, timeInMillis, title, body, uuid });
-    console.log(`[RiseBridge] Scheduled id=${id} uuid=${uuid}`);
+    await RisePlugin.scheduleAlarm({ id, timeInMillis, title, body, uuid, extraLoud });
+    console.log(`[RiseBridge] Scheduled id=${id} uuid=${uuid} extraLoud=${extraLoud}`);
     return true;
   } catch (e) {
     console.error('[RiseBridge] scheduleAlarm failed', e);
@@ -235,13 +237,19 @@ export const scheduleNativeAlarmShots = async (
   uuid: string,
   time: string,
   daysOfWeek: number[],
-  config: { title: string; body: string; missionType?: string }
+  config: {
+    title: string;
+    body: string;
+    missionType?: string;
+    extraLoud?: boolean;   // ← NEW
+  }
 ): Promise<boolean> => {
   if (!isNativePlatform) return true;
   try {
     await ensureNativeAlarmChannel();
     const [hours, minutes] = time.split(':').map(Number);
     const baseId = uuidToNumericId(uuid);
+    const extraLoud = config.extraLoud ?? false;
 
     for (let i = 0; i < 7; i++) {
       if (!daysOfWeek.includes(i)) continue;
@@ -252,8 +260,9 @@ export const scheduleNativeAlarmShots = async (
         title: config.title,
         body: config.body,
         uuid: `${uuid}_day${i}`,
+        extraLoud,           // ← NEW
       });
-      console.log(`[RiseBridge] Scheduled day=${i} id=${baseId + i}`);
+      console.log(`[RiseBridge] Scheduled day=${i} id=${baseId + i} extraLoud=${extraLoud}`);
     }
     return true;
   } catch (e) {

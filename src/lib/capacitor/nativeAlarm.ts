@@ -7,7 +7,7 @@ import {
   scheduleNativeAlarmShots,
   cancelNativeAlarmShots,
   canScheduleExactAlarms,
-  ensureNativeAlarmChannel, // 👈 এইটা এড করছি
+  ensureNativeAlarmChannel,
 } from './riseAlarmBridge';
 
 export interface AlarmConfig {
@@ -22,6 +22,7 @@ export interface AlarmConfig {
   whoDepends?: string;
   isGroupAlarm?: boolean;
   groupId?: string;
+  extraLoud?: boolean;   // ← NEW
 }
 
 export type AlarmNotification = LocalNotificationSchema;
@@ -40,12 +41,8 @@ export function uuidToNumericId(value: string): number {
   return Math.abs(hash) % 100000;
 }
 
-// ==========================
-// 🔔 INIT CHANNEL - এইটা মিসিং ছিল
-// ==========================
 export const initializeAlarmChannel = async (): Promise<void> => {
   if (!Capacitor.isNativePlatform()) return;
-
   try {
     await ensureNativeAlarmChannel();
     await registerAlarmActions();
@@ -125,6 +122,7 @@ export async function scheduleAlarm(config: AlarmConfig): Promise<boolean> {
             whoDepends: config.whoDepends,
             isGroupAlarm: config.isGroupAlarm,
             groupId: config.groupId,
+            extraLoud: config.extraLoud ?? false,  // ← NEW
           },
           autoCancel: false,
           ongoing: true,
@@ -150,10 +148,12 @@ export async function scheduleRecurringAlarm(
   await cancelAlarmByUuid(uuid);
 
   if (Capacitor.isNativePlatform()) {
+    // ← extraLoud এখন pass হচ্ছে
     await scheduleNativeAlarmShots(uuid, time, daysOfWeek, {
       title: config.title,
       body: config.body,
       missionType: config.missionType,
+      extraLoud: config.extraLoud ?? false,
     });
     return true;
   }
@@ -163,7 +163,7 @@ export async function scheduleRecurringAlarm(
     const nextDate = getNextDayOfWeek(i, hours, minutes);
     const success = await scheduleAlarm({
       id: baseId + i,
-     ...config,
+      ...config,
       scheduledAt: nextDate,
     });
     if (!success) return false;
@@ -220,7 +220,7 @@ export async function snoozeAlarm(id: number, minutes = 5): Promise<boolean> {
   if (!Capacitor.isNativePlatform()) return true;
   try {
     const pending = await LocalNotifications.getPending();
-    const existing = pending.notifications.find((notification) => notification.id === id);
+    const existing = pending.notifications.find((n) => n.id === id);
     await cancelAlarm(id);
     const nextAt = new Date(Date.now() + minutes * 60 * 1000);
     await LocalNotifications.schedule({
@@ -232,7 +232,7 @@ export async function snoozeAlarm(id: number, minutes = 5): Promise<boolean> {
           schedule: { at: nextAt, allowWhileIdle: true },
           channelId: RISE_ALARM_CHANNEL_ID,
           actionTypeId: 'ALARM_ACTIONS',
-          extra: {...(existing?.extra || {}), snoozed: true },
+          extra: { ...(existing?.extra || {}), snoozed: true },
           autoCancel: false,
           ongoing: true,
         },
@@ -246,9 +246,7 @@ export async function snoozeAlarm(id: number, minutes = 5): Promise<boolean> {
 }
 
 export async function dismissAlarm(id: number, userId?: string): Promise<boolean> {
-  if (userId) {
-    console.log('Dismiss alarm for user', userId);
-  }
+  if (userId) console.log('Dismiss alarm for user', userId);
   return cancelAlarm(id);
 }
 
@@ -293,16 +291,14 @@ export async function restoreAlarmsOnBoot() {
     for (const alarm of alarms) {
       const scheduledAt = new Date(alarm.scheduledAt);
       if (scheduledAt > now) {
-        await scheduleAlarm({...alarm, scheduledAt });
+        await scheduleAlarm({ ...alarm, scheduledAt });
       }
     }
   });
 }
 
 export async function rescheduleAllAlarmsAfterBoot(userId?: string): Promise<void> {
-  if (userId) {
-    console.log('Rescheduling alarms for user', userId);
-  }
+  if (userId) console.log('Rescheduling alarms for user', userId);
   await restoreAlarmsOnBoot();
 }
 
@@ -319,9 +315,9 @@ function getNextDayOfWeek(dayOfWeek: number, hours: number, minutes: number): Da
 
 async function saveAlarmToStorage(config: AlarmConfig) {
   const stored = await Preferences.get({ key: ALARM_STORAGE_KEY });
-  const alarms: AlarmConfig[] = stored.value? JSON.parse(stored.value) : [];
-  const index = alarms.findIndex((alarm) => alarm.id === config.id);
-  const next = {...config, scheduledAt: new Date(config.scheduledAt) as unknown as Date };
+  const alarms: AlarmConfig[] = stored.value ? JSON.parse(stored.value) : [];
+  const index = alarms.findIndex((a) => a.id === config.id);
+  const next = { ...config, scheduledAt: new Date(config.scheduledAt) as unknown as Date };
   if (index >= 0) alarms[index] = next;
   else alarms.push(next);
   await Preferences.set({ key: ALARM_STORAGE_KEY, value: JSON.stringify(alarms) });
@@ -331,6 +327,8 @@ async function removeAlarmFromStorage(baseId: number) {
   const stored = await Preferences.get({ key: ALARM_STORAGE_KEY });
   if (!stored.value) return;
   const alarms: AlarmConfig[] = JSON.parse(stored.value);
-  const filtered = alarms.filter((alarm) =>!Array.from({ length: 7 }, (_, i) => baseId + i).includes(alarm.id));
+  const filtered = alarms.filter(
+    (a) => !Array.from({ length: 7 }, (_, i) => baseId + i).includes(a.id),
+  );
   await Preferences.set({ key: ALARM_STORAGE_KEY, value: JSON.stringify(filtered) });
 }

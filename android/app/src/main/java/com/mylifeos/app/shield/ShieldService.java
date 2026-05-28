@@ -13,8 +13,8 @@ import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
-import android.provider.Settings; // ফিক্স 1: Settings ইম্পোর্ট অ্যাড করলাম
-import android.util.Log; // ফিক্স 2: Log ইম্পোর্ট অ্যাড করলাম
+import android.provider.Settings;
+import android.util.Log;
 import androidx.core.app.NotificationCompat;
 import java.text.SimpleDateFormat;
 import java.util.Date;
@@ -27,12 +27,10 @@ import java.util.Set;
 public class ShieldService extends Service {
     private static final String CHANNEL_ID = "shield_service_channel";
     private static final int NOTIFICATION_ID = 1001;
-    
+
     private ShieldPreferences preferences;
     private Handler handler;
-    private Runnable checkRunnable;
     private Map<String, Integer> dailyUsage = new HashMap<>();
-    private String lastKnownPackage = "";
 
     @Override
     public void onCreate() {
@@ -41,58 +39,29 @@ public class ShieldService extends Service {
         handler = new Handler(Looper.getMainLooper());
         createNotificationChannel();
         resetDailyUsageIfNeeded();
+        Log.d("ShieldService", "🛡️ Shield Service started — Accessibility handles blocking");
     }
 
     @Override
-public int onStartCommand(Intent intent, int flags, int startId) {
-    // startForeground(NOTIFICATION_ID, createNotification()); // এটা কমেন্ট থাক
-
-    // এই try-catch টা অ্যাড করো
-    try {
-        startMonitoring();
-    } catch (Exception e) {
-        Log.e("ShieldService", "Failed to start monitoring, probably permission issue", e);
-        stopSelf(); // ক্র্যাশ না করে সার্ভিস বন্ধ করে দাও
+    public int onStartCommand(Intent intent, int flags, int startId) {
+        // ✅ Polling বন্ধ করা হয়েছে
+        // ShieldAccessibilityService এখন সব blocking handle করে
+        // এতে ব্যাটারি বাঁচবে, কাজ একই থাকবে
+        return START_STICKY;
     }
 
-    return START_STICKY;
-}
+    // ==========================================
+    // ⏱️ Time Limit Logic (ভবিষ্যতে কাজে লাগবে)
+    // ==========================================
+    private void checkTimeLimits(String currentPackage) {
+        if (currentPackage == null) return;
 
-    private void startMonitoring() {
-        if (checkRunnable != null) handler.removeCallbacks(checkRunnable);
-        
-        checkRunnable = new Runnable() {
-            @Override
-            public void run() {
-                if (preferences.isEnabled()) {
-                    checkCurrentApp();
-                }
-                handler.postDelayed(this, 2000);
-            }
-        };
-        handler.post(checkRunnable);
-    }
-
-    private void checkCurrentApp() {
-        String currentPackage = getCurrentForegroundApp();
-        if (currentPackage == null || currentPackage.equals(getPackageName()) || currentPackage.equals(lastKnownPackage)) {
-            lastKnownPackage = currentPackage;
-            return;
-        }
-        
-        lastKnownPackage = currentPackage;
-        Set<String> blockedApps = preferences.getBlockedApps();
         Map<String, Integer> timeLimits = preferences.getTimeLimits();
-
-        if (blockedApps.contains(currentPackage)) {
-            launchBlockScreen(currentPackage, "blocked");
-            return;
-        }
 
         if (timeLimits.containsKey(currentPackage)) {
             int limitSeconds = timeLimits.get(currentPackage) * 60;
             int usedSeconds = dailyUsage.getOrDefault(currentPackage, 0);
-            
+
             if (usedSeconds >= limitSeconds) {
                 launchBlockScreen(currentPackage, "time_limit");
             } else {
@@ -106,11 +75,13 @@ public int onStartCommand(Intent intent, int flags, int startId) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             UsageStatsManager usm = (UsageStatsManager) getSystemService(Context.USAGE_STATS_SERVICE);
             long time = System.currentTimeMillis();
-            List<UsageStats> appList = usm.queryUsageStats(UsageStatsManager.INTERVAL_DAILY, time - 1000 * 1000, time);
+            List<UsageStats> appList = usm.queryUsageStats(
+                UsageStatsManager.INTERVAL_DAILY, time - 1000 * 1000, time);
             if (appList != null && appList.size() > 0) {
                 UsageStats recentApp = null;
                 for (UsageStats usageStats : appList) {
-                    if (recentApp == null || usageStats.getLastTimeUsed() > recentApp.getLastTimeUsed()) {
+                    if (recentApp == null ||
+                        usageStats.getLastTimeUsed() > recentApp.getLastTimeUsed()) {
                         recentApp = usageStats;
                     }
                 }
@@ -144,8 +115,8 @@ public int onStartCommand(Intent intent, int flags, int startId) {
     private void createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             NotificationChannel channel = new NotificationChannel(
-                CHANNEL_ID, 
-                "Shield Protection", 
+                CHANNEL_ID,
+                "Shield Protection",
                 NotificationManager.IMPORTANCE_LOW
             );
             channel.setDescription("Shield is actively protecting you");
@@ -163,9 +134,10 @@ public int onStartCommand(Intent intent, int flags, int startId) {
         } catch (ClassNotFoundException e) {
             intent = new Intent(Settings.ACTION_SETTINGS);
         }
-        
+
         PendingIntent pendingIntent = PendingIntent.getActivity(
-            this, 0, intent, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT
+            this, 0, intent,
+            PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT
         );
 
         return new NotificationCompat.Builder(this, CHANNEL_ID)
@@ -180,8 +152,8 @@ public int onStartCommand(Intent intent, int flags, int startId) {
 
     @Override
     public void onDestroy() {
-        if (handler != null && checkRunnable != null) {
-            handler.removeCallbacks(checkRunnable);
+        if (handler != null) {
+            handler.removeCallbacksAndMessages(null);
         }
         stopForeground(true);
         super.onDestroy();

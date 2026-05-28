@@ -14,6 +14,8 @@ import android.content.pm.PackageManager;
 import android.net.VpnService;
 import android.provider.Settings;
 import android.os.Build;
+import android.os.Handler;
+import android.os.Looper;
 import android.net.Uri;
 import android.app.usage.UsageStats;
 import android.app.usage.UsageStatsManager;
@@ -49,6 +51,60 @@ public class ShieldPlugin extends Plugin {
         preferences = new ShieldPreferences(getContext());
         modeManager = new ShieldModeManager(getContext());
         permissionHelper = new ShieldPermissionHelper(getContext());
+
+        // ✅ Adult filter — app open হলেই automatically start
+        // Android 10+ → Private DNS, Android 8/9 → VPN
+        new Handler(Looper.getMainLooper()).postDelayed(() -> {
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    setPrivateDns();
+                } else {
+                    startAdultFilterVpn();
+                }
+            } catch (Exception e) {
+                Log.e("ShieldPlugin", "Adult filter auto-start failed", e);
+            }
+        }, 2000);
+    }
+
+    // ==========================================
+    // 🌐 Adult Filter — Private DNS (Android 10+)
+    // ==========================================
+    private void setPrivateDns() {
+        try {
+            DevicePolicyManager dpm = (DevicePolicyManager)
+                getContext().getSystemService(Context.DEVICE_POLICY_SERVICE);
+            ComponentName admin = new ComponentName(
+                getContext(), ShieldDeviceAdminReceiver.class);
+
+            if (dpm.isAdminActive(admin)) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    dpm.setGlobalSetting(admin, "private_dns_mode", "hostname");
+                    dpm.setGlobalSetting(admin, "private_dns_specifier", "family.cloudflare-dns.com");
+                    Log.d("ShieldPlugin", "✅ Private DNS set — Android 10+");
+                }
+            } else {
+                Log.w("ShieldPlugin", "Device Admin not active, falling back to VPN");
+                startAdultFilterVpn();
+            }
+        } catch (Exception e) {
+            Log.e("ShieldPlugin", "Private DNS failed, falling back to VPN", e);
+            startAdultFilterVpn();
+        }
+    }
+
+    // ==========================================
+    // 🌐 Adult Filter — VPN (Android 8/9)
+    // ==========================================
+    private void startAdultFilterVpn() {
+        try {
+            Intent vpnIntent = new Intent(getContext(), ShieldVpnService.class);
+            vpnIntent.setAction(ShieldVpnService.ACTION_START);
+            getContext().startService(vpnIntent);
+            Log.d("ShieldPlugin", "✅ VPN started — Android 8/9");
+        } catch (Exception e) {
+            Log.e("ShieldPlugin", "VPN start failed", e);
+        }
     }
 
     // ==========================================
@@ -166,7 +222,8 @@ public class ShieldPlugin extends Plugin {
             PackageManager pm = getContext().getPackageManager();
             Intent launcherIntent = new Intent(Intent.ACTION_MAIN, null);
             launcherIntent.addCategory(Intent.CATEGORY_LAUNCHER);
-            List<android.content.pm.ResolveInfo> resolved = pm.queryIntentActivities(launcherIntent, 0);
+            List<android.content.pm.ResolveInfo> resolved =
+                pm.queryIntentActivities(launcherIntent, 0);
 
             JSArray apps = new JSArray();
             String myPkg = getContext().getPackageName();
@@ -233,13 +290,12 @@ public class ShieldPlugin extends Plugin {
 
         if (savedPin.equals(inputPin)) {
             Log.d("ShieldPlugin", "🔓 EMERGENCY BYPASS ACTIVATED!");
-            
             preferences.setStrictMode(false);
             preferences.setEnabled(false);
             preferences.setPreventUninstall(false);
             preferences.setBypassActive(true);
             preferences.setCurrentMode("normal");
-            
+
             JSObject ret = new JSObject();
             ret.put("success", true);
             call.resolve(ret);
@@ -289,7 +345,7 @@ public class ShieldPlugin extends Plugin {
     }
 
     // ==========================================
-    // 📊 স্ট্যাটাস ও পারমিশন (Stats & Permissions)
+    // 📊 স্ট্যাটাস ও পারমিশন
     // ==========================================
 
     @PluginMethod
@@ -298,7 +354,7 @@ public class ShieldPlugin extends Plugin {
         ret.put("accessibility", permissionHelper.hasAccessibilityPermission());
         ret.put("usageStats", permissionHelper.hasUsageStatsPermission());
         ret.put("overlay", permissionHelper.hasOverlayPermission());
-        ret.put("battery", true); 
+        ret.put("battery", true);
         call.resolve(ret);
     }
 
@@ -339,16 +395,16 @@ public class ShieldPlugin extends Plugin {
         }
         call.resolve();
     }
-    
+
     // ==========================================
-    // 🌐 অ্যাডাল্ট ফিল্টার (VPN Service)
+    // 🌐 Adult Filter Toggle (Manual — UI থেকে)
     // ==========================================
 
     @PluginMethod
     public void toggleAdultFilter(PluginCall call) {
         boolean enable = call.getBoolean("enable", false);
         Intent vpnIntent = VpnService.prepare(getContext());
-        
+
         if (enable) {
             if (vpnIntent != null) {
                 startActivityForResult(call, vpnIntent, "vpnCallback");
@@ -381,6 +437,7 @@ public class ShieldPlugin extends Plugin {
     // ==========================================
     // 🛡️ হার্ডকোর প্রোটেকশন সেটিংস
     // ==========================================
+
     @PluginMethod
     public void updateHardcoreSettings(PluginCall call) {
         try {
@@ -405,6 +462,10 @@ public class ShieldPlugin extends Plugin {
                 case "preventUninstall":
                     preferences.setPreventUninstall(value);
                     break;
+                // ✅ Reels block fix — React থেকে toggle করলে Android জানবে
+                case "blockReels":
+                    preferences.setReelsBlockEnabled(value);
+                    break;
                 default:
                     call.reject("Unknown settings key: " + key);
                     return;
@@ -422,15 +483,17 @@ public class ShieldPlugin extends Plugin {
     @PluginMethod
     public void requestUninstall(PluginCall call) {
         Context context = getContext();
-        
+
         if (preferences.isStrictMode() && !preferences.isBypassActive()) {
             call.reject("Cannot uninstall while Strict Mode is active!");
             return;
         }
 
-        DevicePolicyManager dpm = (DevicePolicyManager) context.getSystemService(Context.DEVICE_POLICY_SERVICE);
-        ComponentName adminComponent = new ComponentName(context, ShieldDeviceAdminReceiver.class);
-        
+        DevicePolicyManager dpm = (DevicePolicyManager)
+            context.getSystemService(Context.DEVICE_POLICY_SERVICE);
+        ComponentName adminComponent = new ComponentName(
+            context, ShieldDeviceAdminReceiver.class);
+
         if (dpm.isAdminActive(adminComponent)) {
             dpm.removeActiveAdmin(adminComponent);
         }
@@ -442,13 +505,13 @@ public class ShieldPlugin extends Plugin {
 
         call.resolve();
     }
-    
+
     @PluginMethod
     public void getDailyHistory(PluginCall call) {
         try {
             ShieldPreferences prefs = new ShieldPreferences(getContext());
             String historyJson = prefs.getFullHistory();
-            
+
             JSObject ret = new JSObject();
             ret.put("history", new JSONObject(historyJson));
             call.resolve(ret);
@@ -460,18 +523,18 @@ public class ShieldPlugin extends Plugin {
     @PluginMethod
     public void updateNotificationSettings(PluginCall call) {
         String key = call.getString("key");
-        
+
         if (key == null) {
             call.reject("Key cannot be null");
             return;
         }
-        
+
         boolean value = call.getBoolean("value", false);
-        
+
         if ("vibrate".equals(key)) preferences.setVibrationEnabled(value);
         else if ("sound".equals(key)) preferences.setSoundEnabled(value);
         else if ("lowTimeAlert".equals(key)) preferences.setLowTimeAlert(value);
-        
+
         call.resolve();
     }
 
@@ -487,8 +550,9 @@ public class ShieldPlugin extends Plugin {
         }
 
         try {
-            UsageStatsManager usageStatsManager = (UsageStatsManager) getContext().getSystemService(Context.USAGE_STATS_SERVICE);
-            
+            UsageStatsManager usageStatsManager = (UsageStatsManager)
+                getContext().getSystemService(Context.USAGE_STATS_SERVICE);
+
             Calendar calendar = Calendar.getInstance();
             calendar.set(Calendar.HOUR_OF_DAY, 0);
             calendar.set(Calendar.MINUTE, 0);
@@ -497,9 +561,10 @@ public class ShieldPlugin extends Plugin {
             long startTime = calendar.getTimeInMillis();
             long endTime = System.currentTimeMillis();
 
-            List<UsageStats> usageStatsList = usageStatsManager.queryUsageStats(UsageStatsManager.INTERVAL_DAILY, startTime, endTime);
+            List<UsageStats> usageStatsList = usageStatsManager.queryUsageStats(
+                UsageStatsManager.INTERVAL_DAILY, startTime, endTime);
             PackageManager pm = getContext().getPackageManager();
-            
+
             JSArray appsArray = new JSArray();
             long totalTimeMinutes = 0;
 
@@ -507,25 +572,26 @@ public class ShieldPlugin extends Plugin {
                 for (UsageStats stats : usageStatsList) {
                     long timeInForeground = stats.getTotalTimeInForeground();
                     String pkgName = stats.getPackageName();
-                    
-                    boolean isSystemLauncher = pkgName.contains("launcher") || pkgName.contains("systemui") || pkgName.equals("android");
-                    
+
+                    boolean isSystemLauncher = pkgName.contains("launcher") ||
+                        pkgName.contains("systemui") || pkgName.equals("android");
+
                     if (timeInForeground > 0 && !isSystemLauncher) {
                         long minutes = timeInForeground / (1000 * 60);
                         if (minutes > 0) {
                             totalTimeMinutes += minutes;
-                            
+
                             JSObject appObj = new JSObject();
                             appObj.put("packageName", pkgName);
                             appObj.put("usageMinutes", minutes);
-                            
+
                             try {
                                 ApplicationInfo appInfo = pm.getApplicationInfo(pkgName, 0);
                                 appObj.put("appName", pm.getApplicationLabel(appInfo).toString());
                             } catch (Exception e) {
                                 appObj.put("appName", pkgName);
                             }
-                            
+
                             appsArray.put(appObj);
                         }
                     }
@@ -536,32 +602,35 @@ public class ShieldPlugin extends Plugin {
             ret.put("apps", appsArray);
             ret.put("totalMinutes", totalTimeMinutes);
             call.resolve(ret);
-            
+
         } catch (Exception e) {
             call.reject("Failed to get screen time stats", e);
         }
     }
-    
+
     @PluginMethod
     public void toggleFloatingTimer(PluginCall call) {
         boolean enable = call.getBoolean("enable", false);
         preferences.setFloatingTimerEnabled(enable);
-        
+
         Intent intent = new Intent(getContext(), ShieldFloatingService.class);
         if (enable) {
             getContext().startService(intent);
         } else {
             getContext().stopService(intent);
         }
-        
+
         call.resolve();
     }
 
     @PluginMethod
     public void updateFloatingTimerStyle(PluginCall call) {
-        if (call.hasOption("opacity")) preferences.setFloatingTimerOpacity(call.getFloat("opacity", 1.0f));
-        if (call.hasOption("size")) preferences.setFloatingTimerSize(call.getInt("size", 16));
-        if (call.hasOption("countdown")) preferences.setCountdownMode(call.getBoolean("countdown", false));
+        if (call.hasOption("opacity"))
+            preferences.setFloatingTimerOpacity(call.getFloat("opacity", 1.0f));
+        if (call.hasOption("size"))
+            preferences.setFloatingTimerSize(call.getInt("size", 16));
+        if (call.hasOption("countdown"))
+            preferences.setCountdownMode(call.getBoolean("countdown", false));
         call.resolve();
     }
 }
