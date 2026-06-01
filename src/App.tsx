@@ -27,6 +27,18 @@ import { getRingingAlarmId } from "@/lib/capacitor/riseAlarmBridge";
 // Pages Import
 import Auth from "./pages/Auth";
 import LandingPage from "./pages/LandingPage";
+import Features from "./pages/marketing/Features";
+import Permissions from "./pages/marketing/Permissions";
+import Privacy from "./pages/marketing/Privacy";
+import PrivacyPolicy from "./pages/marketing/PrivacyPolicy";
+import About from "./pages/marketing/About";
+import Contact from "./pages/marketing/Contact";
+import Faq from "./pages/marketing/Faq";
+import Roadmap from "./pages/marketing/Roadmap";
+import Changelog from "./pages/marketing/Changelog";
+import Pricing from "./pages/marketing/Pricing";
+import Terms from "./pages/marketing/Terms";
+import Refund from "./pages/marketing/Refund";
 import Dashboard from "./pages/Dashboard";
 import NotFound from "./pages/NotFound";
 import ResetPassword from "./pages/ResetPassword";
@@ -197,6 +209,18 @@ const AppContent = () => {
         <Route path="/admin/announcements" element={<AdminProtectedRoute><AdminAnnouncements /></AdminProtectedRoute>} />
         <Route path="/admin/ringtones" element={<AdminProtectedRoute><AdminRingtones /></AdminProtectedRoute>} />
         <Route path="/admin/bundles" element={<AdminProtectedRoute><AdminBundles /></AdminProtectedRoute>} />
+        <Route path="/features" element={<Features />} />
+        <Route path="/permissions" element={<Permissions />} />
+        <Route path="/privacy" element={<Privacy />} />
+        <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+        <Route path="/about" element={<About />} />
+        <Route path="/contact" element={<Contact />} />
+        <Route path="/faq" element={<Faq />} />
+        <Route path="/roadmap" element={<Roadmap />} />
+        <Route path="/changelog" element={<Changelog />} />
+        <Route path="/pricing" element={<Pricing />} />
+        <Route path="/terms" element={<Terms />} />
+        <Route path="/refund" element={<Refund />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </>
