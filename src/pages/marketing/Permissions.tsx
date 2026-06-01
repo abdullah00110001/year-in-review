@@ -9,7 +9,7 @@ import {
 interface Perm {
   icon: any;
   name: string;
-  required: 'Required' | 'Optional';
+  required: string;
   features: string[];
   why: string;
   ifDenied: string;
