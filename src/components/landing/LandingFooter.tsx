@@ -8,38 +8,38 @@ export function LandingFooter() {
     {
       title: 'Product',
       links: [
-        { label: 'Features', to: '/#features' },
-        { label: 'How It Works', to: '/#how-it-works' },
-        { label: 'Pricing', to: '/#pricing' },
-        { label: 'FAQ', to: '/#faq' },
+        { label: 'Features', to: '/features' },
+        { label: 'Permissions', to: '/permissions' },
+        { label: 'Pricing', to: '/pricing' },
+        { label: 'Roadmap', to: '/roadmap' },
+        { label: 'Changelog', to: '/changelog' },
       ],
     },
     {
       title: 'App',
       links: [
+        { label: 'Download', to: '/download' },
         { label: 'Dashboard', to: '/dashboard' },
-        { label: 'Daily Input', to: '/daily-input' },
-        { label: 'Life Calendar', to: '/life-calendar' },
         { label: 'Shield', to: '/shield' },
         { label: 'Rise', to: '/rise' },
-        { label: 'Reports', to: '/analytics' },
       ],
     },
     {
-      title: 'Account',
+      title: 'Company',
       links: [
+        { label: 'About', to: '/about' },
+        { label: 'Contact', to: '/contact' },
+        { label: 'FAQ', to: '/faq' },
         { label: 'Sign In', to: '/auth' },
-        { label: 'Get Started', to: '/auth' },
-        { label: 'Premium', to: '/premium' },
-        { label: 'Download App', to: '/download' },
       ],
     },
     {
       title: 'Legal',
       links: [
-        { label: 'Privacy Policy', to: '/privacy' },
-        { label: 'Terms of Service', to: '/terms' },
-        { label: 'Contact', to: '/contact' },
+        { label: 'Privacy', to: '/privacy' },
+        { label: 'Privacy Policy', to: '/privacy-policy' },
+        { label: 'Terms', to: '/terms' },
+        { label: 'Refund Policy', to: '/refund' },
       ],
     },
   ];
