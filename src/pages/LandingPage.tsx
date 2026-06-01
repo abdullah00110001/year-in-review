@@ -103,11 +103,12 @@ export default function LandingPage() {
             <img src="/icons/app-icon.png" alt="Life OS" className="h-10 w-10 rounded-xl shadow-lg shadow-primary/25" />
             <span className="text-xl font-bold bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">Life OS</span>
           </div>
-          <div className="hidden md:flex items-center gap-6 text-sm text-muted-foreground">
-            <a href="#features" className="hover:text-foreground transition-colors">Features</a>
-            <a href="#how-it-works" className="hover:text-foreground transition-colors">How It Works</a>
-            <a href="#pricing" className="hover:text-foreground transition-colors">Pricing</a>
-            <a href="#faq" className="hover:text-foreground transition-colors">FAQ</a>
+          <div className="hidden md:flex items-center gap-5 text-sm text-muted-foreground">
+            <Link to="/features" className="hover:text-foreground transition-colors">Features</Link>
+            <Link to="/permissions" className="hover:text-foreground transition-colors">Permissions</Link>
+            <Link to="/pricing" className="hover:text-foreground transition-colors">Pricing</Link>
+            <Link to="/about" className="hover:text-foreground transition-colors">About</Link>
+            <Link to="/faq" className="hover:text-foreground transition-colors">FAQ</Link>
           </div>
           <div className="flex items-center gap-3">
             <Button asChild variant="ghost" className="hidden sm:flex">
