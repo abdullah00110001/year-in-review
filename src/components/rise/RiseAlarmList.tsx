@@ -6,6 +6,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Plus, Bell, Users, Sunrise, Moon, Trash2 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
@@ -39,6 +43,7 @@ export function RiseAlarmList({ alarms, onToggle, onRefresh }: RiseAlarmListProp
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [permissionsOk, setPermissionsOk] = useState(false);
   const [localAlarms, setLocalAlarms] = useState<RiseAlarm[]>([]);
+  const [toDelete, setToDelete] = useState<RiseAlarm | null>(null);
   const [newAlarm, setNewAlarm] = useState({
     alarm_time: '06:00',
     days_of_week: [0, 1, 2, 3, 4, 5, 6],
@@ -193,7 +198,7 @@ export function RiseAlarmList({ alarms, onToggle, onRefresh }: RiseAlarmListProp
   const deleteAlarm = async (alarm: RiseAlarm) => {
     await cancelAlarmByUuid(alarm.id);
     if (alarm.is_local) {
-      const updated = localAlarms.filter(a => a.id!== alarm.id);
+      const updated = localAlarms.filter(a => a.id !== alarm.id);
       localStorage.setItem('local_alarms', JSON.stringify(updated));
       setLocalAlarms(updated);
       window.dispatchEvent(new Event('localAlarmsUpdated'));
@@ -209,6 +214,13 @@ export function RiseAlarmList({ alarms, onToggle, onRefresh }: RiseAlarmListProp
       onRefresh();
     }
     toast.success('Alarm deleted');
+  };
+
+  const confirmDelete = async () => {
+    if (!toDelete) return;
+    const target = toDelete;
+    setToDelete(null);
+    await deleteAlarm(target);
   };
 
   const getAlarmTypeIcon = (type: string) => {
@@ -378,7 +390,8 @@ export function RiseAlarmList({ alarms, onToggle, onRefresh }: RiseAlarmListProp
                       variant="ghost"
                       size="icon"
                       className="h-8 w-8"
-                      onClick={() => deleteAlarm(alarm)}
+                      onClick={() => setToDelete(alarm)}
+                      aria-label="Delete alarm"
                     >
                       <Trash2 className="h-4 w-4 text-destructive" />
                     </Button>
@@ -389,6 +402,27 @@ export function RiseAlarmList({ alarms, onToggle, onRefresh }: RiseAlarmListProp
           );
         })
       )}
+
+      <AlertDialog open={!!toDelete} onOpenChange={(o) => !o && setToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this alarm?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {toDelete?.label || toDelete?.intention || `Alarm at ${toDelete?.alarm_time}`} will be cancelled
+              and removed. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

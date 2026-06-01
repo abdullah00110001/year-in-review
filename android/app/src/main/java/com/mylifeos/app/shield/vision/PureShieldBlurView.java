@@ -29,10 +29,12 @@ public class PureShieldBlurView extends View {
     private BlurStyle blurStyle = BlurStyle.BLUR;
     private int overlayAlpha    = 255;
     private boolean debugOverlay = false;
+    private Bitmap sourceBitmap = null; // ✅ real screen pixels (cropped) for true blur
 
     private final Paint paint;
     private final Paint edgePaint;
     private final Paint pixelPaint;
+    private final Paint bitmapPaint;
 
     private static final int PIXEL_BLOCK = 10;
 
@@ -40,8 +42,6 @@ public class PureShieldBlurView extends View {
         super(context);
         setWillNotDraw(false);
 
-        // ✅ FIX 1: Software layer + transparent background
-        // Hardware layer এ clipPath কাজ করে না properly
         setLayerType(LAYER_TYPE_SOFTWARE, null);
         setBackgroundColor(Color.TRANSPARENT);
 
@@ -54,10 +54,26 @@ public class PureShieldBlurView extends View {
         pixelPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         pixelPaint.setStyle(Paint.Style.FILL);
         pixelPaint.setFilterBitmap(false);
+
+        bitmapPaint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
     }
 
     public void setBlurStyle(BlurStyle style) {
         this.blurStyle = (style != null) ? style : BlurStyle.BLUR;
+        invalidate();
+    }
+
+    /**
+     * ✅ Pass the cropped screen region (from MediaProjection) so this overlay
+     * can produce a TRUE pixel-blur of what's underneath. Without this, the
+     * view falls back to painted shapes (which look like a blue oval).
+     */
+    public void setSourceBitmap(Bitmap bmp) {
+        Bitmap old = this.sourceBitmap;
+        this.sourceBitmap = bmp;
+        if (old != null && old != bmp && !old.isRecycled()) {
+            try { old.recycle(); } catch (Throwable ignored) {}
+        }
         invalidate();
     }
 
@@ -81,8 +97,16 @@ public class PureShieldBlurView extends View {
         int w = getWidth(), h = getHeight();
         if (w <= 0 || h <= 0) return;
 
-        // ✅ Clear any previous frame's pixels (transparent)
         canvas.drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR);
+
+        // ✅ TRUE PIXEL BLUR — if we have the underlying screen region, blur it for real.
+        // Otherwise fall back to painted styles (which look like a flat oval).
+        if (sourceBitmap != null && !sourceBitmap.isRecycled()
+            && blurStyle != BlurStyle.SOLID) {
+            drawRealBlur(canvas, w, h);
+            if (debugOverlay) drawDebugBox(canvas, w, h);
+            return;
+        }
 
         switch (blurStyle) {
             case PIXELATE: drawPixelate(canvas, w, h); break;
@@ -95,6 +119,57 @@ public class PureShieldBlurView extends View {
         }
 
         if (debugOverlay) drawDebugBox(canvas, w, h);
+    }
+
+    /**
+     * ✅ Real pixel blur: downsample the source bitmap aggressively then
+     * upscale with bilinear filtering. This is a cheap Gaussian-ish blur that
+     * works without RenderScript / RenderEffect (both have API-level issues).
+     * For PIXELATE, downsample heavily and disable filtering on upscale.
+     */
+    private void drawRealBlur(Canvas canvas, int w, int h) {
+        canvas.save();
+        canvas.clipPath(makeOvalPath(w, h));
+
+        int srcW = sourceBitmap.getWidth();
+        int srcH = sourceBitmap.getHeight();
+        if (srcW <= 0 || srcH <= 0) { canvas.restore(); return; }
+
+        try {
+            if (blurStyle == BlurStyle.PIXELATE || blurStyle == BlurStyle.MOSAIC) {
+                int tiny = 14;
+                Bitmap small = Bitmap.createScaledBitmap(sourceBitmap, tiny, tiny, false);
+                pixelPaint.setFilterBitmap(false);
+                canvas.drawBitmap(small,
+                    new Rect(0, 0, tiny, tiny),
+                    new RectF(0, 0, w, h), pixelPaint);
+                if (small != sourceBitmap) small.recycle();
+            } else {
+                // 2-pass downsample for stronger blur
+                int s1 = Math.max(8, Math.min(srcW, srcH) / 8);
+                Bitmap pass1 = Bitmap.createScaledBitmap(sourceBitmap, s1, s1, true);
+                int s2 = Math.max(6, s1 / 2);
+                Bitmap pass2 = Bitmap.createScaledBitmap(pass1, s2, s2, true);
+                if (pass1 != sourceBitmap) pass1.recycle();
+                bitmapPaint.setFilterBitmap(true);
+                canvas.drawBitmap(pass2,
+                    new Rect(0, 0, s2, s2),
+                    new RectF(0, 0, w, h), bitmapPaint);
+                if (pass2 != sourceBitmap) pass2.recycle();
+                // subtle dark veil so face shape is not readable
+                paint.setShader(null);
+                paint.setColor(Color.argb(60, 0, 0, 0));
+                canvas.drawOval(new RectF(0, 0, w, h), paint);
+            }
+        } catch (Throwable t) {
+            // any allocation/OOM — fall back to painted oval
+            paint.setShader(null);
+            paint.setColor(Color.argb(230, 220, 225, 235));
+            canvas.drawOval(new RectF(0, 0, w, h), paint);
+        }
+
+        canvas.restore();
+        drawFeatheredOvalEdge(canvas, w, h, Color.argb(70, 60, 70, 90));
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -120,7 +195,7 @@ public class PureShieldBlurView extends View {
 
         // Base: semi-opaque white fill
         paint.setShader(null);
-        paint.setColor(Color.argb(200, 255, 255, 255));
+        paint.setColor(Color.argb(245, 255, 255, 255));
         canvas.drawOval(new RectF(0, 0, w, h), paint);
 
         float cx = w / 2f, cy = h / 2f;
@@ -129,8 +204,8 @@ public class PureShieldBlurView extends View {
         // Layer 1 — core bright
         RadialGradient g1 = new RadialGradient(cx, cy, radius * 0.4f,
             new int[]{
-                Color.argb(200, 255, 255, 255),
-                Color.argb(150, 240, 245, 255),
+                Color.argb(245, 255, 255, 255),
+                Color.argb(220, 240, 245, 255),
                 Color.argb(0,   240, 245, 255),
             },
             new float[]{0f, 0.6f, 1f},
@@ -157,7 +232,7 @@ public class PureShieldBlurView extends View {
             new int[]{
                 Color.argb(0,  255, 255, 255),
                 Color.argb(80, 200, 215, 240),
-                Color.argb(180, 180, 200, 230),
+                Color.argb(240, 180, 200, 230),
             },
             new float[]{0.3f, 0.7f, 1f},
             Shader.TileMode.CLAMP);

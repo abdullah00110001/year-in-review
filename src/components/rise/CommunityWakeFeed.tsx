@@ -1,7 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import {
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+} from '@/components/ui/dialog';
 import {
   Globe, Building2, MapPin, List, Map as MapIcon,
   Sunrise, Settings as SettingsIcon,
@@ -18,6 +21,10 @@ import { HeroStatsBar } from './HeroStatsBar';
 import { OwnStatusCard } from './OwnStatusCard';
 import { MilestoneBanner } from './MilestoneBanner';
 import { WeeklyRecapSheet } from './WeeklyRecapSheet';
+import { CommunitySettingsSheet } from './CommunitySettingsSheet';
+import { useCommunitySettings } from '@/hooks/useCommunitySettings';
+import { toast } from 'sonner';
+
 
 const FILTERS: { mode: FilterMode; icon: any; label: string }[] = [
   { mode: 'global', icon: Globe, label: 'Global' },
@@ -31,14 +38,62 @@ export function CommunityWakeFeed() {
     totalToday, cityCount, nearbyCount, userLocation,
     updateMyStatus, refreshFeed,
   } = useNearbyWakers();
-  const { locationSettings } = useWakeLocation();
+  const { locationSettings, requestGPSPermission, saveLocationSettings } = useWakeLocation();
   const { streakData } = useStreakSystem();
   const { recap, recapOpen, setRecapOpen } = useWeeklyRecap();
+  const { settings: communitySettings } = useCommunitySettings();
 
   const [view, setView] = useState<'feed' | 'map'>('feed');
+
   const [statusInput, setStatusInput] = useState('');
   const [emojiInput, setEmojiInput] = useState('');
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [nearbyPromptOpen, setNearbyPromptOpen] = useState(false);
+
+  const handleSelectFilter = async (mode: FilterMode) => {
+    if (mode !== 'nearby') {
+      if (mode === 'city' && cityCount === 0 && totalToday > 0) {
+        setFilterMode('global');
+        return;
+      }
+      setFilterMode(mode);
+      return;
+    }
+    const asked = sessionStorage.getItem('rise_nearby_asked') === '1';
+    const alreadyEnabled = locationSettings?.location_mode === 'nearby';
+    if (alreadyEnabled || asked) {
+      setFilterMode('nearby');
+      return;
+    }
+    setNearbyPromptOpen(true);
+  };
+
+  const handleNearbyAllow = async () => {
+    sessionStorage.setItem('rise_nearby_asked', '1');
+    setNearbyPromptOpen(false);
+    const granted = await requestGPSPermission();
+    if (!granted) {
+      toast.error('Location অনুমতি পাওয়া যায়নি — City তে দেখাচ্ছি');
+      setFilterMode(cityCount > 0 ? 'city' : 'global');
+      return;
+    }
+    try { await saveLocationSettings('nearby', locationSettings?.is_anonymous ?? false); } catch {}
+    setFilterMode('nearby');
+  };
+
+  const handleNearbyDeny = () => {
+    sessionStorage.setItem('rise_nearby_asked', '1');
+    setNearbyPromptOpen(false);
+    setFilterMode(cityCount > 0 ? 'city' : 'global');
+  };
+
+  // Auto-fallback if Nearby tab loads empty
+  useEffect(() => {
+    if (filterMode === 'nearby' && !isLoading && wakers.length === 0 && nearbyCount === 0) {
+      if (cityCount > 0) setFilterMode('city');
+      else if (totalToday > 0) setFilterMode('global');
+    }
+  }, [filterMode, isLoading, wakers.length, nearbyCount, cityCount, totalToday, setFilterMode]);
 
   const tab = (active: boolean) =>
     cn(
@@ -83,7 +138,7 @@ export function CommunityWakeFeed() {
           cityCount={cityCount}
           nearbyCount={nearbyCount}
           activeFilter={filterMode}
-          onTabClick={setFilterMode}
+          onTabClick={handleSelectFilter}
         />
 
         {/* Filter tabs */}
@@ -91,7 +146,7 @@ export function CommunityWakeFeed() {
           {FILTERS.map((f) => (
             <button
               key={f.mode}
-              onClick={() => setFilterMode(f.mode)}
+              onClick={() => handleSelectFilter(f.mode)}
               className={tab(filterMode === f.mode)}
             >
               <f.icon className="h-3.5 w-3.5" /> {f.label}
@@ -202,18 +257,22 @@ export function CommunityWakeFeed() {
                 waker={w}
                 showDistance={filterMode === 'nearby'}
                 isCurrentUser={myEvent?.id === w.id}
+                showAlarmLabel={communitySettings.show_alarm_label}
               />
             ))
           )}
         </div>
       )}
 
-      {/* Settings sheet */}
-      <LocationPrivacySheet
+      {/* Community settings sheet */}
+      <CommunitySettingsSheet
         open={settingsOpen}
-        onOpenChange={setSettingsOpen}
-        onSaved={() => void refreshFeed()}
+        onOpenChange={(v) => {
+          setSettingsOpen(v);
+          if (!v) void refreshFeed();
+        }}
       />
+
 
       {/* Weekly Recap sheet */}
       <WeeklyRecapSheet
@@ -221,6 +280,32 @@ export function CommunityWakeFeed() {
         onOpenChange={setRecapOpen}
         data={recap ? { ...recap, currentStreak: streakData.currentStreak } : null}
       />
+
+
+
+      {/* Nearby permission explainer (asked only once per session) */}
+      <Dialog open={nearbyPromptOpen} onOpenChange={setNearbyPromptOpen}>
+        <DialogContent className="bg-[#0A0A0F] border-white/10 text-white max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-white flex items-center gap-2">
+              <MapPin className="h-4 w-4 text-[#00E676]" />
+              কাছের Wakers দেখবে?
+            </DialogTitle>
+            <DialogDescription className="text-white/60 leading-relaxed">
+              আপনার কাছের wakers দেখতে একবার location দরকার।
+              আপনার exact location কখনো save হবে না — শুধু এলাকা।
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex-row gap-2 sm:gap-2">
+            <Button variant="ghost" className="flex-1 text-white/60 hover:text-white" onClick={handleNearbyDeny}>
+              এখন না
+            </Button>
+            <Button className="flex-1 bg-[#6C63FF] hover:bg-[#5b52ff]" onClick={handleNearbyAllow}>
+              অনুমতি দাও
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

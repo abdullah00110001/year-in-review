@@ -6,7 +6,9 @@ interface RecordOpts {
   missionType?: string;
   statusText?: string;
   statusEmoji?: string;
+  alarmLabel?: string;
 }
+
 
 async function fetchSettings(userId: string) {
   const { data } = await supabase
@@ -83,13 +85,13 @@ export async function recordWakeEvent(opts: RecordOpts) {
     } else {
       loc = await ipLookup();
     }
-
     const payload = {
       user_id: opts.userId,
       woke_at: new Date().toISOString(),
       mission_type: opts.missionType ?? null,
       status_text: opts.statusText ?? null,
       status_emoji: opts.statusEmoji ?? null,
+      alarm_label: opts.alarmLabel?.trim() ? opts.alarmLabel.trim().slice(0, 50) : null,
       city: loc?.city ?? null,
       district: loc?.district ?? null,
       country: loc?.country ?? null,
@@ -99,6 +101,7 @@ export async function recordWakeEvent(opts: RecordOpts) {
       location_mode: settings.location_mode,
       is_anonymous: !!settings.is_anonymous,
     };
+
     const { data, error } = await supabase
       .from('rise_wake_events' as any)
       .insert(payload)

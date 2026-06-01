@@ -4,10 +4,10 @@ import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { 
   Ban, Clock, Columns, Power, AppWindow, AlertTriangle, 
-  KeyRound, Timer, Lock, Vibrate, Volume2, Eye, Download, 
-  Upload, Trash2, Database, RefreshCw, Zap, BellRing, 
+  KeyRound, Timer, Lock, Vibrate, Volume2, Eye,
+  Trash2, Database, RefreshCw, Zap, BellRing, 
   ShieldCheck, CheckCircle2, XCircle, Bell, ChevronRight,
-  ShieldAlert, Activity // 🟢 Added Icon for Floating Timer
+  ShieldAlert, Activity
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { openAccessibilitySettings, openDeviceAdminSettings, openUsageAccessSettings } from '@/utils/permissions';
@@ -30,6 +30,7 @@ interface SettingItem {
   iconColor?: string;
   iconBg?: string;
   status?: 'granted' | 'denied';
+  showGreenDot?: boolean; // 🟢 custom green dot (Adult Filter এর জন্য)
 }
 
 interface ShieldSettingsProps {
@@ -41,7 +42,7 @@ interface ShieldSettingsProps {
     preventUninstall: boolean;
     lowTimeAlert: boolean;
     pomodoroBreak: boolean;
-    floatingTimer: boolean; // 🟢 Added state for Floating Timer
+    floatingTimer: boolean;
   };
   onSettingChange: (key: string, value: boolean) => void;
   onNavigate: (page: string) => void;
@@ -91,9 +92,6 @@ export function ShieldSettings({ settings, onSettingChange, onNavigate }: Shield
     }
   };
 
-  // ==========================================
-  // 🛡️ Advanced Hardcore Blocking Actions
-  // ==========================================
   const handleToggleHardcore = async (key: string, value: boolean) => {
     try {
       onSettingChange(key, value);
@@ -107,14 +105,12 @@ export function ShieldSettings({ settings, onSettingChange, onNavigate }: Shield
     }
   };
 
-  // 🛡️ Device Admin Toggle (Special Flow)
   const handleToggleUninstall = async (value: boolean) => {
     if (value && !permissionStatus.deviceAdmin) {
       toast.info('Please enable Device Admin permission first.');
       openDeviceAdminSettings();
       return;
     }
-    
     try {
       onSettingChange('preventUninstall', value);
       if (Capacitor.getPlatform() === 'android') {
@@ -127,6 +123,7 @@ export function ShieldSettings({ settings, onSettingChange, onNavigate }: Shield
     }
   };
 
+  // ─── Blocking Settings ───────────────────────────────────────────────────
   const blockingSettings: SettingItem[] = [
     {
       icon: Ban,
@@ -137,7 +134,21 @@ export function ShieldSettings({ settings, onSettingChange, onNavigate }: Shield
       iconColor: 'text-rose-500',
       iconBg: 'bg-rose-500/10',
     },
-    // 🟢 Floating Timer — toggle on/off + arrow to configure
+    {
+      // 🛡️ Adult Filter — click করলে AdultFilterPage যাবে, কোনো toggle নেই
+      // Accessibility চালু থাকলে → সবুজ dot + active রং
+      icon: ShieldCheck,
+      title: 'Adult Filter',
+      description: permissionStatus.accessibility
+        ? 'Active — All 18+ sites are blocked'
+        : 'Tap to set block screen style',
+      hasArrow: true,
+      hasToggle: false,
+      onClick: () => onNavigate('adult-filter'),
+      iconColor: permissionStatus.accessibility ? 'text-green-500' : 'text-rose-500',
+      iconBg: permissionStatus.accessibility ? 'bg-green-500/10' : 'bg-rose-500/10',
+      showGreenDot: permissionStatus.accessibility, // 🟢 active হলে dot দেখাবে
+    },
     {
       icon: Activity,
       title: 'Floating Timer',
@@ -225,7 +236,7 @@ export function ShieldSettings({ settings, onSettingChange, onNavigate }: Shield
     {
       icon: BellRing,
       title: 'Pomodoro Breaks',
-      description: 'Notify when it\'s time to take a break',
+      description: "Notify when it's time to take a break",
       hasToggle: true,
       toggleValue: settings.pomodoroBreak,
       onToggle: (value) => onSettingChange('pomodoroBreak', value),
@@ -289,7 +300,6 @@ export function ShieldSettings({ settings, onSettingChange, onNavigate }: Shield
       title: 'Emergency Bypass',
       description: 'Configure emergency access options',
       hasArrow: true,
-      // 🟢 Fixed Emergency Bypass Logic
       onClick: async () => {
         const pin = window.prompt("Enter your 4-digit Emergency PIN:");
         if (!pin) return;
@@ -343,16 +353,15 @@ export function ShieldSettings({ settings, onSettingChange, onNavigate }: Shield
       title: 'Clear History',
       description: 'Delete all usage data',
       hasArrow: true,
-      // 🟢 Clear History Logic Added
       onClick: async () => {
         const confirm = window.confirm("Are you sure you want to clear all usage statistics? This cannot be undone.");
         if (confirm) {
-            try {
-                await ShieldPlugin.clearHistory();
-                toast.success("History cleared successfully! 🗑️");
-            } catch (e) {
-                toast.error("Failed to clear history.");
-            }
+          try {
+            await ShieldPlugin.clearHistory();
+            toast.success("History cleared successfully! 🗑️");
+          } catch (e) {
+            toast.error("Failed to clear history.");
+          }
         }
       },
       iconColor: 'text-red-500',
@@ -360,7 +369,6 @@ export function ShieldSettings({ settings, onSettingChange, onNavigate }: Shield
     },
   ];
 
-  // 🔴 DANGER ZONE: Safe Uninstall System
   const dangerZoneSettings: SettingItem[] = [
     {
       icon: ShieldAlert,
@@ -369,11 +377,9 @@ export function ShieldSettings({ settings, onSettingChange, onNavigate }: Shield
       hasArrow: true,
       onClick: async () => {
         const isStrict = settings.preventUninstall && permissionStatus.deviceAdmin;
-        
-        const message = isStrict 
+        const message = isStrict
           ? "Warning: Protection is active. You must deactivate settings before uninstalling. Proceed anyway?"
           : "Are you sure you want to uninstall Focus Shield? All your settings will be lost.";
-
         const confirm = window.confirm(message);
         if (confirm) {
           try {
@@ -389,15 +395,17 @@ export function ShieldSettings({ settings, onSettingChange, onNavigate }: Shield
     },
   ];
 
+  // ─── Render ──────────────────────────────────────────────────────────────
   const renderSettingItem = (item: SettingItem, index: number, isLast: boolean) => (
-    <div key={index} className={cn(
-      'flex items-center gap-4 p-4 cursor-pointer active:bg-muted/50 transition-colors',
-     !isLast && 'border-b border-border/50'
-    )} onClick={item.onClick}>
-      <div className={cn(
-        "h-10 w-10 rounded-xl flex items-center justify-center shrink-0",
-        item.iconBg || 'bg-muted'
-      )}>
+    <div
+      key={index}
+      className={cn(
+        'flex items-center gap-4 p-4 cursor-pointer active:bg-muted/50 transition-colors',
+        !isLast && 'border-b border-border/50'
+      )}
+      onClick={item.onClick}
+    >
+      <div className={cn("h-10 w-10 rounded-xl flex items-center justify-center shrink-0", item.iconBg || 'bg-muted')}>
         <item.icon className={cn("h-5 w-5", item.iconColor || 'text-muted-foreground')} />
       </div>
       <div className="flex-1 min-w-0">
@@ -408,10 +416,15 @@ export function ShieldSettings({ settings, onSettingChange, onNavigate }: Shield
               PRO
             </Badge>
           )}
-          {item.status === 'granted' && (
+          {/* 🟢 Adult Filter active dot */}
+          {item.showGreenDot && (
+            <span className="h-2 w-2 rounded-full bg-green-500 animate-pulse shrink-0" />
+          )}
+          {/* normal granted/denied icons — Adult Filter এ showGreenDot use করায় status দরকার নেই */}
+          {!item.showGreenDot && item.status === 'granted' && (
             <CheckCircle2 className="h-4 w-4 text-green-500" />
           )}
-          {item.status === 'denied' && (
+          {!item.showGreenDot && item.status === 'denied' && (
             <XCircle className="h-4 w-4 text-red-500" />
           )}
         </div>
@@ -423,11 +436,11 @@ export function ShieldSettings({ settings, onSettingChange, onNavigate }: Shield
         <ChevronRight className="h-5 w-5 text-muted-foreground shrink-0" />
       )}
       {item.hasToggle && (
-        <Switch 
-          checked={item.toggleValue} 
-          onCheckedChange={item.onToggle} 
-          onClick={(e) => e.stopPropagation()} 
-          className="shrink-0 data-[state=checked]:bg-primary" 
+        <Switch
+          checked={item.toggleValue}
+          onCheckedChange={item.onToggle}
+          onClick={(e) => e.stopPropagation()}
+          className="shrink-0 data-[state=checked]:bg-primary"
         />
       )}
     </div>
@@ -456,5 +469,3 @@ export function ShieldSettings({ settings, onSettingChange, onNavigate }: Shield
     </div>
   );
 }
-
-

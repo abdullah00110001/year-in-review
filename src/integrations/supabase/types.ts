@@ -3242,6 +3242,54 @@ export type Database = {
         }
         Relationships: []
       }
+      ringtones: {
+        Row: {
+          category: string
+          created_at: string
+          created_by: string | null
+          description: string | null
+          duration_seconds: number | null
+          file_path: string | null
+          file_size_bytes: number | null
+          file_url: string
+          id: string
+          is_active: boolean
+          name: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          category?: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          duration_seconds?: number | null
+          file_path?: string | null
+          file_size_bytes?: number | null
+          file_url: string
+          id?: string
+          is_active?: boolean
+          name: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          duration_seconds?: number | null
+          file_path?: string | null
+          file_size_bytes?: number | null
+          file_url?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       rise_alarm_logs: {
         Row: {
           actual_wake_time: string | null
@@ -3372,6 +3420,33 @@ export type Database = {
           },
         ]
       }
+      rise_community_settings: {
+        Row: {
+          anonymous_mode: boolean
+          nearby_radius_km: number
+          show_alarm_label: boolean
+          show_in_community: boolean
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          anonymous_mode?: boolean
+          nearby_radius_km?: number
+          show_alarm_label?: boolean
+          show_in_community?: boolean
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          anonymous_mode?: boolean
+          nearby_radius_km?: number
+          show_alarm_label?: boolean
+          show_in_community?: boolean
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       rise_streaks: {
         Row: {
           created_at: string
@@ -3413,6 +3488,107 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      rise_wake_events: {
+        Row: {
+          alarm_id: string | null
+          alarm_label: string | null
+          city: string | null
+          country: string | null
+          country_code: string | null
+          created_at: string
+          district: string | null
+          first_in_thana: boolean
+          id: string
+          is_anonymous: boolean
+          is_hidden: boolean
+          lat: number | null
+          lng: number | null
+          location_mode: string
+          mission_type: string | null
+          report_count: number
+          status_emoji: string | null
+          status_text: string | null
+          user_id: string
+          woke_at: string
+        }
+        Insert: {
+          alarm_id?: string | null
+          alarm_label?: string | null
+          city?: string | null
+          country?: string | null
+          country_code?: string | null
+          created_at?: string
+          district?: string | null
+          first_in_thana?: boolean
+          id?: string
+          is_anonymous?: boolean
+          is_hidden?: boolean
+          lat?: number | null
+          lng?: number | null
+          location_mode?: string
+          mission_type?: string | null
+          report_count?: number
+          status_emoji?: string | null
+          status_text?: string | null
+          user_id: string
+          woke_at?: string
+        }
+        Update: {
+          alarm_id?: string | null
+          alarm_label?: string | null
+          city?: string | null
+          country?: string | null
+          country_code?: string | null
+          created_at?: string
+          district?: string | null
+          first_in_thana?: boolean
+          id?: string
+          is_anonymous?: boolean
+          is_hidden?: boolean
+          lat?: number | null
+          lng?: number | null
+          location_mode?: string
+          mission_type?: string | null
+          report_count?: number
+          status_emoji?: string | null
+          status_text?: string | null
+          user_id?: string
+          woke_at?: string
+        }
+        Relationships: []
+      }
+      rise_wake_reports: {
+        Row: {
+          created_at: string
+          event_id: string
+          id: string
+          reason: string | null
+          reporter_id: string
+        }
+        Insert: {
+          created_at?: string
+          event_id: string
+          id?: string
+          reason?: string | null
+          reporter_id: string
+        }
+        Update: {
+          created_at?: string
+          event_id?: string
+          id?: string
+          reason?: string | null
+          reporter_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rise_wake_reports_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "rise_wake_events"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       room_participants: {
         Row: {
@@ -4552,6 +4728,32 @@ export type Database = {
         Returns: boolean
       }
       generate_invoice_number: { Args: never; Returns: string }
+      get_nearby_wakers: {
+        Args: {
+          radius_km?: number
+          since_hours?: number
+          user_lat: number
+          user_lng: number
+        }
+        Returns: {
+          alarm_label: string
+          city: string
+          country: string
+          distance_km: number
+          district: string
+          first_in_thana: boolean
+          id: string
+          is_anonymous: boolean
+          lat: number
+          lng: number
+          location_mode: string
+          mission_type: string
+          status_emoji: string
+          status_text: string
+          user_id: string
+          woke_at: string
+        }[]
+      }
       get_user_role: {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["app_role"]

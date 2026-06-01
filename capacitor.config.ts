@@ -17,23 +17,23 @@ const config: CapacitorConfig = {
       enabled: false,
     },
     SplashScreen: {
-      launchShowDuration: 2000,
-      launchAutoHide: true,
-      launchFadeOutDuration: 500,
-      backgroundColor: '#0a0a0a',
+      // We hide the native splash manually after auth resolves, so the
+      // React splash can take over without a gap.
+      launchAutoHide: false,
+      backgroundColor: '#ffffff',
       androidSplashResourceName: 'splash',
       androidScaleType: 'CENTER_CROP',
       showSpinner: false,
       splashFullScreen: true,
-      splashImmersive: true
+      splashImmersive: true,
     },
     StatusBar: {
       style: 'DARK',
-      backgroundColor: '#0a0a0a'
+      backgroundColor: '#ffffff'
     },
     LocalNotifications: {
       smallIcon: 'ic_stat_icon',
-      iconColor: '#0ea5e9',
+      iconColor: '#1a80d4',
       sound: 'alarm_sound.wav'
     },
     PushNotifications: {
@@ -49,7 +49,7 @@ const config: CapacitorConfig = {
     allowMixedContent: true,
     captureInput: true,
     webContentsDebuggingEnabled: true,
-    backgroundColor: '#0a0a0a',
+    backgroundColor: '#ffffff',
     buildOptions: {
       keystorePath: undefined,
       keystoreAlias: undefined
@@ -57,7 +57,7 @@ const config: CapacitorConfig = {
   },
   ios: {
     contentInset: 'automatic',
-    backgroundColor: '#0a0a0a',
+    backgroundColor: '#ffffff',
     scheme: 'Life OS'
   }
 };

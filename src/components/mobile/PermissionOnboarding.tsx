@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { CheckCircle2, AlertCircle, Bell, AlarmClock, Eye, BatteryCharging, Activity } from 'lucide-react';
+import { CheckCircle2, AlertCircle, Bell, AlarmClock, Eye, BatteryCharging, Activity, ShieldCheck } from 'lucide-react';
 import { isAndroid, isNative } from '@/lib/capacitor/platform';
 import {
   checkNotificationPermission,
@@ -17,6 +17,8 @@ import {
   requestBatteryPermission,
   checkAccessibilityPermission,
   requestAccessibilityPermission,
+  checkDeviceAdminPermission,
+  requestDeviceAdminPermission,
   type PermissionStatus,
 } from '@/lib/capacitor/permissions';
 
@@ -89,6 +91,15 @@ export function PermissionOnboarding({ open, onClose, feature }: Props) {
           icon: Activity,
           status: await checkAccessibilityPermission(),
           request: requestAccessibilityPermission,
+        },
+        // 🟢 Device Admin — DNS lock + Adult Filter + uninstall prevention
+        {
+          key: 'deviceAdmin',
+          title: 'Device Admin',
+          description: 'Locks DNS filter for adult content blocking and prevents uninstall',
+          icon: ShieldCheck,
+          status: await checkDeviceAdminPermission(),
+          request: requestDeviceAdminPermission,
         },
       );
     }

@@ -76,10 +76,16 @@ export function useNativeNotifications() {
           }
         }));
       } else {
-        // Create default preferences
+        // Create default preferences (map camelCase → snake_case for DB)
         await supabase.from('notification_preferences').insert({
           user_id: user.id,
-          ...DEFAULT_PREFERENCES
+          daily_input_reminder: DEFAULT_PREFERENCES.dailyInputReminder,
+          prayer_reminders: DEFAULT_PREFERENCES.prayerReminders,
+          mentor_messages: DEFAULT_PREFERENCES.mentorMessages,
+          achievement_alerts: DEFAULT_PREFERENCES.achievementAlerts,
+          challenge_updates: DEFAULT_PREFERENCES.challengeUpdates,
+          habit_reminders: DEFAULT_PREFERENCES.habitReminders,
+          reminder_time: DEFAULT_PREFERENCES.reminderTime,
         });
         setState(prev => ({ ...prev, preferences: DEFAULT_PREFERENCES }));
       }

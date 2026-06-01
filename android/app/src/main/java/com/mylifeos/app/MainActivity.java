@@ -136,6 +136,7 @@ import com.mylifeos.app.plugins.PureShieldPlugin;
 import com.mylifeos.app.plugins.ShieldPlugin;
 import com.mylifeos.app.plugins.RiseAlarmPlugin;
 import com.mylifeos.app.plugins.BarcodeScannerPlugin;
+import com.mylifeos.app.plugins.NativeRingtonePickerPlugin;
 
 public class MainActivity extends BridgeActivity {
   private static MainActivity instance;
@@ -147,6 +148,7 @@ public class MainActivity extends BridgeActivity {
     try { registerPlugin(RiseAlarmPlugin.class); } catch (Throwable t) { Log.e("MainActivity", "RiseAlarmPlugin register failed", t); }
     try { registerPlugin(PureShieldPlugin.class); } catch (Throwable t) { Log.e("MainActivity", "PureShieldPlugin register failed", t); }
     try { registerPlugin(BarcodeScannerPlugin.class); } catch (Throwable t) { Log.e("MainActivity", "BarcodeScannerPlugin register failed", t); }
+    try { registerPlugin(NativeRingtonePickerPlugin.class); } catch (Throwable t) { Log.e("MainActivity", "NativeRingtonePickerPlugin register failed", t); }
     super.onCreate(savedInstanceState);
     instance = this;
     // 🔥 Handle first launch intent

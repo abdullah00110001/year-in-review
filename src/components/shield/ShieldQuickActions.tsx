@@ -92,8 +92,8 @@ export function ShieldQuickActions({
       onToggle: (val: boolean) => handleToggle(val, onReelsToggle),
       color: 'text-purple-500',
       bgColor: 'bg-purple-500/10'
-    },
-    { 
+    }
+/*     { 
       icon: ShieldAlert, 
       label: 'Adult Content Filter', 
       description: 'Block inappropriate sites via safe DNS',
@@ -101,7 +101,7 @@ export function ShieldQuickActions({
       onToggle: (val: boolean) => handleToggle(val, onAdultToggle),
       color: 'text-red-500',
       bgColor: 'bg-red-500/10'
-    }
+    } */
   ];
 
   return (

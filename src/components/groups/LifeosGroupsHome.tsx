@@ -12,7 +12,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Search, Plus, Users, Target, Sunrise, ShieldCheck, Globe } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { LifeosGroup, LifeosGroupType, useMyGroups, useCreateGroup, useDiscoverGroups, useJoinGroup } from '@/hooks/useLifeosGroups';
-import { GroupDetailV2 } from './v2/GroupDetailV2';
+import { GroupDetailUltra } from './v2/GroupDetailUltra';
 
 interface Props { defaultType?: LifeosGroupType; }
 
@@ -33,7 +33,7 @@ export function LifeosGroupsHome({ defaultType }: Props) {
   }, [myGroups, search]);
 
   if (openGroupId) {
-    return <GroupDetailV2 groupId={openGroupId} onBack={() => setOpenGroupId(null)} />;
+    return <GroupDetailUltra groupId={openGroupId} onBack={() => setOpenGroupId(null)} />;
   }
 
   return (

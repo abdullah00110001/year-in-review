@@ -2,7 +2,8 @@ import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
-import { Sparkles, Shield as ShieldIcon, Sunrise, Target } from 'lucide-react';
+import { Shield as ShieldIcon, Sunrise, Target } from 'lucide-react';
+import { LifeOSLogo } from '@/components/LifeOSLogo';
 
 export default function Welcome() {
   const navigate = useNavigate();
@@ -22,8 +23,8 @@ export default function Welcome() {
       </div>
 
       <div className="w-full max-w-md mx-auto flex flex-col items-center mt-8 animate-fade-in">
-        <div className="h-20 w-20 rounded-3xl bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-2xl mb-6">
-          <Sparkles className="h-10 w-10 text-primary-foreground" />
+        <div className="mb-6">
+          <LifeOSLogo size={120} />
         </div>
         <h1 className="text-4xl font-black tracking-tight text-center">Welcome to <span className="bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">Life OS</span></h1>
         <p className="mt-3 text-base text-muted-foreground text-center max-w-xs leading-relaxed">

@@ -143,7 +143,7 @@ export const endShieldSession = async (
           .from('shield_sessions')
           .update({
             status: 'completed',
-            ended_at: new Date().toISOString(),
+            actual_end_at: new Date().toISOString(),
             bypass_attempts: bypassAttemptCount
           })
           .eq('id', sessionId);

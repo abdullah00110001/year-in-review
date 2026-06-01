@@ -20,7 +20,9 @@ import {
   X,
   Inbox,
   Rocket,
-  Megaphone
+  Megaphone,
+  Music2,
+  Package,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -49,11 +51,18 @@ const adminNavCategories = [
     ]
   },
   {
+    title: 'Content & Audio',
+    items: [
+      { title: 'Ringtones', href: '/admin/ringtones', icon: Music2 },
+    ]
+  },
+  {
     title: 'System Controls',
     items: [
       { title: 'Control Center', href: '/admin/panel', icon: Settings },
       { title: 'Command Center', href: '/admin/command', icon: Zap },
       { title: 'App Updates', href: '/admin/panel?tab=updates', icon: Rocket },
+      { title: 'OTA Bundles', href: '/admin/bundles', icon: Package },
       { title: 'PDF Admin', href: '/admin/pdf-tools', icon: FileType },
     ]
   },

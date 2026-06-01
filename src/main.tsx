@@ -2,7 +2,6 @@ import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
 import "./index.css";
 import { Capacitor } from '@capacitor/core';
-import { SplashScreen } from '@capacitor/splash-screen';
 
 // Global error handlers to prevent app crashes
 window.addEventListener("unhandledrejection", (event) => {
@@ -15,32 +14,19 @@ window.addEventListener("error", (event) => {
   event.preventDefault();
 });
 
-window.addEventListener('DOMContentLoaded', () => {
-  if (!Capacitor.isNativePlatform()) return;
-
-  const webView = navigator.userAgent.includes('wv');
-  if (webView && 'serviceWorker' in navigator) {
-    navigator.serviceWorker.getRegistrations()
-      .then((registrations) => Promise.all(registrations.map((registration) => registration.unregister())))
-      .catch((err) => {
-        console.warn('[SW] Native cleanup failed:', err);
-      });
+// Cleanup any previously-registered service worker (PWA was removed).
+// This runs on both web and native to undo prior installs on existing devices.
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker
+    .getRegistrations()
+    .then((regs) => Promise.all(regs.map((r) => r.unregister())))
+    .catch(() => {});
+  if ('caches' in window) {
+    caches.keys().then((names) => names.forEach((n) => caches.delete(n))).catch(() => {});
   }
-});
-// Register service worker for push notifications (web only, not in Capacitor)
-if ('serviceWorker' in navigator && !Capacitor.isNativePlatform()) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').catch(err => {
-      console.warn('[SW] Registration failed:', err);
-    });
-  });
 }
+
+// Note: Native splash screen is hidden manually from App.tsx after auth resolves.
+void Capacitor; // keep import for tree-shake stability
 
 createRoot(document.getElementById("root")!).render(<App />);
-
-// Hide native splash once React has mounted (small delay so first paint is ready)
-if (Capacitor.isNativePlatform()) {
-  setTimeout(() => {
-    SplashScreen.hide().catch((err) => console.warn('[Splash] hide failed:', err));
-  }, 100);
-}

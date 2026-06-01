@@ -3,7 +3,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, useNavigate } from "react-router-dom";
-import { AuthProvider } from "@/hooks/useAuth";
+import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { LanguageProvider } from "@/contexts/LanguageContext";
 import { AppModeProvider } from "@/contexts/AppModeContext";
@@ -18,7 +18,10 @@ import { isNative } from "@/lib/capacitor/platform";
 import NativeSplash from "@/components/NativeSplash";
 import AnnouncementPopup from "@/components/AnnouncementPopup";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
+import { useLiveUpdate } from "@/hooks/useLiveUpdate";
 import { App as CapApp } from "@capacitor/app";
+import { SplashScreen as CapSplashScreen } from "@capacitor/splash-screen";
+import { toast } from "sonner";
 import { getRingingAlarmId } from "@/lib/capacitor/riseAlarmBridge";
 
 // Pages Import
@@ -69,6 +72,8 @@ import AdminNotifications from "./pages/admin/AdminNotifications";
 import AdminCommandCenter from "./pages/admin/AdminCommandCenter";
 import AdminPanel from "./pages/admin/AdminPanel";
 import AdminAnnouncements from "./pages/admin/AdminAnnouncements";
+import AdminRingtones from "./pages/admin/AdminRingtones";
+import AdminBundles from "./pages/admin/AdminBundles";
 import DownloadApp from "./pages/DownloadApp";
 import RiseRingScreen from "./pages/RiseRingScreen";
 import Welcome from "./pages/Welcome";
@@ -190,23 +195,49 @@ const AppContent = () => {
         <Route path="/admin/panel" element={<AdminProtectedRoute><AdminPanel /></AdminProtectedRoute>} />
         <Route path="/admin/command" element={<AdminProtectedRoute><AdminCommandCenter /></AdminProtectedRoute>} />
         <Route path="/admin/announcements" element={<AdminProtectedRoute><AdminAnnouncements /></AdminProtectedRoute>} />
+        <Route path="/admin/ringtones" element={<AdminProtectedRoute><AdminRingtones /></AdminProtectedRoute>} />
+        <Route path="/admin/bundles" element={<AdminProtectedRoute><AdminBundles /></AdminProtectedRoute>} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </>
   );
 };
 
-const App = () => {
-  const [splashDone, setSplashDone] = useState(!isNative);
-  
-  if (!splashDone) {
-    return (
-      <ThemeProvider>
-        <NativeSplash onComplete={() => setSplashDone(true)} />
-      </ThemeProvider>
-    );
+/**
+ * AppBoot — single gatekeeper that:
+ *   1. Keeps the native + React splash visible until auth resolves
+ *   2. Kicks off Capawesome OTA sync on native after auth
+ *   3. Renders nothing else until auth.loading === false (prevents FOUC)
+ */
+const AppBoot = () => {
+  const { loading: authLoading } = useAuth();
+  const [splashGone, setSplashGone] = useState(false);
+
+  // OTA sync — non-blocking, fires once after mount on native
+  useLiveUpdate({
+    onApplied: () => toast.success('App updated to latest version ✓'),
+  });
+
+  // When auth finishes loading, hide the native splash with a soft fade.
+  useEffect(() => {
+    if (authLoading) return;
+    if (isNative) {
+      CapSplashScreen.hide({ fadeOutDuration: 300 }).catch(() => {});
+    }
+  }, [authLoading]);
+
+  if (authLoading) {
+    return <NativeSplash waitFor={true} />;
   }
 
+  if (!splashGone) {
+    return <NativeSplash waitFor={false} onComplete={() => setSplashGone(true)} />;
+  }
+
+  return <AppContent />;
+};
+
+const App = () => {
   return (
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
@@ -217,7 +248,7 @@ const App = () => {
                 <AppModeProvider>
                   <TooltipProvider>
                     <BrowserRouter>
-                      <AppContent />
+                      <AppBoot />
                     </BrowserRouter>
                   </TooltipProvider>
                 </AppModeProvider>

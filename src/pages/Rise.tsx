@@ -70,6 +70,7 @@ export default function RisePage() {
   const [nextAlarm, setNextAlarm] = useState<{ time: string; countdown: string } | null>(null);
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingAlarm, setEditingAlarm] = useState<RiseAlarm | null>(null);
+  const [backFlash, setBackFlash] = useState(false);
 
   // � Permission State
   const [permissions, setPermissions] = useState<RisePermissionStatus>({
@@ -78,6 +79,29 @@ export default function RisePage() {
     overlay: true,
     battery: true,
   });
+
+  // Intercept Android hardware back button: do NOT navigate; flash header back button red.
+  useEffect(() => {
+    if (!isNative) return;
+    let cleanup: (() => void) | undefined;
+    let flashTimer: ReturnType<typeof setTimeout> | undefined;
+
+    const handlerPromise = App.addListener('backButton', () => {
+      setBackFlash(true);
+      if (flashTimer) clearTimeout(flashTimer);
+      flashTimer = setTimeout(() => setBackFlash(false), 600);
+      // Intentionally do not call App.exitApp() or history.back() — back is suppressed.
+    });
+
+    handlerPromise.then((h) => {
+      cleanup = () => h.remove();
+    });
+
+    return () => {
+      if (flashTimer) clearTimeout(flashTimer);
+      cleanup?.();
+    };
+  }, []);
 
   useEffect(() => {
     if (user) {
@@ -423,7 +447,7 @@ export default function RisePage() {
 
       {/* Main UI - Blurred/Disabled until setup is complete */}
       <div className={`transition-opacity duration-300 ${isBlockingUI ? 'opacity-20 pointer-events-none' : 'opacity-100'}`}>
-        <RiseHeader streak={streak?.current_streak || 0} />
+        <RiseHeader streak={streak?.current_streak || 0} backFlash={backFlash} />
 
         <div className="px-4 mt-4">
           {activeTab === 'alarms' && (
@@ -512,6 +536,7 @@ export default function RisePage() {
           initialData={
             editingAlarm
              ? {
+                  id: editingAlarm.id,
                   alarm_time: editingAlarm.alarm_time,
                   days_of_week: editingAlarm.days_of_week,
                   alarm_type: editingAlarm.alarm_type,

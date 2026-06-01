@@ -481,11 +481,31 @@ export function RiseAlarmEditor({
                     <Tag className="h-3 w-3" /> Label
                   </Label>
                   <Input
-                    placeholder="e.g., Wake up early"
+                    placeholder="কেন উঠছো? (optional)"
                     value={alarm.label}
-                    onChange={(e) => setAlarm((p) => ({ ...p, label: e.target.value }))}
+                    maxLength={50}
+                    onChange={(e) => setAlarm((p) => ({ ...p, label: e.target.value.slice(0, 50) }))}
                     className="bg-muted border-0 h-10"
                   />
+                  <div className="flex flex-wrap gap-1.5 mt-2">
+                    {[
+                      { label: 'Fajr 🤲', value: 'Fajr prayer 🤲' },
+                      { label: 'Gym 💪', value: 'আজ gym যাবো 💪' },
+                      { label: 'Study 📚', value: 'পরীক্ষা আছে 📚' },
+                      { label: 'Work 💼', value: 'Early work 💼' },
+                      { label: 'Walk 🌿', value: 'Morning walk 🌿' },
+                    ].map((s) => (
+                      <button
+                        key={s.label}
+                        type="button"
+                        onClick={() => setAlarm((p) => ({ ...p, label: s.value }))}
+                        className="text-[11px] px-2 py-1 rounded-full bg-muted hover:bg-primary/20 text-foreground/80 transition-colors"
+                      >
+                        {s.label}
+                      </button>
+                    ))}
+                  </div>
+
                 </div>
                 <div>
                   <Label className="text-xs uppercase tracking-wider text-muted-foreground mb-2 block">
@@ -581,10 +601,10 @@ export function RiseAlarmEditor({
       )}
 
       {showRingtonePicker && (
-        <RingtonePicker
-          selected={alarm.ringtone_url}
-          onSelect={(url, name) => {
-            setAlarm((p) => ({ ...p, ringtone_url: url, ringtone_name: name, sound_type: 'custom' }));
+        <RingtoneSheet
+          selectedId={alarm.ringtone_url ?? undefined}
+          onSelect={(uri, name) => {
+            setAlarm((p) => ({ ...p, ringtone_url: uri, ringtone_name: name, sound_type: 'custom' }));
             setShowRingtonePicker(false);
           }}
           onClose={() => setShowRingtonePicker(false)}
@@ -598,26 +618,28 @@ export function RiseAlarmEditor({
 
 const ITEM_H = 56;
 
-function ColScroll({
+function ColScroll<T extends string | number>({
   items,
   selected,
   onSelect,
-  format = (v: number) => String(v).padStart(2, '0'),
+  format = (v: T) => String(v).padStart(2, '0'),
 }: {
-  items: number[];
-  selected: number;
-  onSelect: (v: number) => void;
-  format?: (v: number) => string;
+  items: readonly T[];
+  selected: T;
+  onSelect: (v: T) => void;
+  format?: (v: T) => string;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const scrollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Only sync scrollTop on first mount (or if items array changes).
+  // Re-syncing on every `selected` change fights the user's touch/momentum scroll.
   useEffect(() => {
+    if (!ref.current) return;
     const idx = items.indexOf(selected);
-    if (ref.current && idx >= 0) {
-      ref.current.scrollTop = idx * ITEM_H;
-    }
-  }, [items, selected]);
+    if (idx >= 0) ref.current.scrollTop = idx * ITEM_H;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items]);
 
   const handleScroll = () => {
     if (!ref.current) return;
@@ -626,9 +648,12 @@ function ColScroll({
       if (!ref.current) return;
       const idx = Math.round(ref.current.scrollTop / ITEM_H);
       const clamped = Math.max(0, Math.min(idx, items.length - 1));
-      ref.current.scrollTop = clamped * ITEM_H;
-      onSelect(items[clamped]);
-    }, 100);
+      const target = clamped * ITEM_H;
+      if (Math.abs(ref.current.scrollTop - target) > 1) {
+        ref.current.scrollTop = target;
+      }
+      if (items[clamped] !== selected) onSelect(items[clamped]);
+    }, 120);
   };
 
   return (
@@ -784,25 +809,13 @@ function ScrollTimePicker({
             />
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginLeft: 16, zIndex: 1 }}>
-            {(['AM', 'PM'] as const).map((label) => {
-              const active = (label === 'AM') === isAM;
-              return (
-                <button
-                  key={label}
-                  type="button"
-                  onClick={() => setIsAM(label === 'AM')}
-                  className={cn(
-                    'rounded-lg text-xs font-bold transition-all px-4 py-2 border-0 cursor-pointer',
-                    active
-                      ? 'bg-primary text-primary-foreground'
-                      : 'bg-muted text-muted-foreground hover:bg-muted/80',
-                  )}
-                >
-                  {label}
-                </button>
-              );
-            })}
+          <div style={{ width: 64, marginLeft: 12, zIndex: 1 }}>
+            <ColScroll<string>
+              items={['AM', 'PM']}
+              selected={isAM ? 'AM' : 'PM'}
+              onSelect={(v) => setIsAM(v === 'AM')}
+              format={(v) => v}
+            />
           </div>
         </div>
 
@@ -820,100 +833,19 @@ function ScrollTimePicker({
   );
 }
 
-// ─── Ringtone Picker (Updated with Tabs & Local File Support) ───────────────
+// ─── Ringtone Sheet (wraps the dynamic Supabase-backed RingtonePicker) ──────
 
-const REMOTE_RINGTONES = [
-  {
-    id: 'hard1',
-    category: 'hard',
-    name: 'Nuclear Siren',
-    description: 'Extremely loud and annoying',
-    url: 'https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3',
-  },
-  {
-    id: 'hard2',
-    category: 'hard',
-    name: 'Digital Blast',
-    description: 'Harsh digital beep pattern',
-    url: 'https://assets.mixkit.co/active_storage/sfx/1361/1361-preview.mp3',
-  },
-  {
-    id: 'buzzer1',
-    category: 'buzzer',
-    name: 'Standard Buzzer',
-    description: 'Classic alarm clock buzzer',
-    url: 'https://assets.mixkit.co/active_storage/sfx/2309/2309-preview.mp3',
-  },
-  {
-    id: 'buzzer2',
-    category: 'buzzer',
-    name: 'School Bell',
-    description: 'Loud mechanical bell',
-    url: 'https://assets.mixkit.co/active_storage/sfx/2571/2571-preview.mp3',
-  },
-];
+import { RingtonePicker as DynamicRingtonePicker } from './RingtonePicker';
 
-type RingtoneTab = 'device' | 'hard' | 'buzzer';
-
-function RingtonePicker({
-  selected,
+function RingtoneSheet({
+  selectedId,
   onSelect,
   onClose,
 }: {
-  selected?: string | null;
-  onSelect: (url: string, name: string) => void;
+  selectedId?: string;
+  onSelect: (uri: string, name: string) => void;
   onClose: () => void;
 }) {
-  const [activeTab, setActiveTab] = useState<RingtoneTab>('device');
-  const [playing, setPlaying] = useState<string | null>(null);
-  
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const localAudioInputRef = useRef<HTMLInputElement>(null);
-
-  const stopAudio = () => {
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current.currentTime = 0;
-    }
-    setPlaying(null);
-  };
-
-  const togglePlay = (id: string, url: string) => {
-    if (playing === id) {
-      stopAudio();
-      return;
-    }
-    stopAudio();
-    const audio = new Audio(url);
-    audio.onended = () => setPlaying(null);
-    audio.play().catch(() => {});
-    audioRef.current = audio;
-    setPlaying(id);
-  };
-
-  const handleSelectRemote = (url: string, name: string) => {
-    stopAudio();
-    onSelect(url, name);
-  };
-
-  const handleLocalFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    
-    // Create a local blob URL. In production Capacitor app, you might want to 
-    // save this file to the app's filesystem directory for persistent access.
-    const url = URL.createObjectURL(file);
-    stopAudio();
-    onSelect(url, file.name);
-    // Reset input so the same file can be selected again if needed
-    e.target.value = '';
-  };
-
-  // Safe unmount
-  useEffect(() => () => stopAudio(), []);
-
-  const filteredRingtones = REMOTE_RINGTONES.filter(r => r.category === activeTab);
-
   return createPortal(
     <div
       style={{
@@ -925,12 +857,7 @@ function RingtonePicker({
         justifyContent: 'center',
         background: 'rgba(0,0,0,0.5)',
       }}
-      onClick={(e) => { 
-        if (e.target === e.currentTarget) { 
-          stopAudio(); 
-          onClose(); 
-        } 
-      }}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div
         className="bg-background text-foreground border-t border-border"
@@ -938,7 +865,7 @@ function RingtonePicker({
           width: '100%',
           maxWidth: 480,
           borderRadius: '24px 24px 0 0',
-          maxHeight: '85dvh',
+          height: '85dvh',
           display: 'flex',
           flexDirection: 'column',
           overflow: 'hidden',
@@ -946,159 +873,21 @@ function RingtonePicker({
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div style={{ display: 'flex', justifyContent: 'center', padding: '12px 0 4px' }}>
-          <div className="bg-border" style={{ width: 40, height: 4, borderRadius: 2 }} />
-        </div>
-
         <div className="flex items-center justify-between px-5 py-3 border-b border-border shrink-0">
           <div>
             <p className="font-bold text-base">Ringtones</p>
             <p className="text-xs text-muted-foreground">Select your wake-up sound</p>
           </div>
           <button
-            onClick={(e) => {
-              e.preventDefault();
-              stopAudio();
-              onClose();
-            }}
+            onClick={onClose}
             className="h-8 w-8 rounded-full bg-muted flex items-center justify-center hover:bg-muted/80 transition-colors"
+            aria-label="Close"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
-
-        {/* Custom Segmented Tabs */}
-        <div className="px-4 pt-4 pb-2 shrink-0">
-          <div className="flex p-1 bg-muted/60 rounded-xl gap-1">
-            <button
-              onClick={() => { stopAudio(); setActiveTab('device'); }}
-              className={cn(
-                "flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-xs font-semibold transition-all",
-                activeTab === 'device' ? "bg-background shadow text-foreground" : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              <Smartphone className="h-3.5 w-3.5" />
-              Device
-            </button>
-            <button
-              onClick={() => { stopAudio(); setActiveTab('hard'); }}
-              className={cn(
-                "flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-xs font-semibold transition-all",
-                activeTab === 'hard' ? "bg-background shadow text-foreground" : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              <Zap className="h-3.5 w-3.5" />
-              Hard
-            </button>
-            <button
-              onClick={() => { stopAudio(); setActiveTab('buzzer'); }}
-              className={cn(
-                "flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-xs font-semibold transition-all",
-                activeTab === 'buzzer' ? "bg-background shadow text-foreground" : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              <Bell className="h-3.5 w-3.5" />
-              Buzzer
-            </button>
-          </div>
-        </div>
-
-        <div style={{ overflowY: 'auto', flex: 1, padding: '8px 16px 24px' }}>
-          
-          {/* DEVICE TAB CONTENT */}
-          {activeTab === 'device' && (
-            <div className="flex flex-col items-center justify-center pt-8 pb-4 text-center space-y-4">
-              <div className="h-16 w-16 bg-primary/10 text-primary rounded-full flex items-center justify-center">
-                <FileAudio className="h-8 w-8" />
-              </div>
-              <div>
-                <p className="font-semibold text-base">Select from Device</p>
-                <p className="text-sm text-muted-foreground mt-1 max-w-[250px] mx-auto">
-                  Pick any local mp3 or audio file directly from your phone's storage.
-                </p>
-              </div>
-              
-              <Button 
-                onClick={() => localAudioInputRef.current?.click()}
-                className="mt-4 px-8 rounded-xl font-bold"
-              >
-                Open File Picker
-              </Button>
-
-              <input
-                ref={localAudioInputRef}
-                type="file"
-                accept="audio/*"
-                className="hidden"
-                onChange={handleLocalFileSelect}
-              />
-            </div>
-          )}
-
-          {/* REMOTE TABS (Hard / Buzzer) CONTENT */}
-          {(activeTab === 'hard' || activeTab === 'buzzer') && (
-            <div className="space-y-2 mt-2">
-              {filteredRingtones.map((r) => {
-                const isPlaying = playing === r.id;
-                const isSelected = selected === r.url;
-                return (
-                  <div
-                    key={r.id}
-                    className={cn(
-                      'flex items-center gap-3 p-3 rounded-xl border transition-all',
-                      isSelected
-                        ? 'border-primary bg-primary/10'
-                        : 'border-border bg-card hover:bg-muted/40',
-                    )}
-                  >
-                    <button
-                      onClick={() => togglePlay(r.id, r.url)}
-                      className={cn(
-                        'h-10 w-10 rounded-full flex items-center justify-center shrink-0 transition-all',
-                        isPlaying ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground',
-                      )}
-                    >
-                      {isPlaying
-                        ? <div className="flex gap-0.5 items-end h-4">
-                            <div className="w-1 bg-current rounded-full animate-bounce" style={{ height: 12, animationDelay: '0ms' }} />
-                            <div className="w-1 bg-current rounded-full animate-bounce" style={{ height: 16, animationDelay: '150ms' }} />
-                            <div className="w-1 bg-current rounded-full animate-bounce" style={{ height: 10, animationDelay: '300ms' }} />
-                          </div>
-                        : <Play className="h-4 w-4 ml-0.5" />
-                      }
-                    </button>
-
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold truncate">{r.name}</p>
-                      <p className="text-xs text-muted-foreground truncate">{r.description}</p>
-                    </div>
-
-                    {isSelected ? (
-                      <div className="flex items-center gap-1 text-primary text-xs font-bold shrink-0">
-                        <Check className="h-4 w-4" />
-                        Selected
-                      </div>
-                    ) : (
-                      <button
-                        onClick={() => handleSelectRemote(r.url, r.name)}
-                        className="flex items-center gap-1.5 bg-muted hover:bg-primary hover:text-primary-foreground text-muted-foreground text-xs font-semibold px-3 py-1.5 rounded-lg transition-all shrink-0"
-                      >
-                        <Download className="h-3.5 w-3.5" />
-                        Select
-                      </button>
-                    )}
-                  </div>
-                );
-              })}
-
-              {filteredRingtones.length === 0 && (
-                <p className="text-center text-sm text-muted-foreground py-8">
-                  No ringtones found in this category.
-                </p>
-              )}
-            </div>
-          )}
-
+        <div className="flex-1 min-h-0">
+          <DynamicRingtonePicker selectedId={selectedId} onSelect={(uri, rt) => onSelect(uri, rt.name)} />
         </div>
       </div>
     </div>,

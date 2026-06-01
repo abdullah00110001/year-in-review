@@ -3,6 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { isNative } from '@/lib/capacitor/platform';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { LifeOSLogo } from '@/components/LifeOSLogo';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
@@ -169,9 +170,7 @@ export default function MobileNav() {
             <div className="flex h-full flex-col">
               {/* Logo */}
               <div className="flex h-14 sm:h-16 items-center gap-2 border-b px-4 sm:px-6">
-                <div className="flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-xl bg-primary">
-                  <Target className="h-4 w-4 sm:h-5 sm:w-5 text-primary-foreground" />
-                </div>
+                <LifeOSLogo size={36} />
                 <div className="flex flex-col min-w-0">
                   <span className="text-base sm:text-lg font-semibold truncate">{t('app.name')}</span>
                   <span className="text-[9px] sm:text-[10px] text-muted-foreground -mt-0.5 truncate">{t('app.tagline')}</span>

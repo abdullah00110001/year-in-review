@@ -17,6 +17,7 @@ export interface PermissionState {
   overlay: PermissionStatus;
   battery: PermissionStatus;
   accessibility: PermissionStatus;
+  deviceAdmin: PermissionStatus; // 🟢 Added
 }
 
 const normalizePermission = (value?: string | null): PermissionStatus => {
@@ -209,6 +210,31 @@ export const requestAccessibilityPermission = async (): Promise<PermissionStatus
   }
 };
 
+// 🟢 Device Admin — DNS lock + uninstall prevention
+export const checkDeviceAdminPermission = async (): Promise<PermissionStatus> => {
+  if (!isAndroid) return 'granted';
+
+  try {
+    const { deviceAdmin } = await Shield.checkPermissions();
+    return deviceAdmin ? 'granted' : 'prompt';
+  } catch (error) {
+    console.error('[Permissions] Device Admin check failed', error);
+    return 'unknown';
+  }
+};
+
+export const requestDeviceAdminPermission = async (): Promise<PermissionStatus> => {
+  if (!isAndroid) return 'granted';
+
+  try {
+    await Shield.requestDeviceAdmin();
+    return 'prompt';
+  } catch (error) {
+    console.error('[Permissions] Device Admin request failed', error);
+    return 'denied';
+  }
+};
+
 export const openAppSettings = openNativeAppSettings;
 
 export const openUsageStatsSettings = async (): Promise<void> => {
@@ -222,16 +248,18 @@ export const openBatterySettings = async (): Promise<void> => {
 };
 
 export const getAllPermissions = async (): Promise<PermissionState> => {
-  const [notifications, exactAlarm, usageStats, overlay, battery, accessibility] = await Promise.all([
-    checkNotificationPermission(),
-    checkExactAlarmPermission(),
-    checkUsageStatsPermission(),
-    checkOverlayPermission(),
-    checkBatteryPermission(),
-    checkAccessibilityPermission(),
-  ]);
+  const [notifications, exactAlarm, usageStats, overlay, battery, accessibility, deviceAdmin] =
+    await Promise.all([
+      checkNotificationPermission(),
+      checkExactAlarmPermission(),
+      checkUsageStatsPermission(),
+      checkOverlayPermission(),
+      checkBatteryPermission(),
+      checkAccessibilityPermission(),
+      checkDeviceAdminPermission(), // 🟢 Added
+    ]);
 
-  return { notifications, exactAlarm, usageStats, overlay, battery, accessibility };
+  return { notifications, exactAlarm, usageStats, overlay, battery, accessibility, deviceAdmin };
 };
 
 export const hasRisePermissions = async (): Promise<boolean> => {
@@ -244,13 +272,19 @@ export const hasRisePermissions = async (): Promise<boolean> => {
 };
 
 export const hasShieldPermissions = async (): Promise<boolean> => {
-  const [usageStats, overlay, accessibility] = await Promise.all([
+  const [usageStats, overlay, accessibility, deviceAdmin] = await Promise.all([
     checkUsageStatsPermission(),
     checkOverlayPermission(),
     checkAccessibilityPermission(),
+    checkDeviceAdminPermission(), // 🟢 Added
   ]);
 
-  return usageStats === 'granted' && overlay === 'granted' && accessibility === 'granted';
+  return (
+    usageStats === 'granted' &&
+    overlay === 'granted' &&
+    accessibility === 'granted' &&
+    deviceAdmin === 'granted'
+  );
 };
 
 export const requestRisePermissions = async (): Promise<{
@@ -268,12 +302,14 @@ export const requestShieldPermissions = async (): Promise<{
   overlay: PermissionStatus;
   accessibility: PermissionStatus;
   battery: PermissionStatus;
+  deviceAdmin: PermissionStatus; // 🟢 Added
 }> => {
   const notifications = await requestNotificationPermission();
   const usageStats = await requestUsageStatsPermission();
   const overlay = await requestOverlayPermission();
   const accessibility = await requestAccessibilityPermission();
   const battery = await requestBatteryPermission();
+  const deviceAdmin = await requestDeviceAdminPermission(); // 🟢 Added
 
-  return { notifications, usageStats, overlay, accessibility, battery };
+  return { notifications, usageStats, overlay, accessibility, battery, deviceAdmin };
 };

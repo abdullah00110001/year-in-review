@@ -91,12 +91,11 @@ public class PureShieldService extends Service {
     private long lastFaceFrameAtMs = 0L;
     private List<RectF> lastBlurRegions = new ArrayList<>();
 
-    // ✅ FIX 1: Detection threshold কমানো হয়েছে — বেশি face detect হবে
-    // ছিল 0.40f → এখন 0.30f — thumbnail এবং ছোট face ও catch হবে
-    private static final float DETECT_THRESHOLD  = 0.30f;
+    // ✅ Detection tuning — high precision (fewer false positives)
+    private static final float DETECT_THRESHOLD  = 0.75f;
     private static final float NMS_IOU_THRESHOLD = 0.30f;
-    private static final float MIN_FACE_FRAC     = 0.015f; // ছিল 0.020f → আরো ছোট face detect হবে
-    private static final float MAX_FACE_FRAC     = 0.95f;
+    private static final float MIN_FACE_FRAC     = 0.05f;  // ≥5% of frame (~ real face, not logo)
+    private static final float MAX_FACE_FRAC     = 0.85f;
 
     // ─────────────────────────────────────────────────────────────────────────
     // Lifecycle
@@ -470,13 +469,20 @@ public class PureShieldService extends Service {
     private void captureAndProcess() {
         if (!isRunning.get() || isProcessing.get()) return;
 
+        // ✅ HARD GATE — only process when a target app is confirmed in foreground.
+        // No targets configured, OR signal stale (>5s), OR not our target → STOP
+        // and wipe any sticky overlays. Prevents blur appearing on home screen.
         boolean noTargets   = targetPackages.isEmpty();
         boolean noFgSignal  = currentForegroundPackage == null || currentForegroundPackage.isEmpty()
             || SystemClock.elapsedRealtime() - lastForegroundSignalAtMs > 5000;
         boolean isOurTarget = isTargetAppInForeground();
 
-        if (!noTargets && !noFgSignal && !isOurTarget) {
-            clearAllOverlays();
+        if (noTargets || noFgSignal || !isOurTarget) {
+            if (!lastBlurRegions.isEmpty() || !blurOverlays.isEmpty()) {
+                lastBlurRegions = new ArrayList<>();
+                missFrameCount = 0;
+                clearAllOverlays();
+            }
             return;
         }
 
@@ -554,8 +560,10 @@ public class PureShieldService extends Service {
         missFrameCount = 0;
         lastFaceFrameAtMs = System.currentTimeMillis();
 
-        // ✅ FIX 3: Multiple face support — সব face এর জন্য loop করো
-        List<RectF> rawBlur = new ArrayList<>();
+        // ✅ Multi-face: keep normalized box too, so we can crop the source bitmap
+        // and pass true pixels to each overlay for real blur (not painted oval).
+        List<RectF> rawBlur     = new ArrayList<>();
+        List<RectF> normalized  = new ArrayList<>();
         for (RectF face : faces) {
             GenderResult result = estimateGender(bitmap, face);
             boolean blur = shouldBlur(result);
@@ -568,6 +576,7 @@ public class PureShieldService extends Service {
             if (blur) {
                 RectF screenRect = scaleToScreenCoords(face, bitmap.getWidth(), bitmap.getHeight());
                 rawBlur.add(screenRect);
+                normalized.add(new RectF(face));
                 totalFacesBlurred.incrementAndGet();
             }
         }
@@ -577,14 +586,43 @@ public class PureShieldService extends Service {
         List<RectF> toBlur = smoothRegions(rawBlur);
         lastBlurRegions = toBlur;
 
-        lastDebugMessage = "Frame #" + totalFramesProcessed.get()
+        // ✅ Crop each face region from the captured bitmap BEFORE inference thread
+        // recycles it — these are what produces the real-pixel blur.
+        final List<Bitmap> crops = new ArrayList<>(toBlur.size());
+        int bw = bitmap.getWidth(), bh = bitmap.getHeight();
+        for (int i = 0; i < toBlur.size() && i < normalized.size(); i++) {
+            RectF n = normalized.get(i);
+            int cx = Math.max(0, Math.round(n.left   * bw));
+            int cy = Math.max(0, Math.round(n.top    * bh));
+            int cw = Math.min(bw - cx, Math.round((n.right  - n.left) * bw));
+            int ch = Math.min(bh - cy, Math.round((n.bottom - n.top ) * bh));
+            try {
+                crops.add((cw > 4 && ch > 4)
+                    ? Bitmap.createBitmap(bitmap, cx, cy, cw, ch)
+                    : null);
+            } catch (Throwable t) {
+                crops.add(null);
+            }
+        }
+
+        // ✅ Stats summary every 30 frames
+        int fc = totalFramesProcessed.get();
+        if (fc % 30 == 0) {
+            Log.i(TAG, "[STATS] frames=" + fc
+                + " detected=" + totalFacesDetected.get()
+                + " blurred=" + totalFacesBlurred.get()
+                + " inferMs=" + inferMs
+                + " app=" + currentForegroundPackage);
+        }
+
+        lastDebugMessage = "Frame #" + fc
             + " | Detected: " + faceCount
             + " | Blurred: " + toBlur.size()
             + " | Total: " + totalFacesBlurred.get();
 
         updateNotificationStats();
 
-        new Handler(Looper.getMainLooper()).post(() -> updateOverlays(toBlur));
+        new Handler(Looper.getMainLooper()).post(() -> updateOverlays(toBlur, crops));
     }
 
     private List<RectF> smoothRegions(List<RectF> incoming) {
@@ -636,18 +674,25 @@ public class PureShieldService extends Service {
             input[0][y][x][2] = ((p & 0xFF)          / 127.5f) - 1f;
         }
 
-        // BlazeFace multi-output
+        // ✅ Auto-detect which output is regressors vs classifiers based on tensor shape.
+        // BlazeFace standard: regressors=[1,896,16], classifiers=[1,896,1].
+        int regIdx = 0, clsIdx = 1;
+        int nOut = faceDetector.getOutputTensorCount();
+        for (int i = 0; i < nOut; i++) {
+            int[] os = faceDetector.getOutputTensor(i).shape();
+            if (os.length == 3 && os[2] == 16) regIdx = i;
+            else if (os.length == 3 && os[2] == 1) clsIdx = i;
+        }
+
         try {
             float[][][] regressors  = new float[1][896][16];
             float[][][] classifiers = new float[1][896][1];
             Map<Integer, Object> outputs = new HashMap<>();
-            outputs.put(0, regressors);
-            outputs.put(1, classifiers);
+            outputs.put(regIdx, regressors);
+            outputs.put(clsIdx, classifiers);
 
             faceDetector.runForMultipleInputsOutputs(new Object[]{input}, outputs);
-            List<RectF> faces = decodeBlazeFace(regressors, classifiers, inputW, inputH, DETECT_THRESHOLD);
-            Log.d(TAG, "✅ BlazeFace multi-output: " + faces.size() + " faces");
-            return faces;
+            return decodeBlazeFace(regressors, classifiers, inputW, inputH, DETECT_THRESHOLD);
         } catch (Throwable t) {
             Log.w(TAG, "⚠️ Multi-output failed: " + t.getMessage());
         }
@@ -666,15 +711,23 @@ public class PureShieldService extends Service {
 
     private List<RectF> decodeBlazeFace(float[][][] regressors, float[][][] classifiers,
                                          int inputW, int inputH, float threshold) {
-        List<RectF> boxes = new ArrayList<>();
+        List<RectF> boxes  = new ArrayList<>();
+        List<Float> scores = new ArrayList<>();
         float[] anchorX = PureShieldAnchors.X_CENTER;
         float[] anchorY = PureShieldAnchors.Y_CENTER;
         int count = Math.min(896, anchorX.length);
 
+        float maxScore = 0f;
+        int   above    = 0;
+
         for (int i = 0; i < count; i++) {
             float score = sigmoid(classifiers[0][i][0]);
+            if (score > maxScore) maxScore = score;
             if (score < threshold) continue;
+            above++;
 
+            // BlazeFace regressor: dx, dy, w, h are in INPUT-pixel space.
+            // Anchors are normalized [0,1]. Convert: cx = dx/inputW + anchorX.
             float cx = regressors[0][i][0] / inputW + anchorX[i];
             float cy = regressors[0][i][1] / inputH + anchorY[i];
             float w  = regressors[0][i][2] / inputW;
@@ -682,8 +735,9 @@ public class PureShieldService extends Service {
 
             if (w < MIN_FACE_FRAC || h < MIN_FACE_FRAC) continue;
             if (w > MAX_FACE_FRAC || h > MAX_FACE_FRAC) continue;
-            float ar = (h > 0) ? w/h : 1f;
-            if (ar < 0.35f || ar > 3.0f) continue;
+            // Real faces are roughly square (~0.7–1.4). Tight guard rejects banners/logos.
+            float ar = (h > 0) ? w / h : 1f;
+            if (ar < 0.55f || ar > 1.8f) continue;
 
             boxes.add(new RectF(
                 Math.max(0f, cx - w/2),
@@ -691,10 +745,32 @@ public class PureShieldService extends Service {
                 Math.min(1f, cx + w/2),
                 Math.min(1f, cy + h/2)
             ));
+            scores.add(score);
         }
 
-        Log.d(TAG, "👤 BlazeFace raw detections: " + boxes.size());
-        return nonMaxSuppression(boxes, NMS_IOU_THRESHOLD);
+        Log.d(TAG, "📊 BlazeFace maxScore=" + String.format("%.3f", maxScore)
+            + " above=" + above + " kept=" + boxes.size());
+
+        return nmsWithScores(boxes, scores, NMS_IOU_THRESHOLD);
+    }
+
+    /** ✅ Score-sorted NMS — highest-confidence box wins over biggest. */
+    private List<RectF> nmsWithScores(List<RectF> boxes, List<Float> scores, float iouThreshold) {
+        if (boxes.isEmpty()) return boxes;
+        Integer[] order = new Integer[boxes.size()];
+        for (int i = 0; i < order.length; i++) order[i] = i;
+        Arrays.sort(order, (a, b) -> Float.compare(scores.get(b), scores.get(a)));
+        boolean[] suppressed = new boolean[boxes.size()];
+        List<RectF> result = new ArrayList<>();
+        for (int idx : order) {
+            if (suppressed[idx]) continue;
+            result.add(boxes.get(idx));
+            for (int j : order) {
+                if (j == idx || suppressed[j]) continue;
+                if (iou(boxes.get(idx), boxes.get(j)) > iouThreshold) suppressed[j] = true;
+            }
+        }
+        return result;
     }
 
     private List<RectF> decodeSingleOutput(float[][][] output) {
@@ -709,7 +785,7 @@ public class PureShieldService extends Service {
                 Math.max(0f, cx - w/2), Math.max(0f, cy - h/2),
                 Math.min(1f, cx + w/2), Math.min(1f, cy + h/2)));
         }
-        return nonMaxSuppression(boxes, 0.3f);
+        return nonMaxSuppression(boxes, 0.5f);
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -717,12 +793,17 @@ public class PureShieldService extends Service {
     // ─────────────────────────────────────────────────────────────────────────
 
     private GenderResult estimateGender(Bitmap src, RectF faceBox) {
+        // BOTH mode: blur every face regardless — return matching probs.
         if (config.getBlurGender() == PureShieldConfig.BlurGender.BOTH) {
             return new GenderResult(0.9f, 0.9f);
         }
         if (genderClassifier != null) {
             return classifyGenderReal(src, faceBox);
         }
+        // ✅ No gender model loaded — fall back to "blur all faces" only when the
+        // user is OK with that. Right now: treat as match so FEMALE/MALE mode
+        // still blurs detected faces (better safe than missed). UI surfaces a
+        // "Gender model OFF" badge so user knows.
         return new GenderResult(0.9f, 0.9f);
     }
 
@@ -797,8 +878,11 @@ public class PureShieldService extends Service {
             boolean nan = Float.isNaN(femaleProbability) || Float.isNaN(maleProbability);
             boolean tooLow = (femaleProbability < 0.1f && maleProbability < 0.1f);
             if (nan || tooLow) {
-                Log.w(TAG, "⚠️ Gender output unreliable — treating as match");
-                return new GenderResult(0.9f, 0.9f);
+                // ✅ Unreliable → neutral 0.5/0.5. Anything below user threshold
+                // (default 0.40 female) will NOT trigger blur — prevents male
+                // faces being blurred just because gender model returned junk.
+                Log.w(TAG, "⚠️ Gender output unreliable — returning neutral");
+                return new GenderResult(0.5f, 0.5f);
             }
 
             Log.d(TAG, "👤 Gender: female=" + String.format("%.2f", femaleProbability)
@@ -806,7 +890,7 @@ public class PureShieldService extends Service {
             return new GenderResult(femaleProbability, maleProbability);
         } catch (Throwable t) {
             Log.w(TAG, "⚠️ Gender classification failed: " + t.getMessage());
-            return new GenderResult(0.9f, 0.9f);
+            return new GenderResult(0.5f, 0.5f);
         }
     }
 
@@ -843,19 +927,23 @@ public class PureShieldService extends Service {
     // Overlay — ✅ FIX 4: Multiple face overlay ঠিকমতো manage করা হচ্ছে
     // ─────────────────────────────────────────────────────────────────────────
 
-    private void updateOverlays(List<RectF> regions) {
-        // ✅ বেশি overlay থাকলে remove করো
+    private void updateOverlays(List<RectF> regions, List<Bitmap> crops) {
+        // remove excess
         while (blurOverlays.size() > regions.size()) {
             View v = blurOverlays.remove(blurOverlays.size() - 1);
             try { windowManager.removeView(v); } catch (Exception ignored) {}
         }
-        // ✅ কম overlay থাকলে নতুন যোগ করো
+        // add missing
         while (blurOverlays.size() < regions.size()) {
             blurOverlays.add(createBlurOverlayView());
         }
-        // ✅ সব face এর position update করো
+        // update positions + push real-pixel crop to each overlay
         for (int i = 0; i < regions.size(); i++) {
-            positionOverlay(blurOverlays.get(i), regions.get(i));
+            View v = blurOverlays.get(i);
+            positionOverlay(v, regions.get(i));
+            if (v instanceof PureShieldBlurView && crops != null && i < crops.size()) {
+                ((PureShieldBlurView) v).setSourceBitmap(crops.get(i));
+            }
         }
         Log.d(TAG, "🖼️ Overlay count: " + blurOverlays.size() + " for " + regions.size() + " faces");
     }
@@ -929,7 +1017,7 @@ public class PureShieldService extends Service {
         float w = right - left;
         float h = bottom - top;
         float padX = w * 0.08f;
-        float padY = h * 0.10f;
+        float padY = h * 0.0f;
 
         return new RectF(
             Math.max(0,            left   - padX),
@@ -1045,20 +1133,23 @@ public class PureShieldService extends Service {
         ByteBuffer buffer  = planes[0].getBuffer();
         int pixelStride    = planes[0].getPixelStride();
         int rowStride      = planes[0].getRowStride();
-        int rowPadding     = rowStride - pixelStride * imageReader.getWidth();
+        int captureW       = imageReader.getWidth();
+        int captureH       = imageReader.getHeight();
+        int rowPadding     = rowStride - pixelStride * captureW;
 
-        Bitmap bmp = Bitmap.createBitmap(
-            imageReader.getWidth() + rowPadding / pixelStride,
-            imageReader.getHeight(), Bitmap.Config.ARGB_8888);
-        bmp.copyPixelsFromBuffer(buffer);
+        Bitmap raw = Bitmap.createBitmap(
+            captureW + rowPadding / pixelStride,
+            captureH, Bitmap.Config.ARGB_8888);
+        raw.copyPixelsFromBuffer(buffer);
 
-        if (rowPadding > 0) {
-            Bitmap trimmed = Bitmap.createBitmap(bmp, 0, 0,
-                imageReader.getWidth(), imageReader.getHeight());
-            bmp.recycle();
+        // ✅ ALWAYS trim to exact capture size — downstream code assumes
+        // bitmap.getWidth() == captureW so coordinates line up with screen.
+        if (raw.getWidth() != captureW || raw.getHeight() != captureH) {
+            Bitmap trimmed = Bitmap.createBitmap(raw, 0, 0, captureW, captureH);
+            raw.recycle();
             return trimmed;
         }
-        return bmp;
+        return raw;
     }
 
     // ─────────────────────────────────────────────────────────────────────────

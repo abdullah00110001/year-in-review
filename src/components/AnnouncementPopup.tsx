@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/hooks/useAuth";
 
 interface Announcement {
   id: string;
@@ -12,6 +13,7 @@ interface Announcement {
   button_text: string | null;
   show_mode: string;
   max_views: number | null;
+  is_active: boolean;
 }
 
 const STORAGE_KEY = "announcement_views_v1";
@@ -29,9 +31,25 @@ function saveViews(v: Record<string, number>) {
 }
 
 export default function AnnouncementPopup() {
+  const { user } = useAuth();
   const [announcement, setAnnouncement] = useState<Announcement | null>(null);
 
+  const evaluateAndShow = useCallback((a: Announcement, opts: { forceShow?: boolean } = {}) => {
+    if (!a.is_active) return;
+    const views = getViews();
+    const seen = views[a.id] || 0;
+    if (!opts.forceShow) {
+      if (a.show_mode === "once" && seen >= 1) return;
+      if (a.show_mode === "limited" && a.max_views != null && seen >= a.max_views) return;
+    }
+    setAnnouncement(a);
+    views[a.id] = seen + 1;
+    saveViews(views);
+  }, []);
+
+  // Initial fetch — latest active announcement on app open
   useEffect(() => {
+    if (!user) return;
     let cancelled = false;
     (async () => {
       const { data, error } = await supabase
@@ -41,22 +59,44 @@ export default function AnnouncementPopup() {
         .order("created_at", { ascending: false })
         .limit(1);
       if (error || cancelled || !data || data.length === 0) return;
-      const a = data[0] as Announcement;
-      const views = getViews();
-      const seen = views[a.id] || 0;
-      if (a.show_mode === "once" && seen >= 1) return;
-      if (a.show_mode === "limited" && a.max_views != null && seen >= a.max_views) return;
-      // "always" => show every open
-      setAnnouncement(a);
-      views[a.id] = seen + 1;
-      saveViews(views);
+      evaluateAndShow(data[0] as Announcement);
     })();
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [evaluateAndShow, user]);
 
-  if (!announcement) return null;
+  // Live push — new/updated announcement → show immediately to logged-in users
+  useEffect(() => {
+    if (!user) return;
+    const channel = supabase
+      .channel("announcements-live")
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "announcements" },
+        (payload) => {
+          const a = payload.new as Announcement;
+          // Force-show fresh broadcasts even if same id was previously viewed (admin re-push)
+          evaluateAndShow(a, { forceShow: true });
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "announcements" },
+        (payload) => {
+          const a = payload.new as Announcement;
+          // If admin re-activates an announcement, show again
+          if (a.is_active) evaluateAndShow(a, { forceShow: true });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [evaluateAndShow, user]);
+
+  if (!user || !announcement) return null;
 
   const close = () => setAnnouncement(null);
 

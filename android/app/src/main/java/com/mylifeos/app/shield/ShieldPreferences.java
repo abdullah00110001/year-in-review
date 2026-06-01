@@ -37,13 +37,12 @@ public class ShieldPreferences {
         prefs.edit().putStringSet("blocked_apps", apps).apply();
     }
 
-    // 🟢 অ্যাড করা: Blocked Sites
-    public Set<String> getBlockedSites() { 
-        return prefs.getStringSet("blocked_sites", new HashSet<>()); 
+    public Set<String> getBlockedSites() {
+        return prefs.getStringSet("blocked_sites", new HashSet<>());
     }
 
-    public void setBlockedSites(Set<String> sites) { 
-        prefs.edit().putStringSet("blocked_sites", sites).apply(); 
+    public void setBlockedSites(Set<String> sites) {
+        prefs.edit().putStringSet("blocked_sites", sites).apply();
     }
 
     // ==========================================
@@ -82,6 +81,18 @@ public class ShieldPreferences {
 
     public void setBlockedKeywords(Set<String> keywords) {
         prefs.edit().putStringSet("blocked_keywords", keywords).apply();
+    }
+
+    // ==========================================
+    // 🔞 Adult Filter
+    // ✅ NEW: toggle support — default true (সবসময় on)
+    // ==========================================
+    public boolean isAdultFilterEnabled() {
+        return prefs.getBoolean("adult_filter_enabled", true);
+    }
+
+    public void setAdultFilterEnabled(boolean enabled) {
+        prefs.edit().putBoolean("adult_filter_enabled", enabled).apply();
     }
 
     // ==========================================
@@ -172,7 +183,6 @@ public class ShieldPreferences {
     // ==========================================
     // 📊 Usage History (Daily Stats)
     // ==========================================
-    
     public void saveDailyHistory(String date, long totalMinutes) {
         try {
             String historyJson = prefs.getString("usage_history", "{}");
@@ -195,15 +205,16 @@ public class ShieldPreferences {
     public void setTodayTotalMinutes(long minutes) {
         prefs.edit().putLong("today_minutes", minutes).apply();
     }
-    
-    // Notifications Settings
+
+    // ==========================================
+    // 🔔 Notification Settings
+    // ==========================================
     public boolean isVibrationEnabled() { return prefs.getBoolean("vibrate_alerts", true); }
     public void setVibrationEnabled(boolean v) { prefs.edit().putBoolean("vibrate_alerts", v).apply(); }
 
     public boolean isSoundEnabled() { return prefs.getBoolean("sound_alerts", false); }
     public void setSoundEnabled(boolean s) { prefs.edit().putBoolean("sound_alerts", s).apply(); }
 
-    // Timer Settings
     public boolean isLowTimeAlertEnabled() { return prefs.getBoolean("low_time_alert", true); }
     public void setLowTimeAlert(boolean a) { prefs.edit().putBoolean("low_time_alert", a).apply(); }
 
@@ -224,9 +235,11 @@ public class ShieldPreferences {
         prefs.edit().putString("last_reset_date", date).apply();
     }
 
-    // 🟢 অ্যাড করা: Blocked Attempts Counter
-    public int getBlockedAttemptsToday() { 
-        return prefs.getInt("blocked_attempts_" + getLastResetDate(), 0); 
+    // ==========================================
+    // 📊 Block Attempts Counter
+    // ==========================================
+    public int getBlockedAttemptsToday() {
+        return prefs.getInt("blocked_attempts_" + getLastResetDate(), 0);
     }
 
     public void incrementBlockedAttempts() {
@@ -253,4 +266,24 @@ public class ShieldPreferences {
     public int getTimerX() { return prefs.getInt("timer_x", 0); }
     public int getTimerY() { return prefs.getInt("timer_y", 100); }
     public void setTimerPosition(int x, int y) { prefs.edit().putInt("timer_x", x).putInt("timer_y", y).apply(); }
+    // 🎨 Adult Filter — Block Screen Style
+public String getAdultBlockScreenStyle() {
+    return prefs.getString("adult_block_style", "focus");
+}
+public void setAdultBlockScreenStyle(String style) {
+    prefs.edit().putString("adult_block_style", style).apply();
+}
+
+public String getAdultBlockCustomMessage() {
+    return prefs.getString("adult_block_custom_msg", "");
+}
+public void setAdultBlockCustomMessage(String message) {
+    prefs.edit().putString("adult_block_custom_msg", message).apply();
+}
+
+// 🗑️ Clear History
+public void clearHistory() {
+    prefs.edit().remove("usage_history").apply();
+    prefs.edit().putLong("today_minutes", 0).apply();
+}
 }

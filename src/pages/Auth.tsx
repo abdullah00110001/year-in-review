@@ -10,6 +10,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
 import { Target, Loader2 } from 'lucide-react';
+import { LifeOSLogo } from '@/components/LifeOSLogo';
 import { toast } from 'sonner';
 import { z } from 'zod';
 
@@ -231,8 +232,8 @@ export default function Auth() {
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-background via-muted/30 to-background p-4 sm:p-6">
       <div className="w-full max-w-md">
         <div className="mb-6 sm:mb-8 text-center">
-          <div className="mx-auto mb-3 sm:mb-4 flex h-14 w-14 sm:h-16 sm:w-16 items-center justify-center rounded-2xl bg-primary">
-            <Target className="h-7 w-7 sm:h-8 sm:w-8 text-primary-foreground" />
+          <div className="mx-auto mb-3 sm:mb-4 flex items-center justify-center">
+            <LifeOSLogo size={88} />
           </div>
           <h1 className="text-title">Life OS</h1>
           <p className="mt-1.5 sm:mt-2 text-body text-muted-foreground px-4">

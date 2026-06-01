@@ -27,7 +27,6 @@ import {
   requestEmergencyBypass
 } from '@/lib/capacitor/nativeShield';
 
-// 🟢 Beautiful Icons Import
 import {
   ShieldCheck,
   BarChart3,
@@ -87,6 +86,18 @@ interface PermissionStatus {
   battery: boolean;
 }
 
+// ✅ Helper — Android Shield plugin call
+const callShieldNative = async (key: string, value: boolean) => {
+  try {
+    const Shield = (window as any)?.Capacitor?.Plugins?.Shield;
+    if (Shield) {
+      await Shield.updateHardcoreSettings({ key, value });
+    }
+  } catch (e) {
+    console.error(`Shield native call failed [${key}]`, e);
+  }
+};
+
 export default function ShieldPage() {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -118,21 +129,24 @@ export default function ShieldPage() {
 
   const [selectedBlockScreen, setSelectedBlockScreen] = useState('default');
 
-  // Logic to calculate these based on actual local data
   const newApps: string[] = (() => { try { return JSON.parse(localStorage.getItem('shield_blocked_apps_v2') || '[]'); } catch { return []; } })();
   const newSites: any[] = (() => { try { return JSON.parse(localStorage.getItem('shield_blocked_sites_v2') || '[]'); } catch { return []; } })();
   const newKeywords: string[] = (() => { try { return JSON.parse(localStorage.getItem('shield_blocked_keywords_v2') || '[]'); } catch { return []; } })();
-  
+
   const allBlockedApps = [...new Set([...profiles.flatMap(p => p.blocked_apps), ...newApps])];
   const allBlockedWebsites = [...new Set([...profiles.flatMap(p => p.blocked_websites), ...newSites.filter(s => s.active).map(s => s.url)])];
   const allBlockedKeywords = [...new Set([...profiles.flatMap(p => p.blocked_keywords), ...newKeywords])];
-  
+
   const reelsBlockEnabled = profiles.some(p => p.block_infinite_content);
   const adultBlockEnabled = profiles.some(p => p.block_adult_content);
 
-  // Standalone toggles (work even if no profile exists yet)
-  const [reelsToggle, setReelsToggle] = useState<boolean>(() => localStorage.getItem('shield_reels_block') === '1');
-  const [adultToggle, setAdultToggle] = useState<boolean>(() => localStorage.getItem('shield_adult_block') === '1');
+  // ✅ Standalone toggles — localStorage থেকে initial state
+  const [reelsToggle, setReelsToggle] = useState<boolean>(
+    () => localStorage.getItem('shield_reels_block') === '1'
+  );
+  const [adultToggle, setAdultToggle] = useState<boolean>(
+    () => localStorage.getItem('shield_adult_block') === '1'
+  );
 
   useEffect(() => {
     loadShieldDataLocal();
@@ -141,11 +155,8 @@ export default function ShieldPage() {
     if (isNative) {
       verifyPermissions();
 
-      // 🟢 FIX 2: App State Listener (পারমিশন দিয়ে ফিরে এলে অটোমেটিক আপডেট হবে)
       const listener = App.addListener('appStateChange', ({ isActive }) => {
-        if (isActive) {
-          verifyPermissions();
-        }
+        if (isActive) verifyPermissions();
       });
 
       return () => {
@@ -168,7 +179,6 @@ export default function ShieldPage() {
     }
   };
 
-  // 🟢 FIX 1: OFFLINE Load (ডামি প্রোফাইল রিমুভ করা হয়েছে)
   const loadShieldDataLocal = () => {
     setIsLoading(true);
     try {
@@ -176,7 +186,6 @@ export default function ShieldPage() {
       if (storedProfiles) {
         setProfiles(JSON.parse(storedProfiles));
       } else {
-        // ডামি ডেটার বদলে একদম ফাঁকা লিস্ট সেট করা হলো
         setProfiles([]);
         saveLocalData('shield_profiles', []);
       }
@@ -185,7 +194,13 @@ export default function ShieldPage() {
       if (storedScore) {
         setDisciplineScore(JSON.parse(storedScore));
       } else {
-        setDisciplineScore({ current_score: 0, current_streak_days: 0, total_focus_minutes: 0, total_time_saved_minutes: 0, can_use_absolute_mode: false });
+        setDisciplineScore({
+          current_score: 0,
+          current_streak_days: 0,
+          total_focus_minutes: 0,
+          total_time_saved_minutes: 0,
+          can_use_absolute_mode: false
+        });
       }
 
       const storedSession = localStorage.getItem('shield_active_session');
@@ -256,13 +271,13 @@ export default function ShieldPage() {
       }, user?.id || 'local_user');
     }
 
-    const updatedProfiles = profiles.map(p => p.id === profile.id ? { ...p, is_active: true } : p);
+    const updatedProfiles = profiles.map(p =>
+      p.id === profile.id ? { ...p, is_active: true } : p
+    );
     setProfiles(updatedProfiles);
     saveLocalData('shield_profiles', updatedProfiles);
-
     setActiveSession(newSession);
     saveLocalData('shield_active_session', newSession);
-
     toast.success(`${profile.name} activated! Stay focused 🛡️`);
   };
 
@@ -292,7 +307,6 @@ export default function ShieldPage() {
       const updatedProfiles = profiles.map(p => ({ ...p, is_active: false }));
       setProfiles(updatedProfiles);
       saveLocalData('shield_profiles', updatedProfiles);
-
       toast.success('Session ended');
     } catch (error) {
       console.error('Error ending session:', error);
@@ -315,18 +329,34 @@ export default function ShieldPage() {
     localStorage.setItem('shield_block_screen', screen);
   };
 
+  // ✅ FIX: Reels toggle — Android এ signal পাঠায়
   const handleReelsToggle = async (enabled: boolean) => {
     setReelsToggle(enabled);
     localStorage.setItem('shield_reels_block', enabled ? '1' : '0');
-    const updatedProfiles = profiles.map(p => ({ ...p, block_infinite_content: enabled }));
+
+    if (isNative) {
+      await callShieldNative('blockReels', enabled);
+    }
+
+    const updatedProfiles = profiles.map(p => ({
+      ...p, block_infinite_content: enabled
+    }));
     setProfiles(updatedProfiles);
     saveLocalData('shield_profiles', updatedProfiles);
   };
 
+  // ✅ FIX: Adult toggle — Android এ signal পাঠায়
   const handleAdultToggle = async (enabled: boolean) => {
     setAdultToggle(enabled);
     localStorage.setItem('shield_adult_block', enabled ? '1' : '0');
-    const updatedProfiles = profiles.map(p => ({ ...p, block_adult_content: enabled }));
+
+    if (isNative) {
+      await callShieldNative('blockAdult', enabled);
+    }
+
+    const updatedProfiles = profiles.map(p => ({
+      ...p, block_adult_content: enabled
+    }));
     setProfiles(updatedProfiles);
     saveLocalData('shield_profiles', updatedProfiles);
   };
@@ -408,11 +438,7 @@ export default function ShieldPage() {
   const activePermission = getActivePermissionRequest();
   const isBlockingUI = activePermission !== null;
 
-  if (subPage === 'block-screen') {
-    return (
-      <ShieldBlockScreen onBack={() => setSubPage('main')} />
-    );
-  }
+  if (subPage === 'block-screen') return <ShieldBlockScreen onBack={() => setSubPage('main')} />;
   if (subPage === 'block-apps') return <BlockAppsPage onBack={() => setSubPage('main')} />;
   if (subPage === 'block-sites') return <BlockSitesPage onBack={() => setSubPage('main')} />;
   if (subPage === 'block-keywords') return <BlockKeywordsPage onBack={() => setSubPage('main')} />;

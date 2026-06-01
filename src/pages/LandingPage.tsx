@@ -29,6 +29,14 @@ export default function LandingPage() {
     }
   }, [user, loading, navigate]);
 
+  // Prevent landing-page flash:
+  // - On native: never render landing UI; we always redirect.
+  // - On web: while auth is loading, render nothing (avoid flashing landing then redirecting).
+  // - On web: if a user is already logged in, we're redirecting to /dashboard — render nothing.
+  if (isNative) return null;
+  if (loading) return null;
+  if (user) return null;
+
   const features = [
     { icon: Target, title: 'Set Yearly Goals', description: 'Define ambitious goals for the year and break them into actionable habits.', gradient: 'from-primary/20 to-accent/20' },
     { icon: CheckCircle2, title: 'Track Daily Progress', description: 'Check off habits each day and build momentum with streaks.', gradient: 'from-accent/20 to-primary/20' },

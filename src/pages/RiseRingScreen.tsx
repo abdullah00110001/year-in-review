@@ -188,7 +188,9 @@ export default function RiseRingScreen() {
         const result = await recordWakeEvent({
           userId: user.id,
           missionType: alarm?.verification_type,
+          alarmLabel: alarm?.label,
         });
+
         if (result && !result.hasSeenPrompt) {
           setShowPrivacySheet(true);
           return;

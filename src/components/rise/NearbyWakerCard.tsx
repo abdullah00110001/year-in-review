@@ -1,14 +1,23 @@
+import { useState } from 'react';
 import { formatDistanceToNow } from 'date-fns';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
-import { MapPin } from 'lucide-react';
+import { MapPin, MoreVertical, Flag, Star } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
+import { toast } from '@/hooks/use-toast';
 import type { WakerProfile } from '@/hooks/useNearbyWakers';
 
 interface Props {
   waker: WakerProfile;
   showDistance?: boolean;
   isCurrentUser?: boolean;
+  showAlarmLabel?: boolean;
 }
 
 function ringStyle(woke_at: string, hasStatus: boolean) {
@@ -26,7 +35,9 @@ function ringStyle(woke_at: string, hasStatus: boolean) {
   };
 }
 
-export function NearbyWakerCard({ waker, showDistance, isCurrentUser }: Props) {
+export function NearbyWakerCard({ waker, showDistance, isCurrentUser, showAlarmLabel = true }: Props) {
+  const { user } = useAuth();
+  const [reported, setReported] = useState(false);
   const hasStatus = !!waker.status_text;
   const { ring, glow, dot } = ringStyle(waker.woke_at, hasStatus);
   const ageMin = (Date.now() - new Date(waker.woke_at).getTime()) / 60000;
@@ -39,12 +50,24 @@ export function NearbyWakerCard({ waker, showDistance, isCurrentUser }: Props) {
       ? `${waker.city || ''} • ${waker.distance_km} km`
       : waker.city || waker.country || '—';
 
+  const handleReport = async () => {
+    if (!user || reported) return;
+    const { error } = await supabase
+      .from('rise_wake_reports' as any)
+      .insert({ event_id: waker.id, reporter_id: user.id, reason: 'inappropriate' });
+    if (!error) {
+      setReported(true);
+      toast({ title: 'Reported', description: 'Thanks. Reviewers will look at this.' });
+    }
+  };
+
   return (
     <div
       className={cn(
         'flex items-start gap-3 p-3 rounded-xl bg-[#111118] border border-white/[0.06] transition-all',
         'animate-in fade-in slide-in-from-bottom-2',
-        isCurrentUser && 'border-[#6C63FF]/40 bg-[#6C63FF]/5'
+        isCurrentUser && 'border-[#6C63FF]/40 bg-[#6C63FF]/5',
+        waker.first_in_thana && 'ring-1 ring-[#FFD740]/40',
       )}
     >
       <div className={cn('relative')}>
@@ -60,6 +83,14 @@ export function NearbyWakerCard({ waker, showDistance, isCurrentUser }: Props) {
           </Avatar>
         )}
         <span className={cn('absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-[#111118]', dot)} />
+        {waker.first_in_thana && (
+          <span
+            title="Thana এ আজ প্রথম"
+            className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-[#FFD740] text-black flex items-center justify-center shadow-[0_0_10px_rgba(255,215,64,0.6)]"
+          >
+            <Star className="h-3 w-3 fill-current" />
+          </span>
+        )}
       </div>
 
       <div className="flex-1 min-w-0">
@@ -72,12 +103,36 @@ export function NearbyWakerCard({ waker, showDistance, isCurrentUser }: Props) {
               <Badge className="h-4 px-1.5 text-[9px] bg-[#00E676] text-black hover:bg-[#00E676]">NEW</Badge>
             )}
           </div>
-          <span className="text-xs text-white/40 shrink-0">{time}</span>
+          <div className="flex items-center gap-1 shrink-0">
+            <span className="text-xs text-white/40">{time}</span>
+            {!isCurrentUser && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-6 w-6 text-white/40 hover:text-white">
+                    <MoreVertical className="h-3.5 w-3.5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="bg-[#111118] border-white/10 text-white">
+                  <DropdownMenuItem
+                    onClick={handleReport}
+                    disabled={reported}
+                    className="text-[#FF5252] focus:text-[#FF5252] focus:bg-[#FF5252]/10"
+                  >
+                    <Flag className="h-3.5 w-3.5 mr-2" />
+                    {reported ? 'Reported' : 'Report'}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+          </div>
         </div>
         <div className="flex items-center gap-1 text-xs text-white/50 mt-0.5">
           <MapPin className="h-3 w-3" />
           <span className="truncate">{locLine}</span>
         </div>
+        {showAlarmLabel && waker.alarm_label && (
+          <div className="mt-1 text-xs text-[#6C63FF] truncate">"{waker.alarm_label}"</div>
+        )}
         {hasStatus && (
           <div className="mt-1.5 flex items-center gap-2">
             {waker.status_emoji && <span className="text-lg leading-none">{waker.status_emoji}</span>}

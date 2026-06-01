@@ -2,32 +2,40 @@ import { Sunrise, Flame, ArrowLeft, Bell } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
+import { cn } from '@/lib/utils';
 
 interface RiseHeaderProps {
   streak: number;
+  /** When true, the back button briefly flashes red — used for hardware back interception feedback. */
+  backFlash?: boolean;
 }
 
 /**
  * RiseHeader — visually mirrors ShieldHeader for cross-feature consistency.
- * Same layout, same paddings, same control sizes; only the accent color
- * (amber/orange) and labels differ to keep each feature recognisable.
+ * The back button supports a transient `backFlash` state used by the Android
+ * hardware-back interceptor in <Rise /> to give the user visual feedback that
+ * back navigation was deliberately blocked.
  */
-export function RiseHeader({ streak }: RiseHeaderProps) {
+export function RiseHeader({ streak, backFlash = false }: RiseHeaderProps) {
   const navigate = useNavigate();
 
   return (
     <div className="bg-background border-b border-border px-4 py-3">
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-3 min-w-0">
-          <Button
-            variant="ghost"
-            size="icon"
+          <button
+            type="button"
             onClick={() => navigate('/')}
-            className="h-9 w-9 rounded-xl shrink-0"
             aria-label="Back"
+            className={cn(
+              'flex h-9 w-9 items-center justify-center rounded-xl shrink-0 transition-all duration-200',
+              backFlash
+                ? 'text-red-500 bg-red-500/20 scale-110 shadow-[0_0_12px_rgba(239,68,68,0.6)]'
+                : 'text-foreground/70 hover:text-foreground hover:bg-accent'
+            )}
           >
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
+            <ArrowLeft className="h-5 w-5" />
+          </button>
           <div className="h-10 w-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
             <Sunrise className="h-5 w-5" />
           </div>

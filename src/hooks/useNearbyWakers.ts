@@ -13,6 +13,8 @@ export interface WakerProfile {
   woke_at: string;
   status_text: string | null;
   status_emoji: string | null;
+  alarm_label: string | null;
+  first_in_thana: boolean;
   city: string | null;
   country: string | null;
   distance_km: number | null;
@@ -23,6 +25,7 @@ export interface WakerProfile {
   lng?: number | null;
 }
 
+
 export interface WakeEvent extends WakerProfile {}
 
 const NEARBY_RADIUS_KM = 5;
@@ -30,6 +33,15 @@ const NEARBY_RADIUS_KM = 5;
 function offsetCoord(v: number, meters = 500) {
   const deg = meters / 111_000;
   return v + (Math.random() * 2 - 1) * deg;
+}
+
+function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number) {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(a));
 }
 
 export function useNearbyWakers() {
@@ -41,6 +53,7 @@ export function useNearbyWakers() {
   const [filterMode, setFilterMode] = useState<FilterMode>('global');
   const [isLoading, setIsLoading] = useState(false);
   const [userLocation, setUserLocation] = useState<ResolvedLocation | null>(null);
+  const [stats, setStats] = useState<{ global: number; city: number; nearby: number }>({ global: 0, city: 0, nearby: 0 });
   const profileCache = useRef<Map<string, { full_name: string | null; avatar_url: string | null }>>(new Map());
 
   const todayStartIso = useMemo(() => {
@@ -54,6 +67,7 @@ export function useNearbyWakers() {
       (data || []).forEach((p: any) => profileCache.current.set(p.user_id, { full_name: p.full_name, avatar_url: p.avatar_url }));
     }
     return rows.map((r): WakerProfile => {
+
       const p = profileCache.current.get(r.user_id);
       const showName = !r.is_anonymous;
       return {
@@ -64,6 +78,8 @@ export function useNearbyWakers() {
         woke_at: r.woke_at,
         status_text: r.status_text,
         status_emoji: r.status_emoji,
+        alarm_label: r.alarm_label ?? null,
+        first_in_thana: !!r.first_in_thana,
         city: r.city,
         country: r.country,
         distance_km: r.distance_km ?? null,
@@ -213,12 +229,36 @@ export function useNearbyWakers() {
     await refreshFeed();
   }, [myEvent, refreshFeed]);
 
-  const totalToday = wakers.length;
-  const cityCount = useMemo(() => {
-    if (!userLocation?.city) return 0;
-    return wakers.filter(w => w.city === userLocation.city).length;
-  }, [wakers, userLocation]);
-  const nearbyCount = useMemo(() => wakers.filter(w => w.distance_km != null && w.distance_km <= NEARBY_RADIUS_KM).length, [wakers]);
+  // Independent stats fetch (counts must reflect ALL today's events, not the current tab)
+  const refreshStats = useCallback(async () => {
+    const loc = userLocation;
+    const { data } = await supabase
+      .from('rise_wake_events' as any)
+      .select('user_id, city, lat, lng, location_mode, is_anonymous, woke_at')
+      .neq('location_mode', 'private')
+      .gte('woke_at', todayStartIso)
+      .limit(2000);
+    const rows = (data as any[]) || [];
+    const global = rows.length;
+    const city = loc?.city ? rows.filter(r => r.city === loc.city).length : 0;
+    const nearby = (loc?.lat != null && loc?.lng != null)
+      ? rows.filter(r => r.lat != null && r.lng != null &&
+          haversineKm(loc.lat!, loc.lng!, r.lat, r.lng) <= NEARBY_RADIUS_KM).length
+      : 0;
+    setStats({ global, city, nearby });
+  }, [userLocation, todayStartIso]);
+
+  useEffect(() => { void refreshStats(); }, [refreshStats]);
+
+  // Silent 60s refresh for counts only
+  useEffect(() => {
+    const id = setInterval(() => { void refreshStats(); }, 60_000);
+    return () => clearInterval(id);
+  }, [refreshStats]);
+
+  const totalToday = stats.global;
+  const cityCount = stats.city;
+  const nearbyCount = stats.nearby;
 
   return {
     wakers, myEvent, filterMode, isLoading, totalToday, cityCount, nearbyCount, userLocation,

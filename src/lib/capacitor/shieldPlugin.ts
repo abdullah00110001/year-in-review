@@ -31,31 +31,33 @@ export interface ShieldPluginInterface {
 
   // ৪. স্ট্যাটাস ও অ্যানালিটিক্স
   getStats(options: { packageName: string }): Promise<{ blockCount: number; timeSaved: number }>;
-  getScreenTimeStats(): Promise<{ 
-    totalMinutes: number; 
-    totalLaunches: number; 
-    apps: Array<{ 
-      packageName: string; 
-      appName: string; 
-      usageMinutes: number; 
-      launchCount: number; 
-      lastUsed: number; 
-    }>; 
-    error?: string; 
+  getScreenTimeStats(): Promise<{
+    totalMinutes: number;
+    totalLaunches: number;
+    apps: Array<{
+      packageName: string;
+      appName: string;
+      usageMinutes: number;
+      launchCount: number;
+      lastUsed: number;
+    }>;
+    error?: string;
   }>;
 
   // ৫. পারমিশন হ্যান্ডলিং
-  checkPermissions(): Promise<{ 
-    accessibility: boolean; 
-    usageStats: boolean; 
-    overlay: boolean; 
-    battery: boolean; 
-    deviceAdmin: boolean; 
+  checkPermissions(): Promise<{
+    accessibility: boolean;
+    usageStats: boolean;
+    overlay: boolean;
+    battery: boolean;
+    deviceAdmin: boolean;
   }>;
   requestAccessibility(): Promise<void>;
   requestUsageStats(): Promise<void>;
   requestOverlay(): Promise<void>;
   requestBattery(): Promise<void>;
+  // ✅ NEW: Device Admin request
+  requestDeviceAdmin(): Promise<void>;
 
   // 🛡️ অ্যাডভান্সড প্রোটেকশন
   toggleAdultFilter(options: { enable: boolean }): Promise<void>;
@@ -65,20 +67,25 @@ export interface ShieldPluginInterface {
   clearHistory(): Promise<{ success: boolean }>;
   updateNotificationSettings(options: { key: string; value: boolean }): Promise<void>;
 
+  // ✅ NEW: Adult Filter Screen style save
+  updateAdultFilterScreen(options: {
+    style: string;
+    customMessage: string;
+  }): Promise<{ success: boolean }>;
+
   // 🔑 Emergency Bypass & Floating Timer
   setEmergencyPin(options: { pin: string }): Promise<void>;
   triggerEmergencyBypass(options: { pin: string }): Promise<{ success: boolean }>;
   toggleFloatingTimer(options: { enable: boolean }): Promise<void>;
-  updateFloatingTimerStyle(options: { 
-    opacity?: number; 
-    size?: number; 
-    countdown?: boolean; 
-    icon?: string; 
-    format?: string; 
-    theme?: string 
+  updateFloatingTimerStyle(options: {
+    opacity?: number;
+    size?: number;
+    countdown?: boolean;
+    icon?: string;
+    format?: string;
+    theme?: string;
   }): Promise<void>;
 }
 
-// 🟢 FIX: Default export যাতে import Shield কাজ করে
 const Shield = registerPlugin<ShieldPluginInterface>('Shield');
 export default Shield;
