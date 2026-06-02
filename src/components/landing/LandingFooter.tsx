@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { Github, Twitter, Instagram, Heart } from 'lucide-react';
+import { LifeOSLogo } from '@/components/LifeOSLogo';
 
 export function LandingFooter() {
   const year = new Date().getFullYear();
