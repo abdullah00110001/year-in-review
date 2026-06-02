@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { ArrowRight, Menu, X } from 'lucide-react';
 import { useState } from 'react';
 import { LandingFooter } from '@/components/landing/LandingFooter';
+import { LifeOSLogo } from '@/components/LifeOSLogo';
 
 interface MarketingLayoutProps {
   children: React.ReactNode;
