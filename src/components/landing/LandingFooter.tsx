@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { Github, Twitter, Instagram, Heart } from 'lucide-react';
+import { LifeOSLogo } from '@/components/LifeOSLogo';
 
 export function LandingFooter() {
   const year = new Date().getFullYear();
@@ -58,8 +59,10 @@ export function LandingFooter() {
         <div className="grid gap-10 md:grid-cols-12">
           {/* Brand */}
           <div className="md:col-span-4">
-            <div className="flex items-center gap-3 mb-4">
-              <img src="/icons/app-icon.png" alt="Life OS" className="h-11 w-11 rounded-2xl shadow-lg shadow-primary/20" />
+            <div className="flex items-center gap-2.5 mb-4">
+              <div className="h-12 w-12 rounded-2xl bg-card border border-primary/20 shadow-lg shadow-primary/20 flex items-center justify-center">
+                <LifeOSLogo size={34} />
+              </div>
               <span className="text-xl font-bold tracking-tight">Life OS</span>
             </div>
             <p className="text-sm text-muted-foreground leading-relaxed max-w-xs">
