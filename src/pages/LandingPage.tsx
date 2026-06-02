@@ -2,9 +2,9 @@ import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Target, CheckCircle2, BarChart3, Calendar, ArrowRight, Sparkles, Zap, Shield, TrendingUp, Star, ChevronRight, Crown, Check, Clock, Brain, BookHeart, Flame, Download } from 'lucide-react';
+import { Target, CheckCircle2, BarChart3, Calendar, ArrowRight, Sparkles, Zap, Shield, TrendingUp, Star, ChevronRight, Crown, Check, Clock, Brain, BookHeart, Flame, Download, Menu, X, Lock, FileText, MessageCircle, Map, History, Receipt, ScrollText, Users, HelpCircle } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { isNative } from '@/lib/capacitor/platform';
 import { WhySection, FeatureDeepDive, HowItWorks, FaqSection } from '@/components/landing/LandingSections';
@@ -14,6 +14,7 @@ import { LandingFooter } from '@/components/landing/LandingFooter';
 export default function LandingPage() {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   useEffect(() => {
     if (isNative) {
@@ -100,12 +101,12 @@ export default function LandingPage() {
       {/* Navigation */}
       <nav className="border-b border-border/50 bg-background/80 backdrop-blur-xl fixed top-0 left-0 right-0 z-50">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4">
-          <div className="flex items-center gap-2.5">
+          <Link to="/" className="flex items-center gap-2.5">
             <div className="h-11 w-11 rounded-2xl bg-card border border-primary/20 shadow-lg shadow-primary/25 flex items-center justify-center">
               <LifeOSLogo size={32} />
             </div>
             <span className="text-xl font-bold bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">Life OS</span>
-          </div>
+          </Link>
           <div className="hidden md:flex items-center gap-5 text-sm text-muted-foreground">
             <Link to="/features" className="hover:text-foreground transition-colors">Features</Link>
             <Link to="/permissions" className="hover:text-foreground transition-colors">Permissions</Link>
@@ -113,15 +114,52 @@ export default function LandingPage() {
             <Link to="/about" className="hover:text-foreground transition-colors">About</Link>
             <Link to="/faq" className="hover:text-foreground transition-colors">FAQ</Link>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             <Button asChild variant="ghost" className="hidden sm:flex">
               <Link to="/auth">Sign In</Link>
             </Button>
             <Button asChild className="shadow-lg shadow-primary/25 hover:shadow-xl hover:shadow-primary/30 transition-all duration-300">
               <Link to="/auth" className="gap-2">Get Started <ArrowRight className="h-4 w-4" /></Link>
             </Button>
+            <button
+              type="button"
+              className="md:hidden h-10 w-10 inline-flex items-center justify-center rounded-lg border border-border/50 text-foreground"
+              aria-label="Menu"
+              onClick={() => setMobileNavOpen((v) => !v)}
+            >
+              {mobileNavOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+            </button>
           </div>
         </div>
+        {mobileNavOpen && (
+          <div className="md:hidden border-t border-border/50 bg-background/95 backdrop-blur-xl">
+            <div className="mx-auto max-w-6xl px-4 py-3 grid grid-cols-2 gap-1 text-sm">
+              {[
+                { to: '/features', label: 'Features' },
+                { to: '/permissions', label: 'Permissions' },
+                { to: '/pricing', label: 'Pricing' },
+                { to: '/roadmap', label: 'Roadmap' },
+                { to: '/changelog', label: 'Changelog' },
+                { to: '/about', label: 'About' },
+                { to: '/contact', label: 'Contact' },
+                { to: '/faq', label: 'FAQ' },
+                { to: '/privacy', label: 'Privacy' },
+                { to: '/terms', label: 'Terms' },
+                { to: '/refund', label: 'Refund' },
+                { to: '/download', label: 'Download' },
+              ].map((l) => (
+                <Link
+                  key={l.to}
+                  to={l.to}
+                  onClick={() => setMobileNavOpen(false)}
+                  className="px-3 py-2.5 rounded-lg hover:bg-accent text-muted-foreground hover:text-foreground"
+                >
+                  {l.label}
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
       </nav>
 
       {/* Hero Section */}
@@ -328,6 +366,56 @@ export default function LandingPage() {
 
       {/* FAQ */}
       <FaqSection />
+
+      {/* Explore everything */}
+      <section className="py-20 px-4 relative">
+        <div className="mx-auto max-w-6xl">
+          <div className="text-center mb-12">
+            <div className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-4 py-1.5 text-sm font-medium text-primary mb-4">
+              <Sparkles className="h-4 w-4" /> Explore the App
+            </div>
+            <h2 className="text-3xl sm:text-4xl font-bold mb-3">Everything you need to know</h2>
+            <p className="text-muted-foreground max-w-2xl mx-auto">
+              Deep-dive pages for features, permissions, pricing, privacy and more.
+            </p>
+          </div>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {[
+              { to: '/features', icon: Sparkles, title: 'Features', desc: '20+ features across 5 categories — Rise, Shield, Daily, Insights, Islamic.' },
+              { to: '/permissions', icon: Lock, title: 'Permissions', desc: '13 Android permissions explained — why each one, what we can and cannot see.' },
+              { to: '/privacy', icon: Shield, title: 'Privacy & Data Safety', desc: 'On-device ML, end-to-end data flow, and what we never collect.' },
+              { to: '/pricing', icon: Crown, title: 'Pricing', desc: 'Free, Premium and Lifetime — full comparison table.' },
+              { to: '/roadmap', icon: Map, title: 'Roadmap', desc: 'What we are building next — quarter by quarter.' },
+              { to: '/changelog', icon: History, title: 'Changelog', desc: 'Every release, every fix, every new feature.' },
+              { to: '/about', icon: Users, title: 'About', desc: 'Mission, story, values and the stack behind Life OS.' },
+              { to: '/contact', icon: MessageCircle, title: 'Contact', desc: 'Email form and direct channels — we reply within 24h.' },
+              { to: '/faq', icon: HelpCircle, title: 'FAQ', desc: '5 categories of questions answered in an accordion.' },
+              { to: '/privacy-policy', icon: FileText, title: 'Privacy Policy', desc: 'The full legal privacy policy.' },
+              { to: '/terms', icon: ScrollText, title: 'Terms', desc: 'Terms of service for using Life OS.' },
+              { to: '/refund', icon: Receipt, title: 'Refund Policy', desc: 'How refunds work for premium plans.' },
+            ].map((c) => (
+              <Link
+                key={c.to}
+                to={c.to}
+                className="group relative rounded-2xl border border-border/60 bg-card/50 backdrop-blur-sm p-5 hover:border-primary/40 hover:bg-card transition-all duration-300 hover:-translate-y-0.5"
+              >
+                <div className="flex items-start gap-3">
+                  <div className="h-10 w-10 shrink-0 rounded-xl bg-primary/10 text-primary flex items-center justify-center group-hover:bg-primary/20 transition-colors">
+                    <c.icon className="h-5 w-5" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <h3 className="font-semibold text-foreground">{c.title}</h3>
+                      <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:text-primary group-hover:translate-x-0.5 transition-all" />
+                    </div>
+                    <p className="mt-1 text-sm text-muted-foreground leading-relaxed">{c.desc}</p>
+                  </div>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </div>
+      </section>
 
       {/* Final CTA */}
       <section className="py-24 px-4 relative">
