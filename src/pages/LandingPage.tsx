@@ -367,6 +367,56 @@ export default function LandingPage() {
       {/* FAQ */}
       <FaqSection />
 
+      {/* Explore everything */}
+      <section className="py-20 px-4 relative">
+        <div className="mx-auto max-w-6xl">
+          <div className="text-center mb-12">
+            <div className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-4 py-1.5 text-sm font-medium text-primary mb-4">
+              <Sparkles className="h-4 w-4" /> Explore the App
+            </div>
+            <h2 className="text-3xl sm:text-4xl font-bold mb-3">Everything you need to know</h2>
+            <p className="text-muted-foreground max-w-2xl mx-auto">
+              Deep-dive pages for features, permissions, pricing, privacy and more.
+            </p>
+          </div>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {[
+              { to: '/features', icon: Sparkles, title: 'Features', desc: '20+ features across 5 categories — Rise, Shield, Daily, Insights, Islamic.' },
+              { to: '/permissions', icon: Lock, title: 'Permissions', desc: '13 Android permissions explained — why each one, what we can and cannot see.' },
+              { to: '/privacy', icon: Shield, title: 'Privacy & Data Safety', desc: 'On-device ML, end-to-end data flow, and what we never collect.' },
+              { to: '/pricing', icon: Crown, title: 'Pricing', desc: 'Free, Premium and Lifetime — full comparison table.' },
+              { to: '/roadmap', icon: Map, title: 'Roadmap', desc: 'What we are building next — quarter by quarter.' },
+              { to: '/changelog', icon: History, title: 'Changelog', desc: 'Every release, every fix, every new feature.' },
+              { to: '/about', icon: Users, title: 'About', desc: 'Mission, story, values and the stack behind Life OS.' },
+              { to: '/contact', icon: MessageCircle, title: 'Contact', desc: 'Email form and direct channels — we reply within 24h.' },
+              { to: '/faq', icon: HelpCircle, title: 'FAQ', desc: '5 categories of questions answered in an accordion.' },
+              { to: '/privacy-policy', icon: FileText, title: 'Privacy Policy', desc: 'The full legal privacy policy.' },
+              { to: '/terms', icon: ScrollText, title: 'Terms', desc: 'Terms of service for using Life OS.' },
+              { to: '/refund', icon: Receipt, title: 'Refund Policy', desc: 'How refunds work for premium plans.' },
+            ].map((c) => (
+              <Link
+                key={c.to}
+                to={c.to}
+                className="group relative rounded-2xl border border-border/60 bg-card/50 backdrop-blur-sm p-5 hover:border-primary/40 hover:bg-card transition-all duration-300 hover:-translate-y-0.5"
+              >
+                <div className="flex items-start gap-3">
+                  <div className="h-10 w-10 shrink-0 rounded-xl bg-primary/10 text-primary flex items-center justify-center group-hover:bg-primary/20 transition-colors">
+                    <c.icon className="h-5 w-5" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <h3 className="font-semibold text-foreground">{c.title}</h3>
+                      <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:text-primary group-hover:translate-x-0.5 transition-all" />
+                    </div>
+                    <p className="mt-1 text-sm text-muted-foreground leading-relaxed">{c.desc}</p>
+                  </div>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* Final CTA */}
       <section className="py-24 px-4 relative">
         <div className="mx-auto max-w-4xl text-center relative">
