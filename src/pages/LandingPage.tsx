@@ -101,12 +101,12 @@ export default function LandingPage() {
       {/* Navigation */}
       <nav className="border-b border-border/50 bg-background/80 backdrop-blur-xl fixed top-0 left-0 right-0 z-50">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4">
-          <div className="flex items-center gap-2.5">
+          <Link to="/" className="flex items-center gap-2.5">
             <div className="h-11 w-11 rounded-2xl bg-card border border-primary/20 shadow-lg shadow-primary/25 flex items-center justify-center">
               <LifeOSLogo size={32} />
             </div>
             <span className="text-xl font-bold bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">Life OS</span>
-          </div>
+          </Link>
           <div className="hidden md:flex items-center gap-5 text-sm text-muted-foreground">
             <Link to="/features" className="hover:text-foreground transition-colors">Features</Link>
             <Link to="/permissions" className="hover:text-foreground transition-colors">Permissions</Link>
@@ -114,15 +114,52 @@ export default function LandingPage() {
             <Link to="/about" className="hover:text-foreground transition-colors">About</Link>
             <Link to="/faq" className="hover:text-foreground transition-colors">FAQ</Link>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             <Button asChild variant="ghost" className="hidden sm:flex">
               <Link to="/auth">Sign In</Link>
             </Button>
             <Button asChild className="shadow-lg shadow-primary/25 hover:shadow-xl hover:shadow-primary/30 transition-all duration-300">
               <Link to="/auth" className="gap-2">Get Started <ArrowRight className="h-4 w-4" /></Link>
             </Button>
+            <button
+              type="button"
+              className="md:hidden h-10 w-10 inline-flex items-center justify-center rounded-lg border border-border/50 text-foreground"
+              aria-label="Menu"
+              onClick={() => setMobileNavOpen((v) => !v)}
+            >
+              {mobileNavOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+            </button>
           </div>
         </div>
+        {mobileNavOpen && (
+          <div className="md:hidden border-t border-border/50 bg-background/95 backdrop-blur-xl">
+            <div className="mx-auto max-w-6xl px-4 py-3 grid grid-cols-2 gap-1 text-sm">
+              {[
+                { to: '/features', label: 'Features' },
+                { to: '/permissions', label: 'Permissions' },
+                { to: '/pricing', label: 'Pricing' },
+                { to: '/roadmap', label: 'Roadmap' },
+                { to: '/changelog', label: 'Changelog' },
+                { to: '/about', label: 'About' },
+                { to: '/contact', label: 'Contact' },
+                { to: '/faq', label: 'FAQ' },
+                { to: '/privacy', label: 'Privacy' },
+                { to: '/terms', label: 'Terms' },
+                { to: '/refund', label: 'Refund' },
+                { to: '/download', label: 'Download' },
+              ].map((l) => (
+                <Link
+                  key={l.to}
+                  to={l.to}
+                  onClick={() => setMobileNavOpen(false)}
+                  className="px-3 py-2.5 rounded-lg hover:bg-accent text-muted-foreground hover:text-foreground"
+                >
+                  {l.label}
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
       </nav>
 
       {/* Hero Section */}
