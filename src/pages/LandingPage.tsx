@@ -8,6 +8,7 @@ import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { isNative } from '@/lib/capacitor/platform';
 import { WhySection, FeatureDeepDive, HowItWorks, FaqSection } from '@/components/landing/LandingSections';
+import { LifeOSLogo } from '@/components/LifeOSLogo';
 import { LandingFooter } from '@/components/landing/LandingFooter';
 
 export default function LandingPage() {
