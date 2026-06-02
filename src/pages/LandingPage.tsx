@@ -100,8 +100,10 @@ export default function LandingPage() {
       {/* Navigation */}
       <nav className="border-b border-border/50 bg-background/80 backdrop-blur-xl fixed top-0 left-0 right-0 z-50">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4">
-          <div className="flex items-center gap-3">
-            <img src="/icons/app-icon.png" alt="Life OS" className="h-10 w-10 rounded-xl shadow-lg shadow-primary/25" />
+          <div className="flex items-center gap-2.5">
+            <div className="h-11 w-11 rounded-2xl bg-card border border-primary/20 shadow-lg shadow-primary/25 flex items-center justify-center">
+              <LifeOSLogo size={32} />
+            </div>
             <span className="text-xl font-bold bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">Life OS</span>
           </div>
           <div className="hidden md:flex items-center gap-5 text-sm text-muted-foreground">
