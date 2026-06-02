@@ -14,6 +14,7 @@ import { LandingFooter } from '@/components/landing/LandingFooter';
 export default function LandingPage() {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   useEffect(() => {
     if (isNative) {
