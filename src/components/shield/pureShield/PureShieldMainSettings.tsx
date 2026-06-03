@@ -32,7 +32,7 @@ interface PureShieldMainSettingsProps {
 export function PureShieldMainSettings({ onBack }: PureShieldMainSettingsProps) {
   const {
     config, permissions, running, status, modelStatus,
-    targetApps, installedApps, loading,
+    liveStats, targetApps, installedApps, loading,
     updateConfig, start, stop,
     requestOverlay, requestProjection,
     loadInstalledApps, toggleTargetApp,
@@ -57,6 +57,12 @@ export function PureShieldMainSettings({ onBack }: PureShieldMainSettingsProps) 
     const next = { ...extras, ...p };
     setExtras(next);
     saveExtras(next);
+    const nativePatch: Record<string, number | boolean> = {};
+    if ('blurOpacity' in p) nativePatch.blurOpacity = next.blurOpacity;
+    if ('minFaceSizePct' in p) nativePatch.minFaceSizePct = next.minFaceSizePct;
+    if ('debugOverlay' in p) nativePatch.debugOverlay = next.debugOverlay;
+    if ('blurSensitivity' in p) nativePatch.confidenceThreshold = Math.max(0.35, Math.min(0.95, next.blurSensitivity / 100));
+    if (Object.keys(nativePatch).length > 0) updateConfig(nativePatch as any);
   };
 
   const allPermsGranted = permissions.overlay && permissions.projection;
@@ -114,9 +120,13 @@ export function PureShieldMainSettings({ onBack }: PureShieldMainSettingsProps) 
     setExtras(DEFAULT_EXTRAS);
     saveExtras(DEFAULT_EXTRAS);
     await updateConfig({
-      blurGender: 'FEMALE',
-      blurStyle: 'PIXELATE',
-      confidenceThreshold: 0.72,
+      blurGender: 'BOTH',
+      blurStyle: 'BLUR',
+      confidenceThreshold: 0.60,
+      blurOpacity: DEFAULT_EXTRAS.blurOpacity,
+      minFaceSizePct: DEFAULT_EXTRAS.minFaceSizePct,
+      debugOverlay: DEFAULT_EXTRAS.debugOverlay,
+      maxFaces: 100,
       pauseOnBatteryBelow20: true,
     });
     toast.success('Settings reset to defaults');
@@ -244,6 +254,7 @@ export function PureShieldMainSettings({ onBack }: PureShieldMainSettingsProps) 
                 onTestBlur={() => setDemoOpen(true)}
                 onEmergencyStop={handleEmergencyStop}
                 showFps={extras.showFps}
+                liveStats={liveStats}
                 loading={loading}
               />
             </TabsContent>

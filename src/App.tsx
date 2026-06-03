@@ -23,6 +23,7 @@ import { App as CapApp } from "@capacitor/app";
 import { SplashScreen as CapSplashScreen } from "@capacitor/splash-screen";
 import { toast } from "sonner";
 import { getRingingAlarmId } from "@/lib/capacitor/riseAlarmBridge";
+import { OfflineGuardProvider } from "@/components/OfflineGuard";
 
 // Pages Import
 import Auth from "./pages/Auth";
@@ -250,6 +251,21 @@ const AppBoot = () => {
     }
   }, [authLoading]);
 
+  // ⏰ Alarm-firing path: skip every splash and go DIRECTLY to the ring screen.
+  // This avoids the disorienting splash-flash when an alarm wakes the device.
+  const isAlarmRoute = typeof window !== 'undefined'
+    && window.location.pathname.startsWith('/rise/ring');
+
+  useEffect(() => {
+    if (isAlarmRoute && isNative) {
+      CapSplashScreen.hide({ fadeOutDuration: 0 }).catch(() => {});
+    }
+  }, [isAlarmRoute]);
+
+  if (isAlarmRoute) {
+    return <AppContent />;
+  }
+
   if (authLoading) {
     return <NativeSplash waitFor={true} />;
   }
@@ -272,7 +288,9 @@ const App = () => {
                 <AppModeProvider>
                   <TooltipProvider>
                     <BrowserRouter>
-                      <AppBoot />
+                      <OfflineGuardProvider>
+                        <AppBoot />
+                      </OfflineGuardProvider>
                     </BrowserRouter>
                   </TooltipProvider>
                 </AppModeProvider>

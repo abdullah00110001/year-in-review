@@ -18,6 +18,12 @@ import androidx.core.app.NotificationCompat;
 
 import com.mylifeos.app.R;
 
+import com.google.android.gms.tasks.Tasks;
+import com.google.mlkit.vision.common.InputImage;
+import com.google.mlkit.vision.face.Face;
+import com.google.mlkit.vision.face.FaceDetection;
+import com.google.mlkit.vision.face.FaceDetectorOptions;
+
 import org.tensorflow.lite.Interpreter;
 import org.tensorflow.lite.DataType;
 import org.tensorflow.lite.gpu.GpuDelegate;
@@ -42,6 +48,7 @@ public class PureShieldService extends Service {
     private ImageReader imageReader;
 
     private Interpreter faceDetector;
+    private com.google.mlkit.vision.face.FaceDetector mlKitFaceDetector;
     private Interpreter genderClassifier;
     private GpuDelegate gpuDelegate;
     private int genderInputWidth = 64;
@@ -77,6 +84,12 @@ public class PureShieldService extends Service {
     public static final AtomicInteger totalFacesBlurred    = new AtomicInteger(0);
     public static final AtomicLong    lastInferenceMs      = new AtomicLong(0);
     public static volatile String     lastDebugMessage     = "Not started yet";
+    public static volatile String     lastForegroundApp    = "";
+    public static volatile float      lastBlazeMaxScore    = 0f;
+    public static volatile int        lastBlazeAboveCount   = 0;
+    public static volatile int        lastBlazeKeptCount    = 0;
+    public static volatile int        lastOverlayCount      = 0;
+    public static volatile boolean    lastGenderModelLoaded = false;
 
     public static PureShieldService instance;
     public static volatile String lastModelStatus       = "UNKNOWN";
@@ -92,10 +105,11 @@ public class PureShieldService extends Service {
     private List<RectF> lastBlurRegions = new ArrayList<>();
 
     // ✅ Detection tuning — high precision (fewer false positives)
-    private static final float DETECT_THRESHOLD  = 0.75f;
+    private static final float DETECT_THRESHOLD  = 0.60f;
     private static final float NMS_IOU_THRESHOLD = 0.30f;
-    private static final float MIN_FACE_FRAC     = 0.05f;  // ≥5% of frame (~ real face, not logo)
+    private static final float DEFAULT_MIN_FACE_FRAC = 0.02f;  // 2% lets small grid/feed faces be detected
     private static final float MAX_FACE_FRAC     = 0.85f;
+    private static final int   DEFAULT_MAX_FACE_OVERLAYS = 100;
 
     // ─────────────────────────────────────────────────────────────────────────
     // Lifecycle
@@ -204,7 +218,8 @@ public class PureShieldService extends Service {
         if (!restartOnDestroy) cancelNotification();
         instance = null;
         super.onDestroy();
-        if (restartOnDestroy) scheduleRestart();
+        // MediaProjection tokens are one-shot; auto-restarting without a fresh
+        // permission token creates a dead service/notification loop.
         Log.i(TAG, "⚠️ onDestroy (restart=" + restartOnDestroy + ")");
     }
 
@@ -266,7 +281,10 @@ public class PureShieldService extends Service {
         mediaProjection.registerCallback(new MediaProjection.Callback() {
             @Override public void onStop() {
                 releaseProjection();
-                if (restartOnDestroy) scheduleRestart();
+                restartOnDestroy = false;
+                isRunning.set(false);
+                clearAllOverlays();
+                lastDebugMessage = "Screen capture stopped — start PureShield again";
             }
         }, new Handler(Looper.getMainLooper()));
 
@@ -305,12 +323,11 @@ public class PureShieldService extends Service {
     // ─────────────────────────────────────────────────────────────────────────
 
     private boolean loadModels() {
-        Interpreter.Options options;
+        Interpreter.Options options = null;
         try {
             options = buildInterpreterOptions();
         } catch (Throwable t) {
-            broadcastModelStatus("MODEL_FAILED", "TFLite init failed");
-            return false;
+            Log.w(TAG, "⚠️ TFLite init failed, ML Kit fallback will be used: " + t.getMessage());
         }
 
         String faceModel = modelManager.getFaceDetectorModel();
@@ -324,14 +341,20 @@ public class PureShieldService extends Service {
             faceModel = "blazeface.tflite";
         }
         if (!assetExists(faceModel)) {
-            broadcastModelStatus("MODEL_EMPTY", "No usable BlazeFace model in assets");
+            if (ensureMlKitFaceDetector()) {
+                faceDetector = null;
+                broadcastModelStatus("OK", "ML Kit face fallback");
+                lastDebugMessage = "ML Kit face fallback ready (no BlazeFace asset)";
+                return true;
+            }
+            broadcastModelStatus("MODEL_EMPTY", "No usable face detector available");
             return false;
         }
 
         try {
             Log.i(TAG, "📂 Loading face model: " + faceModel);
             try {
-                faceDetector = new Interpreter(loadModelFile(faceModel), options);
+                faceDetector = new Interpreter(loadModelFile(faceModel), options != null ? options : buildCpuInterpreterOptions());
                 int[] s = faceDetector.getInputTensor(0).shape();
                 float[][][][] dummy = new float[1][s[1]][s[2]][3];
                 int nOut = faceDetector.getOutputTensorCount();
@@ -377,6 +400,9 @@ public class PureShieldService extends Service {
             } else {
                 Log.w(TAG, "⚠️ No gender model found — blur-all-faces fallback active");
             }
+            lastGenderModelLoaded = genderClassifier != null;
+
+            ensureMlKitFaceDetector();
 
             broadcastModelStatus("OK", faceModel);
             lastDebugMessage = "Model loaded: " + faceModel + " input=" + inputShape[1] + "x" + inputShape[2];
@@ -384,7 +410,31 @@ public class PureShieldService extends Service {
             return true;
         } catch (Throwable e) {
             Log.e(TAG, "❌ Load failed: " + e.getMessage(), e);
+            if (ensureMlKitFaceDetector()) {
+                faceDetector = null;
+                broadcastModelStatus("OK", "ML Kit fallback after TFLite failure");
+                lastDebugMessage = "ML Kit fallback active: " + e.getMessage();
+                return true;
+            }
             broadcastModelStatus("MODEL_FAILED", e.getMessage());
+            return false;
+        }
+    }
+
+    private boolean ensureMlKitFaceDetector() {
+        if (mlKitFaceDetector != null) return true;
+        try {
+            FaceDetectorOptions detectorOptions = new FaceDetectorOptions.Builder()
+                .setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_FAST)
+                .setMinFaceSize(Math.max(0.01f, (config != null ? config.getMinFaceSizePct() : 2) / 100f))
+                .enableTracking()
+                .build();
+            mlKitFaceDetector = FaceDetection.getClient(detectorOptions);
+            Log.i(TAG, "✅ ML Kit face fallback ready");
+            return true;
+        } catch (Throwable mt) {
+            mlKitFaceDetector = null;
+            Log.w(TAG, "⚠️ ML Kit fallback unavailable: " + mt.getMessage());
             return false;
         }
     }
@@ -442,6 +492,7 @@ public class PureShieldService extends Service {
 
     private void releaseModels() {
         if (faceDetector    != null) { faceDetector.close();     faceDetector    = null; }
+        if (mlKitFaceDetector != null) { try { mlKitFaceDetector.close(); } catch (Throwable ignored) {} mlKitFaceDetector = null; }
         if (genderClassifier!= null) { genderClassifier.close(); genderClassifier= null; }
         if (gpuDelegate     != null) { gpuDelegate.close();      gpuDelegate     = null; }
     }
@@ -518,21 +569,26 @@ public class PureShieldService extends Service {
     // ─────────────────────────────────────────────────────────────────────────
 
     private void processFrame(Bitmap bitmap) {
-        if (faceDetector == null) {
-            lastDebugMessage = "❌ faceDetector is null!";
+        if (faceDetector == null && mlKitFaceDetector == null) {
+            lastDebugMessage = "❌ No face detector is ready";
             return;
         }
 
         long startMs = System.currentTimeMillis();
 
-        int[] inputShape = faceDetector.getInputTensor(0).shape();
-        int inputH = inputShape[1];
-        int inputW = inputShape[2];
+        int inputH = 128;
+        int inputW = 128;
+        if (faceDetector != null) {
+            int[] inputShape = faceDetector.getInputTensor(0).shape();
+            inputH = inputShape[1];
+            inputW = inputShape[2];
+        }
 
         List<RectF> faces = detectFaces(bitmap, inputW, inputH);
 
         long inferMs = System.currentTimeMillis() - startMs;
         lastInferenceMs.set(inferMs);
+        if (adaptiveEngine != null) adaptiveEngine.recordInferenceTime(inferMs);
 
         int faceCount = faces.size();
         totalFacesDetected.addAndGet(faceCount);
@@ -564,7 +620,9 @@ public class PureShieldService extends Service {
         // and pass true pixels to each overlay for real blur (not painted oval).
         List<RectF> rawBlur     = new ArrayList<>();
         List<RectF> normalized  = new ArrayList<>();
+        int maxFaces = config != null ? config.getMaxFaces() : DEFAULT_MAX_FACE_OVERLAYS;
         for (RectF face : faces) {
+            if (rawBlur.size() >= maxFaces) break;
             GenderResult result = estimateGender(bitmap, face);
             boolean blur = shouldBlur(result);
 
@@ -590,12 +648,12 @@ public class PureShieldService extends Service {
         // recycles it — these are what produces the real-pixel blur.
         final List<Bitmap> crops = new ArrayList<>(toBlur.size());
         int bw = bitmap.getWidth(), bh = bitmap.getHeight();
-        for (int i = 0; i < toBlur.size() && i < normalized.size(); i++) {
-            RectF n = normalized.get(i);
-            int cx = Math.max(0, Math.round(n.left   * bw));
-            int cy = Math.max(0, Math.round(n.top    * bh));
-            int cw = Math.min(bw - cx, Math.round((n.right  - n.left) * bw));
-            int ch = Math.min(bh - cy, Math.round((n.bottom - n.top ) * bh));
+        for (int i = 0; i < toBlur.size(); i++) {
+            RectF r = toBlur.get(i);
+            int cx = Math.max(0, Math.round((r.left / Math.max(1f, screenWidth)) * bw));
+            int cy = Math.max(0, Math.round((r.top / Math.max(1f, screenHeight)) * bh));
+            int cw = Math.min(bw - cx, Math.round((r.width() / Math.max(1f, screenWidth)) * bw));
+            int ch = Math.min(bh - cy, Math.round((r.height() / Math.max(1f, screenHeight)) * bh));
             try {
                 crops.add((cw > 4 && ch > 4)
                     ? Bitmap.createBitmap(bitmap, cx, cy, cw, ch)
@@ -658,6 +716,10 @@ public class PureShieldService extends Service {
     // ─────────────────────────────────────────────────────────────────────────
 
     private List<RectF> detectFaces(Bitmap src, int inputW, int inputH) {
+        if (faceDetector == null) {
+            return detectFacesWithMlKit(src, "tflite-null");
+        }
+
         Bitmap resized = Bitmap.createScaledBitmap(src, inputW, inputH, false);
 
         float[][][][] input = new float[1][inputH][inputW][3];
@@ -677,22 +739,25 @@ public class PureShieldService extends Service {
         // ✅ Auto-detect which output is regressors vs classifiers based on tensor shape.
         // BlazeFace standard: regressors=[1,896,16], classifiers=[1,896,1].
         int regIdx = 0, clsIdx = 1;
+        int regCount = 896, clsCount = 896, regCoordCount = 16;
         int nOut = faceDetector.getOutputTensorCount();
         for (int i = 0; i < nOut; i++) {
             int[] os = faceDetector.getOutputTensor(i).shape();
-            if (os.length == 3 && os[2] == 16) regIdx = i;
-            else if (os.length == 3 && os[2] == 1) clsIdx = i;
+            if (os.length == 3 && os[2] >= 4) { regIdx = i; regCount = os[1]; regCoordCount = os[2]; }
+            else if (os.length == 3 && os[2] == 1) { clsIdx = i; clsCount = os[1]; }
         }
 
         try {
-            float[][][] regressors  = new float[1][896][16];
-            float[][][] classifiers = new float[1][896][1];
+            int anchorCount = Math.min(Math.min(regCount, clsCount), PureShieldAnchors.X_CENTER.length);
+            float[][][] regressors  = new float[1][regCount][regCoordCount];
+            float[][][] classifiers = new float[1][clsCount][1];
             Map<Integer, Object> outputs = new HashMap<>();
             outputs.put(regIdx, regressors);
             outputs.put(clsIdx, classifiers);
 
             faceDetector.runForMultipleInputsOutputs(new Object[]{input}, outputs);
-            return decodeBlazeFace(regressors, classifiers, inputW, inputH, DETECT_THRESHOLD);
+            List<RectF> decoded = decodeBlazeFace(regressors, classifiers, inputW, inputH, DETECT_THRESHOLD, anchorCount);
+            return decoded.isEmpty() ? detectFacesWithMlKit(src, "blazeface-empty") : decoded;
         } catch (Throwable t) {
             Log.w(TAG, "⚠️ Multi-output failed: " + t.getMessage());
         }
@@ -701,21 +766,59 @@ public class PureShieldService extends Service {
         try {
             float[][][] single = new float[1][896][16];
             faceDetector.run(input, single);
-            return decodeSingleOutput(single);
+            List<RectF> decoded = decodeSingleOutput(single);
+            return decoded.isEmpty() ? detectFacesWithMlKit(src, "single-empty") : decoded;
         } catch (Throwable t2) {
             Log.e(TAG, "❌ All detection failed: " + t2.getMessage());
             lastDebugMessage = "❌ Detection error: " + t2.getMessage();
+            return detectFacesWithMlKit(src, "tflite-error");
+        }
+    }
+
+    private List<RectF> detectFacesWithMlKit(Bitmap src, String reason) {
+        if (mlKitFaceDetector == null || src == null || src.isRecycled()) return Collections.emptyList();
+        try {
+            List<Face> faces = Tasks.await(
+                mlKitFaceDetector.process(InputImage.fromBitmap(src, 0)),
+                650, TimeUnit.MILLISECONDS);
+            List<RectF> boxes = new ArrayList<>();
+            int bw = Math.max(1, src.getWidth());
+            int bh = Math.max(1, src.getHeight());
+            float minFaceFrac = Math.max(DEFAULT_MIN_FACE_FRAC,
+                (config != null ? config.getMinFaceSizePct() : 2) / 100f);
+            int maxFaces = config != null ? config.getMaxFaces() : DEFAULT_MAX_FACE_OVERLAYS;
+            for (Face face : faces) {
+                if (boxes.size() >= maxFaces) break;
+                Rect b = face.getBoundingBox();
+                float left = Math.max(0f, b.left / (float) bw);
+                float top = Math.max(0f, b.top / (float) bh);
+                float right = Math.min(1f, b.right / (float) bw);
+                float bottom = Math.min(1f, b.bottom / (float) bh);
+                float w = right - left;
+                float h = bottom - top;
+                if (w < minFaceFrac || h < minFaceFrac || w <= 0f || h <= 0f) continue;
+                boxes.add(new RectF(left, top, right, bottom));
+            }
+            lastBlazeAboveCount = faces.size();
+            lastBlazeKeptCount = boxes.size();
+            lastDebugMessage = "MLKit fallback (" + reason + "): " + boxes.size() + " faces";
+            Log.i(TAG, "🧯 MLKit fallback reason=" + reason + " raw=" + faces.size() + " kept=" + boxes.size());
+            return boxes;
+        } catch (Throwable t) {
+            Log.w(TAG, "⚠️ MLKit fallback failed (" + reason + "): " + t.getMessage());
             return Collections.emptyList();
         }
     }
 
     private List<RectF> decodeBlazeFace(float[][][] regressors, float[][][] classifiers,
-                                         int inputW, int inputH, float threshold) {
+                                         int inputW, int inputH, float threshold, int anchorCount) {
         List<RectF> boxes  = new ArrayList<>();
         List<Float> scores = new ArrayList<>();
         float[] anchorX = PureShieldAnchors.X_CENTER;
         float[] anchorY = PureShieldAnchors.Y_CENTER;
-        int count = Math.min(896, anchorX.length);
+        int count = Math.min(anchorCount, Math.min(anchorX.length, Math.min(regressors[0].length, classifiers[0].length)));
+        float minFaceFrac = Math.max(DEFAULT_MIN_FACE_FRAC,
+            (config != null ? config.getMinFaceSizePct() : 2) / 100f);
 
         float maxScore = 0f;
         int   above    = 0;
@@ -733,7 +836,7 @@ public class PureShieldService extends Service {
             float w  = regressors[0][i][2] / inputW;
             float h  = regressors[0][i][3] / inputH;
 
-            if (w < MIN_FACE_FRAC || h < MIN_FACE_FRAC) continue;
+            if (w < minFaceFrac || h < minFaceFrac) continue;
             if (w > MAX_FACE_FRAC || h > MAX_FACE_FRAC) continue;
             // Real faces are roughly square (~0.7–1.4). Tight guard rejects banners/logos.
             float ar = (h > 0) ? w / h : 1f;
@@ -748,10 +851,16 @@ public class PureShieldService extends Service {
             scores.add(score);
         }
 
+        lastBlazeMaxScore = maxScore;
+        lastBlazeAboveCount = above;
+        lastBlazeKeptCount = boxes.size();
         Log.d(TAG, "📊 BlazeFace maxScore=" + String.format("%.3f", maxScore)
-            + " above=" + above + " kept=" + boxes.size());
+            + " above=" + above + " kept=" + boxes.size()
+            + " minFace=" + String.format("%.2f", minFaceFrac));
 
-        return nmsWithScores(boxes, scores, NMS_IOU_THRESHOLD);
+        List<RectF> kept = nmsWithScores(boxes, scores, NMS_IOU_THRESHOLD);
+        int maxFaces = config != null ? config.getMaxFaces() : DEFAULT_MAX_FACE_OVERLAYS;
+        return kept.size() > maxFaces ? new ArrayList<>(kept.subList(0, maxFaces)) : kept;
     }
 
     /** ✅ Score-sorted NMS — highest-confidence box wins over biggest. */
@@ -800,11 +909,7 @@ public class PureShieldService extends Service {
         if (genderClassifier != null) {
             return classifyGenderReal(src, faceBox);
         }
-        // ✅ No gender model loaded — fall back to "blur all faces" only when the
-        // user is OK with that. Right now: treat as match so FEMALE/MALE mode
-        // still blurs detected faces (better safe than missed). UI surfaces a
-        // "Gender model OFF" badge so user knows.
-        return new GenderResult(0.9f, 0.9f);
+        return new GenderResult(0.5f, 0.5f);
     }
 
     private GenderResult classifyGenderReal(Bitmap src, RectF faceBox) {
@@ -942,9 +1047,14 @@ public class PureShieldService extends Service {
             View v = blurOverlays.get(i);
             positionOverlay(v, regions.get(i));
             if (v instanceof PureShieldBlurView && crops != null && i < crops.size()) {
-                ((PureShieldBlurView) v).setSourceBitmap(crops.get(i));
+                PureShieldBlurView bv = (PureShieldBlurView) v;
+                bv.setBlurStyle(config.getBlurStyle());
+                bv.setOverlayOpacity(config.getBlurOpacity());
+                bv.setDebugOverlay(config.isDebugOverlay());
+                bv.setSourceBitmap(crops.get(i));
             }
         }
+        lastOverlayCount = blurOverlays.size();
         Log.d(TAG, "🖼️ Overlay count: " + blurOverlays.size() + " for " + regions.size() + " faces");
     }
 
@@ -997,6 +1107,7 @@ public class PureShieldService extends Service {
                 try { windowManager.removeView(v); } catch (Exception ignored) {}
             }
             blurOverlays.clear();
+            lastOverlayCount = 0;
             Log.d(TAG, "🗑️ All overlays cleared");
         });
     }
@@ -1016,8 +1127,9 @@ public class PureShieldService extends Service {
         // ✅ Tight padding — face shape ধরে রাখতে
         float w = right - left;
         float h = bottom - top;
-        float padX = w * 0.08f;
-        float padY = h * 0.0f;
+        float padPct = (config != null ? config.getBlurPaddingPct() : 15) / 100f;
+        float padX = w * padPct;
+        float padY = h * padPct;
 
         return new RectF(
             Math.max(0,            left   - padX),
@@ -1033,6 +1145,7 @@ public class PureShieldService extends Service {
 
     public void onForegroundAppChanged(String packageName) {
         currentForegroundPackage = packageName != null ? packageName : "";
+        lastForegroundApp = currentForegroundPackage;
         lastForegroundSignalAtMs = SystemClock.elapsedRealtime();
         boolean isTarget = isTargetAppInForeground();
         Log.d(TAG, "📱 App changed: " + currentForegroundPackage

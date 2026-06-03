@@ -2808,6 +2808,48 @@ export type Database = {
         }
         Relationships: []
       }
+      ota_bundles: {
+        Row: {
+          bundle_path: string
+          bundle_size_bytes: number | null
+          bundle_url: string
+          created_at: string
+          created_by: string | null
+          id: string
+          is_active: boolean
+          min_app_version_code: number | null
+          release_notes: string | null
+          updated_at: string
+          version: string
+        }
+        Insert: {
+          bundle_path: string
+          bundle_size_bytes?: number | null
+          bundle_url: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          min_app_version_code?: number | null
+          release_notes?: string | null
+          updated_at?: string
+          version: string
+        }
+        Update: {
+          bundle_path?: string
+          bundle_size_bytes?: number | null
+          bundle_url?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          min_app_version_code?: number | null
+          release_notes?: string | null
+          updated_at?: string
+          version?: string
+        }
+        Relationships: []
+      }
       payment_logs: {
         Row: {
           amount: number | null

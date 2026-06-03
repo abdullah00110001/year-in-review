@@ -56,8 +56,14 @@ export function DashboardTab({
             <StatBox label="Faces" value={liveStats.totalFaces} color="text-amber-500" />
             <StatBox label="Blurred" value={liveStats.totalBlurred} color="text-emerald-500" />
           </div>
+          <div className="grid grid-cols-2 gap-2 text-[10px] text-muted-foreground">
+            <DebugPill label="Score" value={(liveStats.blazeMaxScore ?? 0).toFixed(2)} />
+            <DebugPill label="Overlays" value={liveStats.overlayCount ?? 0} />
+            <DebugPill label="Kept" value={`${liveStats.blazeKeptCount ?? 0}/${liveStats.blazeAboveCount ?? 0}`} />
+            <DebugPill label="Gender" value={liveStats.genderModelLoaded ? 'ON' : 'ALL'} />
+          </div>
           {liveStats.lastDebugMessage && (
-            <p className="text-[10px] text-muted-foreground truncate">
+            <p className="text-[10px] text-muted-foreground break-words">
               {liveStats.lastDebugMessage}
             </p>
           )}
@@ -152,6 +158,15 @@ function StatBox({ label, value, color }: { label: string; value: number; color:
     <div className="rounded-xl bg-background/60 p-2">
       <div className={cn('text-lg font-bold tabular-nums', color)}>{value.toLocaleString()}</div>
       <div className="text-[10px] text-muted-foreground uppercase tracking-wide">{label}</div>
+    </div>
+  );
+}
+
+function DebugPill({ label, value }: { label: string; value: string | number }) {
+  return (
+    <div className="rounded-lg bg-background/60 px-2 py-1 flex items-center justify-between gap-2">
+      <span>{label}</span>
+      <span className="font-mono text-foreground">{value}</span>
     </div>
   );
 }

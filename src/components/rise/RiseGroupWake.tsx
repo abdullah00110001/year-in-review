@@ -550,20 +550,24 @@ export function RiseGroupWake() {
                   {/* Member Grid */}
                   {gw.alarm ? (
                     <>
-                      <Card>
-                        <CardHeader className="pb-2">
-                          <div className="flex items-center justify-between">
-                            <CardTitle className="text-base flex items-center gap-2">
-                              <Sunrise className="h-4 w-4 text-primary" />
-                              {selectedGroup.name} — Wake Status
-                            </CardTitle>
-                            <Badge variant="outline">{gw.statuses.length} checked in</Badge>
+                      <Card className="overflow-hidden border-border/70">
+                        <CardHeader className="pb-3 bg-gradient-to-b from-primary/5 to-transparent">
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="min-w-0">
+                              <CardTitle className="text-base flex items-center gap-2 truncate">
+                                <Sunrise className="h-4 w-4 text-primary shrink-0" />
+                                <span className="truncate">{selectedGroup.name}</span>
+                              </CardTitle>
+                              <CardDescription className="mt-0.5 text-xs">
+                                Alarm {gw.alarm.wake_time.slice(0, 5)} · {gw.alarm.mission_type}
+                              </CardDescription>
+                            </div>
+                            <Badge variant="secondary" className="shrink-0 font-medium">
+                              {members.length} {members.length === 1 ? 'member' : 'members'}
+                            </Badge>
                           </div>
-                          <CardDescription>
-                            Alarm at {gw.alarm.wake_time.slice(0, 5)} · Mission: {gw.alarm.mission_type}
-                          </CardDescription>
                         </CardHeader>
-                        <CardContent>
+                        <CardContent className="pt-4">
                           <GroupWakeMemberGrid
                             members={members.map((m) => ({ user_id: m.user_id, full_name: m.profile?.full_name || null }))}
                             statuses={gw.statuses}
@@ -571,13 +575,13 @@ export function RiseGroupWake() {
                             onSendWakeUp={(m) => setWakeCallTarget(m)}
                           />
                           <Button
-                            className="w-full mt-4"
+                            className="w-full mt-5 h-11"
                             onClick={async () => {
                               await gw.upsertMyStatus({ status: 'mission_done', mission_completed_at: new Date().toISOString() });
                               toast.success('Marked as awake');
                             }}
                           >
-                            <CheckCircle2 className="h-4 w-4 mr-2" /> Mark me awake
+                            <CheckCircle2 className="h-4 w-4 mr-2" /> I'm awake
                           </Button>
                         </CardContent>
                       </Card>

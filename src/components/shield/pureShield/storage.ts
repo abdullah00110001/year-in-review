@@ -33,7 +33,7 @@ const KEYS = {
 export const DEFAULT_EXTRAS: LocalShieldExtras = {
   blurOpacity: 100,
   blurSensitivity: 60,
-  minFaceSizePct: 5,
+  minFaceSizePct: 2,
   pauseOnLowMemory: true,
   debugOverlay: false,
   showFps: false,

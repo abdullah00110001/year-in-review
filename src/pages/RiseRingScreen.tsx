@@ -9,7 +9,7 @@ import { PhotoMission } from '@/components/rise/missions/PhotoMission';
 import { WakeStatusModal } from '@/components/rise/WakeStatusModal';
 import { Haptics, ImpactStyle } from '@capacitor/haptics';
 import { isNative } from '@/lib/capacitor/platform';
-import { cancelAlarmByUuid } from '@/lib/capacitor/nativeAlarm';
+import { cancelAlarmByUuid, scheduleRecurringAlarm } from '@/lib/capacitor/nativeAlarm';
 import { toast } from 'sonner';
 import { stopNativeRinging, clearRingingAlarmId } from '@/lib/capacitor/riseAlarmBridge';
 import { setPresence } from '@/hooks/useLifeosLive';
@@ -28,7 +28,12 @@ interface LocalAlarm {
   snooze_limit: number;
   snooze_interval_minutes: number;
   vibration_enabled?: boolean;
+  extra_loud?: boolean;
+  wallpaper_url?: string | null;
+  mission_config?: { difficulty: 'easy' | 'medium' | 'hard'; count: number };
 }
+
+const PER_PROBLEM_SECONDS: Record<string, number> = { easy: 120, medium: 60, hard: 30 };
 
 export default function RiseRingScreen() {
   const { id } = useParams<{ id: string }>();
@@ -125,28 +130,36 @@ export default function RiseRingScreen() {
   useEffect(() => {
     if (!alarm) return;
 
-    // Web এর জন্য ফেক সাউন্ড
+    const extraLoud = alarm.extra_loud === true;
+    const vibrate = alarm.vibration_enabled !== false;
+
+    // Web fallback audio (native side handles ringing via foreground service)
     if (!isNative) {
       try {
         const audio = new Audio(
           'data:audio/wav;base64,UklGRkIDAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YR4DAAB/f39/f4B/f4F/gIB/gH9/gIB/f3+Af3+Af3+Af4B/gH9/gH9/gIB/f4B/f4B/f4F/gIB/gH9/gIB/'
         );
         audio.loop = true;
-        audio.volume = 0.6;
+        // Extra Loud — push to max; otherwise medium volume
+        audio.volume = extraLoud ? 1.0 : 0.6;
         audio.play().catch(() => {});
         audioRef.current = audio;
       } catch {}
     }
 
-    // Haptics - Native এ extra ভাইব্রেশন
-    if (alarm.vibration_enabled!== false && isNative) {
+    // Continuous haptics on native — heavier cadence when Extra Loud is on
+    if (vibrate && isNative) {
       const buzz = async () => {
         try {
           await Haptics.impact({ style: ImpactStyle.Heavy });
+          if (extraLoud) {
+            // Double-tap for stronger perceived buzz
+            setTimeout(() => { Haptics.impact({ style: ImpactStyle.Heavy }).catch(() => {}); }, 180);
+          }
         } catch {}
       };
       buzz();
-      vibrationTimer.current = window.setInterval(buzz, 1500);
+      vibrationTimer.current = window.setInterval(buzz, extraLoud ? 900 : 1500);
     }
 
     return () => {
@@ -281,16 +294,44 @@ export default function RiseRingScreen() {
   };
 
   const handleSnooze = async () => {
+    if (!alarm) return;
     if (snoozesLeft <= 0) {
-      toast.error('No snoozes left. You must complete the mission.');
+      toast.error('No snoozes left — completing the mission to wake up.');
+      setPhase('mission');
       return;
     }
 
-    await stopAlarm(); // 🟢 Snooze এ সাউন্ড বন্ধ করো
+    await stopAlarm();
 
-    const mins = alarm?.snooze_interval_minutes?? 5;
+    const mins = alarm.snooze_interval_minutes ?? 5;
+    const next = new Date(Date.now() + mins * 60 * 1000);
+    const nextTime = `${String(next.getHours()).padStart(2, '0')}:${String(next.getMinutes()).padStart(2, '0')}`;
+
+    try {
+      // Reschedule a single-shot for the snooze occurrence (today only)
+      await scheduleRecurringAlarm(`${alarm.id}-snooze`, nextTime, [next.getDay()], {
+        title: alarm.label || 'Rise Alarm',
+        body: alarm.intention || 'Snooze over — time to wake up!',
+        missionType: (alarm.verification_type as any) ?? 'math',
+        extraLoud: alarm.extra_loud ?? false,
+        snoozeMinutes: mins,
+      });
+    } catch (e) {
+      console.error('Failed to reschedule snooze:', e);
+    }
+
+    // Persist remaining snooze count so a fresh ring respects the limit
+    try {
+      const stored = JSON.parse(localStorage.getItem('local_alarms') || '[]');
+      const idx = stored.findIndex((a: any) => String(a.id) === String(alarm.id));
+      if (idx >= 0) {
+        stored[idx].snooze_limit = Math.max(0, snoozesLeft - 1);
+        localStorage.setItem('local_alarms', JSON.stringify(stored));
+      }
+    } catch {}
+
+    setSnoozesLeft((n) => Math.max(0, n - 1));
     toast.success(`Snoozed for ${mins} minutes`);
-
     navigate('/rise', { replace: true });
   };
 
@@ -313,8 +354,19 @@ export default function RiseRingScreen() {
     <>
       {phase === 'mission' ? (
         <div className="fixed inset-0 z-[200] bg-slate-950">
-          {alarm.verification_type === 'math' && <MathMission onComplete={handleMissionComplete} requiredSolves={3} />}
-          {alarm.verification_type === 'shake' && <ShakeMission onComplete={handleMissionComplete} requiredShakes={30} />}
+          {alarm.verification_type === 'math' && (
+            <MathMission
+              onComplete={handleMissionComplete}
+              requiredSolves={alarm.mission_config?.count ?? 3}
+              perProblemSeconds={PER_PROBLEM_SECONDS[alarm.mission_config?.difficulty ?? 'medium']}
+            />
+          )}
+          {alarm.verification_type === 'shake' && (
+            <ShakeMission
+              onComplete={handleMissionComplete}
+              requiredShakes={(alarm.mission_config?.count ?? 3) * (alarm.mission_config?.difficulty === 'hard' ? 15 : alarm.mission_config?.difficulty === 'easy' ? 5 : 10)}
+            />
+          )}
           {(alarm.verification_type === 'qr' || alarm.verification_type === 'barcode') && (
             <BarcodeMission onComplete={handleMissionComplete} targetBarcode="WAKE-UP" />
           )}
@@ -331,7 +383,21 @@ export default function RiseRingScreen() {
           )}
         </div>
       ) : (
-        <div className="fixed inset-0 z-[200] bg-gradient-to-b from-amber-600 via-orange-600 to-rose-700 text-white flex flex-col">
+        <div
+          className="fixed inset-0 z-[200] bg-gradient-to-b from-amber-600 via-orange-600 to-rose-700 text-white flex flex-col"
+          style={
+            alarm.wallpaper_url
+              ? {
+                  backgroundImage: `url("${alarm.wallpaper_url}")`,
+                  backgroundSize: 'cover',
+                  backgroundPosition: 'center',
+                }
+              : undefined
+          }
+        >
+          {alarm.wallpaper_url && (
+            <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/30 to-black/70 pointer-events-none" />
+          )}
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.15),transparent_60%)] pointer-events-none" />
           <div className="flex-1 flex flex-col items-center justify-center px-6 relative z-10">
             <div className="mb-6">

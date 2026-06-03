@@ -1,8 +1,10 @@
 import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { X } from "lucide-react";
+import { ExternalLink, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
+import { isNative } from "@/lib/capacitor/platform";
+import { toast } from "sonner";
 
 interface Announcement {
   id: string;
@@ -18,6 +20,36 @@ interface Announcement {
 
 const STORAGE_KEY = "announcement_views_v1";
 
+function normalizeAnnouncementUrl(url: string) {
+  const trimmed = url.trim();
+  if (!trimmed) return "";
+  if (/^https?:\/\//i.test(trimmed) || /^[a-z][a-z0-9+.-]*:/i.test(trimmed)) return trimmed;
+  return `https://${trimmed}`;
+}
+
+async function openAnnouncementUrl(rawUrl: string) {
+  const url = normalizeAnnouncementUrl(rawUrl);
+  if (!url) return;
+
+  if (!isNative) {
+    const opened = window.open(url, "_blank", "noopener,noreferrer");
+    if (!opened) window.location.assign(url);
+    return;
+  }
+
+  try {
+    const { Browser } = await import("@capacitor/browser");
+    if (/^tg:\/\//i.test(url)) {
+      const tgPath = url.replace(/^tg:\/\//i, "");
+      await Browser.open({ url: `https://t.me/${tgPath.replace(/^resolve\?domain=/i, "")}` });
+      return;
+    }
+    await Browser.open({ url: /^https?:\/\//i.test(url) ? url : `https://${url.replace(/^[a-z][a-z0-9+.-]*:/i, "")}` });
+  } catch {
+    window.location.assign(url);
+  }
+}
+
 function getViews(): Record<string, number> {
   try {
     return JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
@@ -31,8 +63,9 @@ function saveViews(v: Record<string, number>) {
 }
 
 export default function AnnouncementPopup() {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
   const [announcement, setAnnouncement] = useState<Announcement | null>(null);
+  const [opening, setOpening] = useState(false);
 
   const evaluateAndShow = useCallback((a: Announcement, opts: { forceShow?: boolean } = {}) => {
     if (!a.is_active) return;
@@ -49,9 +82,10 @@ export default function AnnouncementPopup() {
 
   // Initial fetch — latest active announcement on app open
   useEffect(() => {
-    if (!user) return;
+    if (loading || !user) return;
     let cancelled = false;
-    (async () => {
+
+    const loadLatestAnnouncement = async () => {
       const { data, error } = await supabase
         .from("announcements")
         .select("*")
@@ -60,15 +94,23 @@ export default function AnnouncementPopup() {
         .limit(1);
       if (error || cancelled || !data || data.length === 0) return;
       evaluateAndShow(data[0] as Announcement);
-    })();
+    };
+
+    loadLatestAnnouncement();
+    const onResume = () => loadLatestAnnouncement();
+    window.addEventListener("app:resume", onResume);
+    window.addEventListener("focus", onResume);
+
     return () => {
       cancelled = true;
+      window.removeEventListener("app:resume", onResume);
+      window.removeEventListener("focus", onResume);
     };
-  }, [evaluateAndShow, user]);
+  }, [evaluateAndShow, loading, user]);
 
   // Live push — new/updated announcement → show immediately to logged-in users
   useEffect(() => {
-    if (!user) return;
+    if (loading || !user) return;
     const channel = supabase
       .channel("announcements-live")
       .on(
@@ -94,9 +136,13 @@ export default function AnnouncementPopup() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [evaluateAndShow, user]);
+  }, [evaluateAndShow, loading, user]);
 
-  if (!user || !announcement) return null;
+  useEffect(() => {
+    if (!loading && !user) setAnnouncement(null);
+  }, [loading, user]);
+
+  if (loading || !user || !announcement) return null;
 
   const close = () => setAnnouncement(null);
 
@@ -124,11 +170,23 @@ export default function AnnouncementPopup() {
           )}
           {announcement.link_url && (
             <Button
+              type="button"
               className="w-full"
-              onClick={() => {
-                window.open(announcement.link_url!, "_blank", "noopener,noreferrer");
+              onClick={async () => {
+                if (opening) return;
+                setOpening(true);
+                try {
+                  await openAnnouncementUrl(announcement.link_url!);
+                  close();
+                } catch (error) {
+                  toast.error("Link open করা যায়নি");
+                } finally {
+                  setOpening(false);
+                }
               }}
+              disabled={opening}
             >
+              <ExternalLink className="h-4 w-4" />
               {announcement.button_text || "Learn More"}
             </Button>
           )}

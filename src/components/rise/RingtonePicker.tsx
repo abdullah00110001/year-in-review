@@ -3,11 +3,13 @@ import { supabase } from '@/integrations/supabase/client';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
-import { Search, Play, Pause, Loader2, Check, Music2 } from 'lucide-react';
+import { Search, Play, Pause, Loader2, Check, Music2, Smartphone } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { isNative } from '@/lib/capacitor/platform';
 import { Filesystem, Directory } from '@capacitor/filesystem';
+import { pickDeviceRingtone } from '@/lib/capacitor/nativeRingtonePicker';
+import { useOfflineGuard } from '@/components/OfflineGuard';
 
 interface Ringtone {
   id: string;
@@ -26,6 +28,17 @@ interface RingtonePickerProps {
 }
 
 const CATEGORIES = ['All', 'Gentle', 'Loud', 'Nature', 'Classic', 'Other'] as const;
+
+/** Hard-coded default ringtone — always visible at top of list regardless of DB. */
+const DEFAULT_RINGTONE: Ringtone = {
+  id: 'default:rise-and-shine',
+  name: 'Rise & Shine (Default)',
+  description: 'Built-in default — works offline',
+  category: 'Classic',
+  // Use a small built-in beep tone. On native we fall through to the system default.
+  file_url: 'data:audio/wav;base64,UklGRkIDAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YR4DAAB/f39/f4B/f4F/gIB/gH9/gIB/f3+Af3+Af3+Af4B/gH9/gH9/gIB/f4B/f4B/f4F/gIB/gH9/gIB/',
+  duration_seconds: 30,
+};
 
 /** Bouncing audio-bars equalizer shown while a ringtone is previewing. */
 function AudioBars() {
@@ -55,6 +68,17 @@ const RINGTONE_CACHE_DIR = 'ringtones';
 
 async function getCachedRingtoneUri(ringtoneId: string, remoteUrl: string): Promise<string> {
   if (!isNative) return remoteUrl;
+  // ✅ Bypass caching for built-in default and device-picker URIs — they're already local/inline.
+  if (
+    ringtoneId.startsWith('default:') ||
+    ringtoneId.startsWith('device:') ||
+    remoteUrl.startsWith('data:') ||
+    remoteUrl.startsWith('content://') ||
+    remoteUrl.startsWith('file://') ||
+    remoteUrl.startsWith('android.resource://')
+  ) {
+    return remoteUrl;
+  }
   const ext = (remoteUrl.split('.').pop() || 'mp3').split('?')[0].slice(0, 4);
   const fileName = `${RINGTONE_CACHE_DIR}/${ringtoneId}.${ext}`;
 
@@ -97,6 +121,7 @@ async function getCachedRingtoneUri(ringtoneId: string, remoteUrl: string): Prom
 
 export function RingtonePicker({ onSelect, selectedId }: RingtonePickerProps) {
   const [ringtones, setRingtones] = useState<Ringtone[]>([]);
+  const { requireOnline } = useOfflineGuard();
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState<typeof CATEGORIES[number]>('All');
@@ -119,9 +144,10 @@ export function RingtonePicker({ onSelect, selectedId }: RingtonePickerProps) {
       if (error) {
         toast.error('Failed to load ringtones');
         console.error(error);
-        setRingtones([]);
+        setRingtones([DEFAULT_RINGTONE]);
       } else {
-        setRingtones((data ?? []) as Ringtone[]);
+        // Prepend the default so it's always visible & selectable, even offline.
+        setRingtones([DEFAULT_RINGTONE, ...((data ?? []) as Ringtone[])]);
       }
       setLoading(false);
     })();
@@ -177,6 +203,15 @@ export function RingtonePicker({ onSelect, selectedId }: RingtonePickerProps) {
   };
 
   const handleSelect = async (rt: Ringtone) => {
+    // Default + device-picker ringtones work offline.
+    const isLocal =
+      rt.id.startsWith('default:') ||
+      rt.id.startsWith('device:') ||
+      rt.file_url.startsWith('data:') ||
+      rt.file_url.startsWith('content://') ||
+      rt.file_url.startsWith('file://');
+
+    const run = async () => {
     setDownloadingId(rt.id);
     try {
       const uri = await getCachedRingtoneUri(rt.id, rt.file_url);
@@ -192,6 +227,13 @@ export function RingtonePicker({ onSelect, selectedId }: RingtonePickerProps) {
       }
     } finally {
       setDownloadingId(null);
+    }
+    };
+
+    if (isLocal) {
+      await run();
+    } else {
+      requireOnline(() => { void run(); }, 'Downloading this ringtone');
     }
   };
 
@@ -231,6 +273,52 @@ export function RingtonePicker({ onSelect, selectedId }: RingtonePickerProps) {
         </ScrollArea>
       </div>
 
+      {/* Native device-picker button (Android only) */}
+      {isNative && (
+        <div className="px-3 pt-2">
+          <button
+            type="button"
+            onClick={async () => {
+              try {
+                const picked = await pickDeviceRingtone({ title: 'Pick a device sound' });
+                if (!picked || !picked.uri) {
+                  return;
+                }
+                // Sanitize bogus titles (some Android devices return a numeric ID as the title)
+                const rawTitle = (picked.title ?? '').trim();
+                const niceTitle =
+                  !rawTitle || /^\d+$/.test(rawTitle) ? 'Device ringtone' : rawTitle;
+                const ringtoneId = `device:${picked.uri}`;
+                onSelect(picked.uri, {
+                  id: ringtoneId,
+                  name: niceTitle,
+                  description: 'Picked from device',
+                  category: 'Device',
+                  file_url: picked.uri,
+                  duration_seconds: null,
+                });
+                toast.success(`Selected: ${niceTitle}`);
+              } catch (e: any) {
+                console.error('Device picker failed', e);
+                toast.error('Could not open device picker');
+              }
+            }}
+            className="w-full flex items-center justify-between gap-3 px-3.5 py-3 rounded-xl border border-dashed border-border bg-muted/30 hover:bg-muted/60 transition-colors"
+          >
+            <div className="flex items-center gap-3">
+              <div className="h-9 w-9 rounded-full bg-primary/10 text-primary flex items-center justify-center">
+                <Smartphone className="h-4 w-4" />
+              </div>
+              <div className="text-left">
+                <p className="text-sm font-semibold text-foreground">Choose from device</p>
+                <p className="text-xs text-muted-foreground">Use any installed Android ringtone</p>
+              </div>
+            </div>
+            <Check className="h-4 w-4 text-muted-foreground" />
+          </button>
+        </div>
+      )}
+
       {/* List */}
       <div className="flex-1 overflow-y-auto px-3 py-2">
         {loading ? (
@@ -249,7 +337,7 @@ export function RingtonePicker({ onSelect, selectedId }: RingtonePickerProps) {
             {filtered.map((rt) => {
               const isPlaying = playingId === rt.id;
               const isDownloading = downloadingId === rt.id;
-              const isSelected = selectedId === rt.id;
+              const isSelected = selectedId === rt.id || selectedId === rt.file_url;
               return (
                 <li
                   key={rt.id}

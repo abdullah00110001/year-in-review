@@ -1,5 +1,5 @@
 import { WebPlugin } from '@capacitor/core';
-import type { PureShieldPluginInterface, PureShieldConfig, PermissionStatus, AdaptiveStatus, ModelStatus } from './pureShieldPlugin';
+import type { PureShieldPluginInterface, PureShieldConfig, PermissionStatus, AdaptiveStatus, ModelStatus, LiveStats } from './pureShieldPlugin';
 
 /**
  * Web stub — used in browser dev environment.
@@ -77,5 +77,22 @@ export class PureShieldWeb extends WebPlugin implements PureShieldPluginInterfac
 
   async getModelStatus(): Promise<ModelStatus> {
     return { status: 'OK' };
+  }
+
+  async getLiveStats(): Promise<LiveStats> {
+    return {
+      totalFrames: this.running ? 24 : 0,
+      totalFaces: this.running ? 6 : 0,
+      totalBlurred: this.running ? 6 : 0,
+      lastInferenceMs: this.running ? 18 : 0,
+      lastDebugMessage: this.running ? 'Web preview: 6 faces, 6 overlays' : 'Stopped',
+      modelStatus: 'OK',
+      foregroundApp: 'web.preview',
+      blazeMaxScore: 0.91,
+      blazeAboveCount: this.running ? 6 : 0,
+      blazeKeptCount: this.running ? 6 : 0,
+      overlayCount: this.running ? 6 : 0,
+      genderModelLoaded: true,
+    };
   }
 }

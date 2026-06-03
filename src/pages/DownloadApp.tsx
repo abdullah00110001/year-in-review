@@ -105,7 +105,7 @@ export default function DownloadApp() {
             Back
           </Link>
           <div className="flex items-center gap-3">
-            <img src="/icons/app-icon.png" alt="App" className="h-8 w-8 rounded-xl" />
+            <img src="/lifeos-logo-light.png" alt="Life OS" className="h-8 w-8 rounded-xl" />
             <span className="font-bold text-foreground">Life OS</span>
           </div>
           <div className="w-16" />
@@ -116,7 +116,7 @@ export default function DownloadApp() {
         {/* App Info */}
         <div className="text-center mb-8">
           <div className="mx-auto mb-6 h-24 w-24 rounded-3xl bg-primary/10 border border-primary/20 flex items-center justify-center shadow-xl shadow-primary/10">
-            <img src="/icons/app-icon.png" alt="App" className="h-16 w-16 rounded-2xl" />
+            <img src="/lifeos-logo-light.png" alt="Life OS" className="h-16 w-16 rounded-2xl" />
           </div>
           <h1 className="text-3xl font-bold text-foreground mb-2">Life OS</h1>
           <p className="text-muted-foreground">Your complete life tracking companion</p>

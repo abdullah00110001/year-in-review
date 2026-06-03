@@ -9,7 +9,7 @@ import { Switch } from "@/components/ui/switch";
 import { Card } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Trash2, Megaphone, Pencil, Plus } from "lucide-react";
+import { Trash2, Megaphone, Pencil, Plus, Power } from "lucide-react";
 
 interface Announcement {
   id: string;
@@ -252,13 +252,19 @@ export default function AdminAnnouncements() {
                   )}
                 </div>
                 <div className="flex gap-1">
-                  <Button size="sm" variant="ghost" onClick={() => toggle(a)}>
-                    <Switch checked={a.is_active} />
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    aria-label={a.is_active ? "Deactivate announcement" : "Activate announcement"}
+                    onClick={() => toggle(a)}
+                  >
+                    <Power className={`h-4 w-4 ${a.is_active ? "text-primary" : "text-muted-foreground"}`} />
                   </Button>
-                  <Button size="sm" variant="ghost" onClick={() => startEdit(a)}>
+                  <Button type="button" size="sm" variant="ghost" onClick={() => startEdit(a)}>
                     <Pencil className="h-4 w-4" />
                   </Button>
-                  <Button size="sm" variant="ghost" onClick={() => remove(a.id)}>
+                  <Button type="button" size="sm" variant="ghost" onClick={() => remove(a.id)}>
                     <Trash2 className="h-4 w-4 text-destructive" />
                   </Button>
                 </div>

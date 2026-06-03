@@ -3,6 +3,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
+import { OfflineBadge } from '@/components/OfflineGuard';
 
 interface RiseHeaderProps {
   streak: number;
@@ -46,6 +47,7 @@ export function RiseHeader({ streak, backFlash = false }: RiseHeaderProps) {
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
+          <OfflineBadge />
           <Badge variant="secondary" className="bg-primary/10 text-primary text-xs">
             <Flame className="h-3 w-3 mr-1" />
             {streak}d

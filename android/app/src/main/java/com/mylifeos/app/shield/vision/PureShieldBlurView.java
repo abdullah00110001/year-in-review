@@ -134,6 +134,8 @@ public class PureShieldBlurView extends View {
         int srcW = sourceBitmap.getWidth();
         int srcH = sourceBitmap.getHeight();
         if (srcW <= 0 || srcH <= 0) { canvas.restore(); return; }
+        bitmapPaint.setAlpha(overlayAlpha);
+        pixelPaint.setAlpha(overlayAlpha);
 
         try {
             if (blurStyle == BlurStyle.PIXELATE || blurStyle == BlurStyle.MOSAIC) {
@@ -158,7 +160,7 @@ public class PureShieldBlurView extends View {
                 if (pass2 != sourceBitmap) pass2.recycle();
                 // subtle dark veil so face shape is not readable
                 paint.setShader(null);
-                paint.setColor(Color.argb(60, 0, 0, 0));
+                paint.setColor(Color.argb(Math.round(60f * overlayAlpha / 255f), 0, 0, 0));
                 canvas.drawOval(new RectF(0, 0, w, h), paint);
             }
         } catch (Throwable t) {
@@ -169,6 +171,8 @@ public class PureShieldBlurView extends View {
         }
 
         canvas.restore();
+        bitmapPaint.setAlpha(255);
+        pixelPaint.setAlpha(255);
         drawFeatheredOvalEdge(canvas, w, h, Color.argb(70, 60, 70, 90));
     }
 

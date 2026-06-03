@@ -158,7 +158,7 @@ export function useNotifications() {
         navigator.serviceWorker.ready.then(registration => {
           registration.showNotification(title, {
             body,
-            icon: icon || '/icons/icon-192x192.png',
+            icon: icon || '/lifeos-logo-light.png',
             tag: `oporajeyo-${Date.now()}`,
           });
         }).catch(() => {
@@ -176,7 +176,7 @@ export function useNotifications() {
     try {
       const notification = new Notification(title, {
         body,
-        icon: icon || '/icons/icon-192x192.png',
+        icon: icon || '/lifeos-logo-light.png',
         tag: `oporajeyo-${Date.now()}`,
       });
 

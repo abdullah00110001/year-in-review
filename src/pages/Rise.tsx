@@ -11,7 +11,7 @@ import { RiseAlarmCard } from '@/components/rise/RiseAlarmCard';
 import { RiseAlarmEditor } from '@/components/rise/RiseAlarmEditor';
 import { RiseReports } from '@/components/rise/RiseReports';
 import { RiseSettings } from '@/components/rise/RiseSettings';
-import { CommunityWakeFeed } from '@/components/rise/CommunityWakeFeed';
+import CommunityWakeFeed from '@/components/rise/CommunityWakeFeed';
 import { LifeosGroupsHome } from '@/components/groups/LifeosGroupsHome';
 import { Card, CardContent } from '@/components/ui/card';
 import { scheduleRecurringAlarm, cancelAlarmByUuid, initializeAlarmChannel } from '@/lib/capacitor/nativeAlarm';
@@ -42,6 +42,8 @@ interface RiseAlarm {
   snooze_interval_minutes?: number;
   sound_type?: string;
   vibration_enabled?: boolean;
+  ringtone_url?: string | null;
+  ringtone_name?: string | null;
 }
 
 interface RiseStreak {
@@ -184,6 +186,9 @@ export default function RisePage() {
         snooze_interval_minutes: a.snooze_interval_minutes ?? 5,
         sound_type: a.sound_type || 'default',
         vibration_enabled: a.vibration_enabled ?? true,
+        // ✅ Persist user-selected ringtone across sessions
+        ringtone_url: a.ringtone_url ?? null,
+        ringtone_name: a.ringtone_name ?? null,
       }));
     } catch (e) {
       console.warn('Failed to read local alarms', e);

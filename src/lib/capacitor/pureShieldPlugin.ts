@@ -11,6 +11,11 @@ export interface PureShieldConfig {
   blurGender:           BlurGender;
   blurStyle:            BlurStyle;
   confidenceThreshold:  number; // 0.0 – 1.0, default 0.72
+  blurOpacity?:         number;
+  blurPaddingPct?:      number;
+  minFaceSizePct?:      number;
+  maxFaces?:            number;
+  debugOverlay?:        boolean;
   enabled:              boolean;
   pauseOnBatteryBelow20: boolean;
 }
@@ -40,6 +45,21 @@ export interface ModelStatus {
   reason?: string;
 }
 
+export interface LiveStats {
+  totalFrames: number;
+  totalFaces: number;
+  totalBlurred: number;
+  lastInferenceMs: number;
+  lastDebugMessage: string;
+  modelStatus: string;
+  foregroundApp?: string;
+  blazeMaxScore?: number;
+  blazeAboveCount?: number;
+  blazeKeptCount?: number;
+  overlayCount?: number;
+  genderModelLoaded?: boolean;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Plugin interface
 // ─────────────────────────────────────────────────────────────────────────────
@@ -62,6 +82,7 @@ export interface PureShieldPluginInterface {
 
   getAdaptiveStatus():           Promise<AdaptiveStatus>;
   getModelStatus():              Promise<ModelStatus>;
+  getLiveStats():                Promise<LiveStats>;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import Picker from 'react-mobile-picker';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -38,6 +39,12 @@ import {
   checkAllAlarmPermissions,
 } from '@/lib/capacitor/nativeAlarm';
 
+export type MissionDifficulty = 'easy' | 'medium' | 'hard';
+export interface MissionConfig {
+  difficulty: MissionDifficulty;
+  count: number; // 1–10
+}
+
 interface AlarmData {
   id?: string;
   alarm_time: string;
@@ -46,6 +53,7 @@ interface AlarmData {
   intention: string;
   label: string;
   verification_type: string;
+  mission_config?: MissionConfig;
   snooze_limit: number;
   snooze_interval_minutes: number;
   sound_type: string;
@@ -60,6 +68,7 @@ interface AlarmData {
   time_reminder?: boolean;
   ringtone_url?: string | null;
   ringtone_name?: string | null;
+  ringtone_id?: string | null;
 }
 
 interface RiseAlarmEditorProps {
@@ -70,6 +79,8 @@ interface RiseAlarmEditorProps {
   isEditing?: boolean;
 }
 
+const DEFAULT_MISSION_CONFIG: MissionConfig = { difficulty: 'medium', count: 3 };
+
 const DEFAULT_ALARM: AlarmData = {
   alarm_time: '06:00',
   days_of_week: [1, 2, 3, 4, 5],
@@ -77,6 +88,7 @@ const DEFAULT_ALARM: AlarmData = {
   intention: '',
   label: '',
   verification_type: 'math',
+  mission_config: DEFAULT_MISSION_CONFIG,
   snooze_limit: 3,
   snooze_interval_minutes: 5,
   sound_type: 'default',
@@ -89,7 +101,9 @@ const DEFAULT_ALARM: AlarmData = {
   time_reminder: false,
   ringtone_url: null,
   ringtone_name: null,
+  ringtone_id: null,
 };
+
 
 const MISSIONS = [
   { id: 'math', name: 'Math', icon: Calculator },
@@ -112,20 +126,69 @@ export function RiseAlarmEditor({
   const [permissionsOk, setPermissionsOk] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [showRingtonePicker, setShowRingtonePicker] = useState(false);
+  const [missionConfigOpen, setMissionConfigOpen] = useState(false);
+  const [, forceTick] = useState(0);
   const wallpaperInputRef = useRef<HTMLInputElement>(null);
+
+  // Live tick so "Rings in Xh Ym" updates every 15s while editor is open
+  useEffect(() => {
+    if (!open) return;
+    const t = setInterval(() => forceTick((n) => n + 1), 15_000);
+    return () => clearInterval(t);
+  }, [open]);
 
   useEffect(() => {
     if (open) {
-      setAlarm({ ...DEFAULT_ALARM, ...initialData });
+      // Restore an in-progress draft if the app was backgrounded mid-edit.
+      let restored: Partial<AlarmData> | null = null;
+      try {
+        const raw = sessionStorage.getItem('rise_alarm_editor_draft');
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed && (!initialData?.id || parsed.id === initialData.id)) {
+            restored = parsed;
+          }
+        }
+      } catch {}
+      setAlarm({ ...DEFAULT_ALARM, ...initialData, ...(restored ?? {}) });
       checkAllAlarmPermissions().then((perms) =>
         setPermissionsOk(perms.notifications && perms.exactAlarm),
       );
     }
   }, [open, initialData]);
 
+  // #7 — Persist draft when the app goes to background so resuming restores state.
   useEffect(() => {
-    if (!open) setShowTimePicker(false);
+    if (!open) return;
+    let sub: any;
+    let mounted = true;
+    (async () => {
+      try {
+        const { App } = await import('@capacitor/app');
+        sub = await App.addListener('appStateChange', ({ isActive }) => {
+          if (!mounted) return;
+          if (!isActive) {
+            try {
+              sessionStorage.setItem('rise_alarm_editor_draft', JSON.stringify(alarm));
+            } catch {}
+          }
+        });
+      } catch {}
+    })();
+    return () => {
+      mounted = false;
+      try { sub?.remove?.(); } catch {}
+    };
+  }, [open, alarm]);
+
+  useEffect(() => {
+    if (!open) {
+      setShowTimePicker(false);
+      setMissionConfigOpen(false);
+      try { sessionStorage.removeItem('rise_alarm_editor_draft'); } catch {}
+    }
   }, [open]);
+
 
   const toggleDay = (day: number) => {
     setAlarm((prev) => ({
@@ -181,14 +244,25 @@ export function RiseAlarmEditor({
     return `${displayH}:${String(m).padStart(2, '0')} ${ampm}`;
   };
 
-  const handleWallpaperSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleWallpaperSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     if (alarm.wallpaper_url && alarm.wallpaper_url.startsWith('blob:')) {
       URL.revokeObjectURL(alarm.wallpaper_url);
     }
-    const url = URL.createObjectURL(file);
-    setAlarm((p) => ({ ...p, wallpaper_url: url }));
+    // Persist as data URL so the wallpaper survives reloads and is available
+    // when the alarm rings later (blob: URLs die with the page/session).
+    try {
+      const dataUrl: string = await new Promise((resolve, reject) => {
+        const r = new FileReader();
+        r.onload = () => resolve(String(r.result));
+        r.onerror = () => reject(r.error);
+        r.readAsDataURL(file);
+      });
+      setAlarm((p) => ({ ...p, wallpaper_url: dataUrl }));
+    } catch {
+      toast.error('Could not load wallpaper');
+    }
     e.target.value = '';
   };
 
@@ -323,7 +397,14 @@ export function RiseAlarmEditor({
                     return (
                       <button
                         key={m.id}
-                        onClick={() => setAlarm((p) => ({ ...p, verification_type: m.id }))}
+                        onClick={() => {
+                          setAlarm((p) => ({
+                            ...p,
+                            verification_type: m.id,
+                            mission_config: p.mission_config ?? DEFAULT_MISSION_CONFIG,
+                          }));
+                          if (m.id !== 'none') setMissionConfigOpen(true);
+                        }}
                         className={cn(
                           'flex flex-col items-center gap-1 py-2.5 px-1 rounded-lg transition-all border',
                           selected
@@ -337,7 +418,22 @@ export function RiseAlarmEditor({
                     );
                   })}
                 </div>
+                {alarm.verification_type !== 'none' && (
+                  <button
+                    type="button"
+                    onClick={() => setMissionConfigOpen(true)}
+                    className="w-full mt-1 flex items-center justify-between text-xs text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    <span>
+                      Difficulty: <span className="text-foreground font-semibold capitalize">{alarm.mission_config?.difficulty ?? 'medium'}</span>
+                      {' · '}
+                      Tasks: <span className="text-foreground font-semibold">{alarm.mission_config?.count ?? 3}</span>
+                    </span>
+                    <ChevronRight className="h-3 w-3" />
+                  </button>
+                )}
               </div>
+
 
               {/* Sound + vibration + extras */}
               <div className="bg-card border border-border rounded-xl divide-y divide-border">
@@ -602,111 +698,41 @@ export function RiseAlarmEditor({
 
       {showRingtonePicker && (
         <RingtoneSheet
-          selectedId={alarm.ringtone_url ?? undefined}
-          onSelect={(uri, name) => {
-            setAlarm((p) => ({ ...p, ringtone_url: uri, ringtone_name: name, sound_type: 'custom' }));
+          selectedId={alarm.ringtone_id ?? undefined}
+          onSelect={(uri, name, id) => {
+            setAlarm((p) => ({
+              ...p,
+              ringtone_url: uri,
+              ringtone_name: name,
+              ringtone_id: id,
+              sound_type: id.startsWith('default:') ? 'default' : 'custom',
+            }));
             setShowRingtonePicker(false);
           }}
           onClose={() => setShowRingtonePicker(false)}
+        />
+      )}
+
+      {missionConfigOpen && (
+        <MissionConfigSheet
+          missionId={alarm.verification_type}
+          value={alarm.mission_config ?? DEFAULT_MISSION_CONFIG}
+          onSave={(cfg) => {
+            setAlarm((p) => ({ ...p, mission_config: cfg }));
+            setMissionConfigOpen(false);
+          }}
+          onClose={() => setMissionConfigOpen(false)}
         />
       )}
     </>
   );
 }
 
-// ─── Scroll / Drum-roll Time Picker (Fixed) ──────────────────────────────────────────
+// ─── Wheel Time Picker (react-mobile-picker, works smoothly on iOS + Android) ──
 
-const ITEM_H = 56;
-
-function ColScroll<T extends string | number>({
-  items,
-  selected,
-  onSelect,
-  format = (v: T) => String(v).padStart(2, '0'),
-}: {
-  items: readonly T[];
-  selected: T;
-  onSelect: (v: T) => void;
-  format?: (v: T) => string;
-}) {
-  const ref = useRef<HTMLDivElement>(null);
-  const scrollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // Only sync scrollTop on first mount (or if items array changes).
-  // Re-syncing on every `selected` change fights the user's touch/momentum scroll.
-  useEffect(() => {
-    if (!ref.current) return;
-    const idx = items.indexOf(selected);
-    if (idx >= 0) ref.current.scrollTop = idx * ITEM_H;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [items]);
-
-  const handleScroll = () => {
-    if (!ref.current) return;
-    if (scrollTimer.current) clearTimeout(scrollTimer.current);
-    scrollTimer.current = setTimeout(() => {
-      if (!ref.current) return;
-      const idx = Math.round(ref.current.scrollTop / ITEM_H);
-      const clamped = Math.max(0, Math.min(idx, items.length - 1));
-      const target = clamped * ITEM_H;
-      if (Math.abs(ref.current.scrollTop - target) > 1) {
-        ref.current.scrollTop = target;
-      }
-      if (items[clamped] !== selected) onSelect(items[clamped]);
-    }, 120);
-  };
-
-  return (
-    <div
-      ref={ref}
-      onScroll={handleScroll}
-      className="scrollbar-none"
-      style={{
-        height: ITEM_H * 3,
-        overflowY: 'scroll',
-        scrollSnapType: 'y mandatory',
-        WebkitOverflowScrolling: 'touch',
-        overscrollBehavior: 'contain',
-      } as React.CSSProperties}
-    >
-      <div style={{ height: ITEM_H, flexShrink: 0 }} />
-      {items.map((v) => {
-        const isSel = v === selected;
-        return (
-          <div
-            key={v}
-            style={{
-              height: ITEM_H,
-              scrollSnapAlign: 'center',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: isSel ? 40 : 24,
-              fontWeight: 700,
-              opacity: isSel ? 1 : 0.3,
-              transition: 'font-size 0.1s, opacity 0.1s',
-              cursor: 'pointer',
-              userSelect: 'none',
-            }}
-            className={isSel ? "text-primary" : "text-muted-foreground"}
-            onClick={() => {
-              if (ref.current) {
-                ref.current.scrollTo({
-                  top: items.indexOf(v) * ITEM_H,
-                  behavior: 'smooth',
-                });
-              }
-              onSelect(v);
-            }}
-          >
-            {format(v)}
-          </div>
-        );
-      })}
-      <div style={{ height: ITEM_H, flexShrink: 0 }} />
-    </div>
-  );
-}
+const HOURS = Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, '0'));
+const MINUTES = Array.from({ length: 60 }, (_, i) => String(i).padStart(2, '0'));
+const AMPM = ['AM', 'PM'];
 
 function ScrollTimePicker({
   value,
@@ -717,114 +743,108 @@ function ScrollTimePicker({
   onSaveTime: (t: string) => void;
   onClose: () => void;
 }) {
-  const [h, m] = value.split(':').map(Number);
-  const [selHour, setSelHour] = useState(h % 12 || 12);
-  const [selMin, setSelMin] = useState(m);
-  const [isAM, setIsAM] = useState(h < 12);
+  const [h24, m] = value.split(':').map(Number);
+  const initialAmpm = h24 >= 12 ? 'PM' : 'AM';
+  const initialHour12 = h24 % 12 || 12;
 
-  const hourItems = Array.from({ length: 12 }, (_, i) => i + 1);
-  const minuteItems = Array.from({ length: 60 }, (_, i) => i);
+  const [picked, setPicked] = useState({
+    hour: String(initialHour12).padStart(2, '0'),
+    minute: String(m).padStart(2, '0'),
+    ampm: initialAmpm,
+  });
 
   const handleComplete = () => {
-    let h24 = selHour % 12;
-    if (!isAM) h24 += 12;
-    const timeString = `${String(h24).padStart(2, '0')}:${String(selMin).padStart(2, '0')}`;
+    let h = parseInt(picked.hour, 10) % 12;
+    if (picked.ampm === 'PM') h += 12;
+    const timeString = `${String(h).padStart(2, '0')}:${picked.minute}`;
     onSaveTime(timeString);
     onClose();
   };
 
   return createPortal(
     <div
-      style={{
-        position: 'fixed',
-        inset: 0,
-        zIndex: 99999,
-        display: 'flex',
-        alignItems: 'flex-end',
-        justifyContent: 'center',
-        background: 'rgba(0,0,0,0.5)',
-      }}
+      className="fixed inset-0 z-[99999] flex items-end justify-center bg-black/60 backdrop-blur-sm"
+      style={{ touchAction: 'pan-y', pointerEvents: 'auto' }}
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div
-        className="bg-card text-card-foreground border-t border-border"
-        style={{
-          width: '100%',
-          maxWidth: 480,
-          borderRadius: '24px 24px 0 0',
-          overflow: 'hidden',
-          boxShadow: '0 -10px 40px rgba(0,0,0,0.3)',
-        }}
+        className="w-full max-w-md bg-card text-card-foreground border-t border-border rounded-t-3xl overflow-hidden shadow-2xl animate-in slide-in-from-bottom duration-200"
         onClick={(e) => e.stopPropagation()}
+        style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 0px)', touchAction: 'pan-y' }}
       >
-        <div className="flex justify-center py-3">
+        <div className="flex justify-center pt-3 pb-1">
           <div className="bg-muted w-10 h-1 rounded-full" />
         </div>
-
-        <div
-          style={{
-            position: 'relative',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '0 24px',
-            height: ITEM_H * 3,
-          }}
-        >
-          {/* Central Highlight Indicator */}
-          <div
-            className="bg-muted/60"
-            style={{
-              position: 'absolute',
-              left: 20,
-              right: 20,
-              top: ITEM_H,
-              height: ITEM_H,
-              borderRadius: 12,
-              pointerEvents: 'none',
-              zIndex: 0,
-            }}
-          />
-
-          <div style={{ flex: 1, zIndex: 1 }}>
-            <ColScroll
-              items={hourItems}
-              selected={selHour}
-              onSelect={(v) => setSelHour(v)}
-            />
-          </div>
-
-          <div
-            className="text-foreground flex items-center justify-center font-bold pb-2"
-            style={{ fontSize: 32, width: 20, userSelect: 'none', zIndex: 1 }}
-          >
-            :
-          </div>
-
-          <div style={{ flex: 1, zIndex: 1 }}>
-            <ColScroll
-              items={minuteItems}
-              selected={selMin}
-              onSelect={(v) => setSelMin(v)}
-            />
-          </div>
-
-          <div style={{ width: 64, marginLeft: 12, zIndex: 1 }}>
-            <ColScroll<string>
-              items={['AM', 'PM']}
-              selected={isAM ? 'AM' : 'PM'}
-              onSelect={(v) => setIsAM(v === 'AM')}
-              format={(v) => v}
-            />
-          </div>
+        <div className="text-center pt-2 pb-1">
+          <h3 className="text-base font-bold">Pick a time</h3>
+          <p className="text-xs text-muted-foreground">Scroll the wheels</p>
         </div>
-
-        <div className="p-4">
-          <Button
-            onClick={handleComplete}
-            className="w-full rounded-2xl font-bold text-base h-12"
+        <div
+          className="relative px-4 py-3 select-none"
+          style={{ touchAction: 'pan-y', WebkitUserSelect: 'none' }}
+          onTouchStart={(e) => e.stopPropagation()}
+          onTouchMove={(e) => e.stopPropagation()}
+          onPointerDown={(e) => e.stopPropagation()}
+        >
+          {/* highlight bar */}
+          <div className="pointer-events-none absolute left-4 right-4 top-1/2 -translate-y-1/2 h-10 rounded-xl bg-primary/10 border-y border-primary/20" />
+          <Picker
+            value={picked}
+            onChange={(v) => setPicked(v as typeof picked)}
+            wheelMode="natural"
+            height={200}
+            itemHeight={40}
           >
-            Complete
+            <Picker.Column name="hour">
+              {HOURS.map((h) => (
+                <Picker.Item key={h} value={h}>
+                  {({ selected }) => (
+                    <span className={cn(
+                      'tabular-nums transition-all',
+                      selected ? 'text-primary text-3xl font-black' : 'text-muted-foreground text-xl font-semibold'
+                    )}>
+                      {h}
+                    </span>
+                  )}
+                </Picker.Item>
+              ))}
+            </Picker.Column>
+            <Picker.Column name="minute">
+              {MINUTES.map((m) => (
+                <Picker.Item key={m} value={m}>
+                  {({ selected }) => (
+                    <span className={cn(
+                      'tabular-nums transition-all',
+                      selected ? 'text-primary text-3xl font-black' : 'text-muted-foreground text-xl font-semibold'
+                    )}>
+                      {m}
+                    </span>
+                  )}
+                </Picker.Item>
+              ))}
+            </Picker.Column>
+            <Picker.Column name="ampm">
+              {AMPM.map((a) => (
+                <Picker.Item key={a} value={a}>
+                  {({ selected }) => (
+                    <span className={cn(
+                      'transition-all',
+                      selected ? 'text-primary text-2xl font-black' : 'text-muted-foreground text-base font-semibold'
+                    )}>
+                      {a}
+                    </span>
+                  )}
+                </Picker.Item>
+              ))}
+            </Picker.Column>
+          </Picker>
+        </div>
+        <div className="px-4 pb-4 pt-2 flex gap-2">
+          <Button variant="ghost" onClick={onClose} className="flex-1 h-12 rounded-2xl font-semibold">
+            Cancel
+          </Button>
+          <Button onClick={handleComplete} className="flex-1 h-12 rounded-2xl font-bold">
+            Set Time
           </Button>
         </div>
       </div>
@@ -843,7 +863,7 @@ function RingtoneSheet({
   onClose,
 }: {
   selectedId?: string;
-  onSelect: (uri: string, name: string) => void;
+  onSelect: (uri: string, name: string, id: string) => void;
   onClose: () => void;
 }) {
   return createPortal(
@@ -856,6 +876,7 @@ function RingtoneSheet({
         alignItems: 'flex-end',
         justifyContent: 'center',
         background: 'rgba(0,0,0,0.5)',
+        pointerEvents: 'auto',
       }}
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
@@ -887,7 +908,7 @@ function RingtoneSheet({
           </button>
         </div>
         <div className="flex-1 min-h-0">
-          <DynamicRingtonePicker selectedId={selectedId} onSelect={(uri, rt) => onSelect(uri, rt.name)} />
+          <DynamicRingtonePicker selectedId={selectedId} onSelect={(uri, rt) => onSelect(uri, rt.name, rt.id)} />
         </div>
       </div>
     </div>,
@@ -918,3 +939,88 @@ function PresetChip({
     </button>
   );
 }
+
+// ─── Mission Config Sheet ──────────────────────────────────────────────────
+function MissionConfigSheet({
+  missionId,
+  value,
+  onSave,
+  onClose,
+}: {
+  missionId: string;
+  value: MissionConfig;
+  onSave: (v: MissionConfig) => void;
+  onClose: () => void;
+}) {
+  const [draft, setDraft] = useState<MissionConfig>(value);
+  const labelFor: Record<string, string> = {
+    math: 'Math Problems',
+    shake: 'Shake Reps',
+    qr: 'Barcode Scans',
+    photo: 'Photo Captures',
+  };
+  const taskWord = labelFor[missionId] ?? 'Tasks';
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[99999] flex items-end justify-center bg-black/60 backdrop-blur-sm"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div
+        className="w-full max-w-md bg-card text-card-foreground border-t border-border rounded-t-3xl overflow-hidden shadow-2xl animate-in slide-in-from-bottom duration-200"
+        style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 1rem)' }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex justify-center pt-3 pb-1">
+          <div className="bg-muted w-10 h-1 rounded-full" />
+        </div>
+        <div className="px-5 pt-2 pb-4">
+          <h3 className="text-base font-bold mb-1">Configure mission</h3>
+          <p className="text-xs text-muted-foreground mb-4">Tune the wake-up challenge to your liking.</p>
+
+          <Label className="text-xs uppercase tracking-wider text-muted-foreground">Difficulty</Label>
+          <div className="grid grid-cols-3 gap-2 mt-2 mb-5">
+            {(['easy', 'medium', 'hard'] as MissionDifficulty[]).map((d) => (
+              <button
+                key={d}
+                onClick={() => setDraft((p) => ({ ...p, difficulty: d }))}
+                className={cn(
+                  'h-10 rounded-xl text-xs font-bold capitalize transition-colors',
+                  draft.difficulty === d ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground',
+                )}
+              >
+                {d}
+              </button>
+            ))}
+          </div>
+
+          <div className="flex items-center justify-between mb-2">
+            <Label className="text-xs uppercase tracking-wider text-muted-foreground">{taskWord}</Label>
+            <span className="text-sm font-bold tabular-nums">{draft.count}</span>
+          </div>
+          <Slider
+            value={[draft.count]}
+            min={1}
+            max={10}
+            step={1}
+            onValueChange={([v]) => setDraft((p) => ({ ...p, count: v }))}
+          />
+          <div className="flex justify-between text-[10px] text-muted-foreground mt-1 mb-5">
+            <span>1</span><span>5</span><span>10</span>
+          </div>
+
+          <div className="flex gap-2">
+            <Button variant="ghost" onClick={onClose} className="flex-1 h-12 rounded-2xl font-semibold">
+              Cancel
+            </Button>
+            <Button onClick={() => onSave(draft)} className="flex-1 h-12 rounded-2xl font-bold">
+              Save
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+

@@ -157,6 +157,12 @@ public class PureShieldPlugin extends Plugin {
             Integer blurPaddingPct = call.getInt("blurPaddingPct");
             if (blurPaddingPct != null) config.setBlurPaddingPct(blurPaddingPct);
 
+            Integer minFaceSizePct = call.getInt("minFaceSizePct");
+            if (minFaceSizePct != null) config.setMinFaceSizePct(minFaceSizePct);
+
+            Integer maxFaces = call.getInt("maxFaces");
+            if (maxFaces != null) config.setMaxFaces(maxFaces);
+
             if (call.hasOption("debugOverlay")) {
                 config.setDebugOverlay(call.getBoolean("debugOverlay", config.isDebugOverlay()));
             }
@@ -273,6 +279,12 @@ public class PureShieldPlugin extends Plugin {
         result.put("lastInferenceMs",  PureShieldService.lastInferenceMs.get());
         result.put("lastDebugMessage", PureShieldService.lastDebugMessage);
         result.put("modelStatus",      PureShieldService.lastModelStatus);
+        result.put("foregroundApp",    PureShieldService.lastForegroundApp);
+        result.put("blazeMaxScore",    PureShieldService.lastBlazeMaxScore);
+        result.put("blazeAboveCount",  PureShieldService.lastBlazeAboveCount);
+        result.put("blazeKeptCount",   PureShieldService.lastBlazeKeptCount);
+        result.put("overlayCount",     PureShieldService.lastOverlayCount);
+        result.put("genderModelLoaded", PureShieldService.lastGenderModelLoaded);
         call.resolve(result);
     }
 
@@ -353,6 +365,8 @@ public class PureShieldPlugin extends Plugin {
         result.put("confidenceThreshold",  config.getConfidenceThreshold());
         result.put("blurOpacity",          config.getBlurOpacity());
         result.put("blurPaddingPct",       config.getBlurPaddingPct());
+        result.put("minFaceSizePct",       config.getMinFaceSizePct());
+        result.put("maxFaces",             config.getMaxFaces());
         result.put("debugOverlay",         config.isDebugOverlay());
         result.put("enabled",              config.isEnabled());
         result.put("pauseOnBatteryBelow20", config.isPauseOnBatteryBelow20());
@@ -360,6 +374,7 @@ public class PureShieldPlugin extends Plugin {
     }
 
     private void notifyConfigChanged() {
+        if (PureShieldService.instance == null && !isServiceClassRunning(PureShieldService.class)) return;
         Intent intent = new Intent(getContext(), PureShieldService.class);
         intent.setAction(PureShieldService.Actions.UPDATE_CONFIG);
         startPureShieldService(intent);

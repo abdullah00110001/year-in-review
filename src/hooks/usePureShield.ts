@@ -10,9 +10,14 @@ import {
 import type { BlurStyle } from '@/components/shield/pureShield/types';
 
 const DEFAULT_CONFIG: PureShieldConfig = {
-  blurGender: 'FEMALE',
+  blurGender: 'BOTH',
   blurStyle: 'BLUR' as BlurStyle,   // ✅ new default
-  confidenceThreshold: 0.72,
+  confidenceThreshold: 0.60,
+  blurOpacity: 100,
+  blurPaddingPct: 15,
+  minFaceSizePct: 2,
+  maxFaces: 100,
+  debugOverlay: false,
   enabled: false,
   pauseOnBatteryBelow20: true,
 };
@@ -25,6 +30,12 @@ export interface LiveStats {
   lastInferenceMs: number;
   lastDebugMessage: string;
   modelStatus: string;
+  foregroundApp?: string;
+  blazeMaxScore?: number;
+  blazeAboveCount?: number;
+  blazeKeptCount?: number;
+  overlayCount?: number;
+  genderModelLoaded?: boolean;
 }
 
 export function usePureShield() {
@@ -199,6 +210,12 @@ export function usePureShield() {
             lastInferenceMs:  stats.lastInferenceMs  ?? 0,
             lastDebugMessage: stats.lastDebugMessage ?? '',
             modelStatus:      stats.modelStatus      ?? 'UNKNOWN',
+            foregroundApp:    stats.foregroundApp    ?? '',
+            blazeMaxScore:    stats.blazeMaxScore    ?? 0,
+            blazeAboveCount:  stats.blazeAboveCount  ?? 0,
+            blazeKeptCount:   stats.blazeKeptCount   ?? 0,
+            overlayCount:     stats.overlayCount     ?? 0,
+            genderModelLoaded: stats.genderModelLoaded ?? false,
           });
         }
       } catch (e) {
