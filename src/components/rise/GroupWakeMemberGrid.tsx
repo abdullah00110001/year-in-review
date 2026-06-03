@@ -177,10 +177,9 @@ export function GroupWakeMemberGrid({ members, statuses, currentUserId, onSendWa
         const canWake = !isMe && (kind === 'pending' || kind === 'sleeping' || kind === 'silent');
         const initials = (m.full_name || '?').slice(0, 2).toUpperCase();
 
-        // elapsed wake time in seconds (if they have a wakeTime recorded)
-        const elapsedSec = s?.wake_time_epoch
-          ? Math.max(0, Math.floor((now - s.wake_time_epoch * 1000) / 1000))
-          : null;
+        // elapsed wake time in seconds (since mission_completed_at, if any)
+        const epochMs = s?.mission_completed_at ? new Date(s.mission_completed_at).getTime() : 0;
+        const elapsedSec = epochMs ? Math.max(0, Math.floor((now - epochMs) / 1000)) : null;
 
         return (
           <div
