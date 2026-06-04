@@ -33,16 +33,17 @@ public class RiseAlarmReceiver extends BroadcastReceiver {
         String  title     = intent.getStringExtra("ALARM_TITLE");
         String  body      = intent.getStringExtra("ALARM_BODY");
         boolean extraLoud = intent.getBooleanExtra("EXTRA_LOUD", false);
+        String  soundUri  = intent.getStringExtra("SOUND_URI");
 
         if (uuid  == null) uuid  = String.valueOf(alarmId);
         if (title == null) title = "Rise Alarm";
         if (body  == null) body  = "Time to wake up!";
 
         Log.d(TAG, "⏰ Alarm triggered! id=" + alarmId
-                + " uuid=" + uuid + " extraLoud=" + extraLoud);
+                + " uuid=" + uuid + " extraLoud=" + extraLoud + " sound=" + soundUri);
 
         AlarmStateManager.setRinging(context, alarmId, uuid, title, body, 3);
-        startSoundService(context, alarmId, uuid, title, body, extraLoud);
+        startSoundService(context, alarmId, uuid, title, body, extraLoud, soundUri);
         acquireWakeLock(context);
         showFullScreenNotification(context, alarmId, uuid, title, body);
         forceOpenApp(context, uuid);
@@ -53,7 +54,7 @@ public class RiseAlarmReceiver extends BroadcastReceiver {
 
     private void startSoundService(Context ctx, int id, String uuid,
                                     String title, String body,
-                                    boolean extraLoud) {
+                                    boolean extraLoud, String soundUri) {
         try {
             Intent svc = new Intent(ctx, AlarmSoundService.class);
             svc.putExtra("ALARM_ID",    id);
