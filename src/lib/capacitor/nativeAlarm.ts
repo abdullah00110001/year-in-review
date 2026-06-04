@@ -149,12 +149,12 @@ export async function scheduleRecurringAlarm(
   await cancelAlarmByUuid(uuid);
 
   if (Capacitor.isNativePlatform()) {
-    // ← extraLoud এখন pass হচ্ছে
     await scheduleNativeAlarmShots(uuid, time, daysOfWeek, {
       title: config.title,
       body: config.body,
       missionType: config.missionType,
       extraLoud: config.extraLoud ?? false,
+      soundUri: config.soundUri ?? null,
     });
     return true;
   }
