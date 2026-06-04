@@ -171,29 +171,24 @@ public class AlarmRecoveryReceiver extends BroadcastReceiver {
      * 15 min পরপর health check করবে।
      */
     public static void schedule(Context context) {
+        scheduleQuick(context);
+    }
+
+    /** Re-arm a fast (~6s) recovery check so the user cannot escape the ring screen. */
+    public static void scheduleQuick(Context context) {
         try {
             AlarmManager am = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
             if (am == null) return;
-
             PendingIntent pi = getPendingIntent(context);
-
-            // First check: 5 minutes after alarm
-            long firstCheck = System.currentTimeMillis() + (5 * 60 * 1000L);
-
+            long next = System.currentTimeMillis() + 6_000L;
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, firstCheck, pi);
+                am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, next, pi);
             } else {
-                am.setRepeating(
-                    AlarmManager.RTC_WAKEUP,
-                    firstCheck,
-                    AlarmConstants.RECOVERY_INTERVAL_MS,
-                    pi
-                );
+                am.setExact(AlarmManager.RTC_WAKEUP, next, pi);
             }
-
-            Log.d(TAG, "📅 Recovery check scheduled");
+            Log.d(TAG, "📅 Quick recovery check armed (+6s)");
         } catch (Exception e) {
-            Log.e(TAG, "schedule failed", e);
+            Log.e(TAG, "scheduleQuick failed", e);
         }
     }
 
@@ -201,6 +196,25 @@ public class AlarmRecoveryReceiver extends BroadcastReceiver {
      * Alarm stop হওয়ার পরে call করো।
      */
     public static void cancel(Context context) {
+        try {
+            AlarmManager am = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
+            if (am == null) return;
+            am.cancel(getPendingIntent(context));
+            Log.d(TAG, "❌ Recovery schedule cancelled");
+        } catch (Exception e) {
+            Log.e(TAG, "cancel failed", e);
+        }
+    }
+
+    private static PendingIntent getPendingIntent(Context context) {
+        Intent intent = new Intent(context, AlarmRecoveryReceiver.class);
+        intent.setAction(ACTION_RECOVER);
+        int flags = PendingIntent.FLAG_UPDATE_CURRENT |
+                    (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M ?
+                     PendingIntent.FLAG_IMMUTABLE : 0);
+        return PendingIntent.getBroadcast(context, REQUEST_CODE, intent, flags);
+    }
+}
         try {
             AlarmManager am = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
             if (am == null) return;
