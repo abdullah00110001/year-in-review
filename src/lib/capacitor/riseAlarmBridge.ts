@@ -18,7 +18,8 @@ export interface RisePluginType {
     title: string;
     body: string;
     uuid: string;
-    extraLoud?: boolean;  // ← NEW
+    extraLoud?: boolean;
+    soundUri?: string | null;  // ← NEW: custom ringtone URI
   }): Promise<{ success: boolean; id: number; uuid: string }>;
   cancelAlarm(options: { id: number }): Promise<void>;
 
