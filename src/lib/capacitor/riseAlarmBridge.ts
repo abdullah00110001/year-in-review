@@ -124,15 +124,16 @@ export const scheduleRiseAlarm = async (
   title: string,
   body: string,
   uuid: string,
-  extraLoud = false,   // ← NEW
+  extraLoud = false,
+  soundUri: string | null = null,
 ): Promise<boolean> => {
   if (!isNativePlatform) {
     console.log(`[RiseBridge-Web] Mock: id=${id} @ ${new Date(timeInMillis).toLocaleString()}`);
     return true;
   }
   try {
-    await RisePlugin.scheduleAlarm({ id, timeInMillis, title, body, uuid, extraLoud });
-    console.log(`[RiseBridge] Scheduled id=${id} uuid=${uuid} extraLoud=${extraLoud}`);
+    await RisePlugin.scheduleAlarm({ id, timeInMillis, title, body, uuid, extraLoud, soundUri });
+    console.log(`[RiseBridge] Scheduled id=${id} uuid=${uuid} extraLoud=${extraLoud} sound=${soundUri ?? 'default'}`);
     return true;
   } catch (e) {
     console.error('[RiseBridge] scheduleAlarm failed', e);
