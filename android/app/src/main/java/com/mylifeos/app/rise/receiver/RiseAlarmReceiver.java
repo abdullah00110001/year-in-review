@@ -62,6 +62,9 @@ public class RiseAlarmReceiver extends BroadcastReceiver {
             svc.putExtra("ALARM_TITLE", title);
             svc.putExtra("ALARM_BODY",  body);
             svc.putExtra("EXTRA_LOUD",  extraLoud);
+            if (soundUri != null && !soundUri.isEmpty()) {
+                svc.putExtra("SOUND_URI", soundUri);
+            }
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 ctx.startForegroundService(svc);
