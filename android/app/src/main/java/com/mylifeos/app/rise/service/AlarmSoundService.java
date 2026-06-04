@@ -74,18 +74,20 @@ public class AlarmSoundService extends Service {
             return START_STICKY;
         }
 
-        currentAlarmId = intent.getIntExtra(AlarmConstants.EXTRA_ALARM_ID, 0);
-        currentUuid    = intent.getStringExtra(AlarmConstants.EXTRA_ALARM_UUID);
-        currentTitle   = intent.getStringExtra(AlarmConstants.EXTRA_ALARM_TITLE);
-        currentBody    = intent.getStringExtra(AlarmConstants.EXTRA_ALARM_BODY);
-        extraLoud      = intent.getBooleanExtra("EXTRA_LOUD", false);  // ← NEW
+        currentAlarmId   = intent.getIntExtra(AlarmConstants.EXTRA_ALARM_ID, 0);
+        currentUuid      = intent.getStringExtra(AlarmConstants.EXTRA_ALARM_UUID);
+        currentTitle     = intent.getStringExtra(AlarmConstants.EXTRA_ALARM_TITLE);
+        currentBody      = intent.getStringExtra(AlarmConstants.EXTRA_ALARM_BODY);
+        extraLoud        = intent.getBooleanExtra("EXTRA_LOUD", false);
+        currentSoundUri  = intent.getStringExtra("SOUND_URI");
 
         if (currentUuid  == null) currentUuid  = String.valueOf(currentAlarmId);
         if (currentTitle == null) currentTitle = "Rise Alarm";
         if (currentBody  == null) currentBody  = "Time to wake up!";
 
         Log.d(TAG, "Starting: id=" + currentAlarmId
-                + " uuid=" + currentUuid + " extraLoud=" + extraLoud);
+                + " uuid=" + currentUuid + " extraLoud=" + extraLoud
+                + " sound=" + currentSoundUri);
 
         startForeground(AlarmConstants.NOTIF_ID_SOUND_SERVICE,
                         buildNotification(currentTitle, currentBody, currentUuid, currentAlarmId));
