@@ -22,7 +22,8 @@ export interface AlarmConfig {
   whoDepends?: string;
   isGroupAlarm?: boolean;
   groupId?: string;
-  extraLoud?: boolean;   // ← NEW
+  extraLoud?: boolean;
+  soundUri?: string | null;   // ← NEW: device/custom ringtone URI
 }
 
 export type AlarmNotification = LocalNotificationSchema;
