@@ -215,22 +215,3 @@ public class AlarmRecoveryReceiver extends BroadcastReceiver {
         return PendingIntent.getBroadcast(context, REQUEST_CODE, intent, flags);
     }
 }
-        try {
-            AlarmManager am = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
-            if (am == null) return;
-            am.cancel(getPendingIntent(context));
-            Log.d(TAG, "❌ Recovery schedule cancelled");
-        } catch (Exception e) {
-            Log.e(TAG, "cancel failed", e);
-        }
-    }
-
-    private static PendingIntent getPendingIntent(Context context) {
-        Intent intent = new Intent(context, AlarmRecoveryReceiver.class);
-        intent.setAction(ACTION_RECOVER);
-        int flags = PendingIntent.FLAG_UPDATE_CURRENT |
-                    (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M ?
-                     PendingIntent.FLAG_IMMUTABLE : 0);
-        return PendingIntent.getBroadcast(context, REQUEST_CODE, intent, flags);
-    }
-}
