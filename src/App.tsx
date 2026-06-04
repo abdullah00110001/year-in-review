@@ -237,11 +237,47 @@ const AppContent = () => {
 const AppBoot = () => {
   const { loading: authLoading } = useAuth();
   const [splashGone, setSplashGone] = useState(false);
+  const [alarmRouteDetected, setAlarmRouteDetected] = useState(
+    typeof window !== 'undefined' && window.location.pathname.startsWith('/rise/ring'),
+  );
 
   // OTA sync — non-blocking, fires once after mount on native
   useLiveUpdate({
     onApplied: () => toast.success('App updated to latest version ✓'),
   });
+
+  // Native: check launch URL + ringing state immediately to skip splash if alarm fired.
+  useEffect(() => {
+    if (!isNative) return;
+    (async () => {
+      try {
+        const launch: any = await (CapApp as any).getLaunchUrl?.();
+        const url: string | undefined = launch?.url;
+        if (url && url.includes('/rise/ring')) {
+          setAlarmRouteDetected(true);
+          CapSplashScreen.hide({ fadeOutDuration: 0 }).catch(() => {});
+          // Navigate immediately if router not yet on that route
+          try {
+            const u = new URL(url);
+            if (!window.location.pathname.startsWith('/rise/ring')) {
+              window.history.replaceState({}, '', u.pathname);
+            }
+          } catch {}
+          return;
+        }
+      } catch {}
+      try {
+        const ringing = await getRingingAlarmId();
+        if (ringing) {
+          setAlarmRouteDetected(true);
+          CapSplashScreen.hide({ fadeOutDuration: 0 }).catch(() => {});
+          if (!window.location.pathname.startsWith('/rise/ring')) {
+            window.history.replaceState({}, '', `/rise/ring/${ringing}`);
+          }
+        }
+      } catch {}
+    })();
+  }, []);
 
   // When auth finishes loading, hide the native splash with a soft fade.
   useEffect(() => {
@@ -251,16 +287,8 @@ const AppBoot = () => {
     }
   }, [authLoading]);
 
-  // ⏰ Alarm-firing path: skip every splash and go DIRECTLY to the ring screen.
-  // This avoids the disorienting splash-flash when an alarm wakes the device.
-  const isAlarmRoute = typeof window !== 'undefined'
-    && window.location.pathname.startsWith('/rise/ring');
-
-  useEffect(() => {
-    if (isAlarmRoute && isNative) {
-      CapSplashScreen.hide({ fadeOutDuration: 0 }).catch(() => {});
-    }
-  }, [isAlarmRoute]);
+  const isAlarmRoute = alarmRouteDetected
+    || (typeof window !== 'undefined' && window.location.pathname.startsWith('/rise/ring'));
 
   if (isAlarmRoute) {
     return <AppContent />;
