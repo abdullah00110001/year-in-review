@@ -210,7 +210,16 @@ public class AlarmSoundService extends Service {
         try {
             releaseMediaPlayer();
 
-            Uri sound = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM);
+            Uri sound = null;
+            if (currentSoundUri != null && !currentSoundUri.isEmpty()) {
+                try {
+                    sound = Uri.parse(currentSoundUri);
+                } catch (Exception e) {
+                    Log.w(TAG, "Bad SOUND_URI, falling back to default: " + currentSoundUri);
+                    sound = null;
+                }
+            }
+            if (sound == null) sound = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM);
             if (sound == null) sound = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE);
             if (sound == null) sound = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);
 
@@ -221,7 +230,19 @@ public class AlarmSoundService extends Service {
                 .setFlags(AudioAttributes.FLAG_AUDIBILITY_ENFORCED)
                 .build()
             );
-            mediaPlayer.setDataSource(this, sound);
+            try {
+                mediaPlayer.setDataSource(this, sound);
+            } catch (Exception e) {
+                Log.w(TAG, "setDataSource failed for " + sound + ", falling back to default", e);
+                Uri fallback = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM);
+                if (fallback == null) fallback = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE);
+                mediaPlayer.reset();
+                mediaPlayer.setAudioAttributes(new AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_ALARM)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                    .build());
+                mediaPlayer.setDataSource(this, fallback);
+            }
             mediaPlayer.setLooping(true);
 
             mediaPlayer.setOnPreparedListener(mp -> {
