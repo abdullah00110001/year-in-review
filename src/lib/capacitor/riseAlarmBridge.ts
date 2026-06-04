@@ -243,7 +243,8 @@ export const scheduleNativeAlarmShots = async (
     title: string;
     body: string;
     missionType?: string;
-    extraLoud?: boolean;   // ← NEW
+    extraLoud?: boolean;
+    soundUri?: string | null;  // ← NEW
   }
 ): Promise<boolean> => {
   if (!isNativePlatform) return true;
@@ -252,6 +253,7 @@ export const scheduleNativeAlarmShots = async (
     const [hours, minutes] = time.split(':').map(Number);
     const baseId = uuidToNumericId(uuid);
     const extraLoud = config.extraLoud ?? false;
+    const soundUri = config.soundUri ?? null;
 
     for (let i = 0; i < 7; i++) {
       if (!daysOfWeek.includes(i)) continue;
@@ -262,9 +264,10 @@ export const scheduleNativeAlarmShots = async (
         title: config.title,
         body: config.body,
         uuid: `${uuid}_day${i}`,
-        extraLoud,           // ← NEW
+        extraLoud,
+        soundUri,
       });
-      console.log(`[RiseBridge] Scheduled day=${i} id=${baseId + i} extraLoud=${extraLoud}`);
+      console.log(`[RiseBridge] Scheduled day=${i} id=${baseId + i} sound=${soundUri ?? 'default'}`);
     }
     return true;
   } catch (e) {
