@@ -50,7 +50,8 @@ public class AlarmSoundService extends Service {
     private String  currentUuid;
     private String  currentTitle;
     private String  currentBody;
-    private boolean extraLoud = false;               // ← NEW
+    private String  currentSoundUri;                 // ← NEW
+    private boolean extraLoud = false;
 
     // ──────────────────────────────────────────
     @Override
