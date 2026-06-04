@@ -50,7 +50,8 @@ public class AlarmSoundService extends Service {
     private String  currentUuid;
     private String  currentTitle;
     private String  currentBody;
-    private boolean extraLoud = false;               // ← NEW
+    private String  currentSoundUri;                 // ← NEW
+    private boolean extraLoud = false;
 
     // ──────────────────────────────────────────
     @Override
@@ -73,18 +74,20 @@ public class AlarmSoundService extends Service {
             return START_STICKY;
         }
 
-        currentAlarmId = intent.getIntExtra(AlarmConstants.EXTRA_ALARM_ID, 0);
-        currentUuid    = intent.getStringExtra(AlarmConstants.EXTRA_ALARM_UUID);
-        currentTitle   = intent.getStringExtra(AlarmConstants.EXTRA_ALARM_TITLE);
-        currentBody    = intent.getStringExtra(AlarmConstants.EXTRA_ALARM_BODY);
-        extraLoud      = intent.getBooleanExtra("EXTRA_LOUD", false);  // ← NEW
+        currentAlarmId   = intent.getIntExtra(AlarmConstants.EXTRA_ALARM_ID, 0);
+        currentUuid      = intent.getStringExtra(AlarmConstants.EXTRA_ALARM_UUID);
+        currentTitle     = intent.getStringExtra(AlarmConstants.EXTRA_ALARM_TITLE);
+        currentBody      = intent.getStringExtra(AlarmConstants.EXTRA_ALARM_BODY);
+        extraLoud        = intent.getBooleanExtra("EXTRA_LOUD", false);
+        currentSoundUri  = intent.getStringExtra("SOUND_URI");
 
         if (currentUuid  == null) currentUuid  = String.valueOf(currentAlarmId);
         if (currentTitle == null) currentTitle = "Rise Alarm";
         if (currentBody  == null) currentBody  = "Time to wake up!";
 
         Log.d(TAG, "Starting: id=" + currentAlarmId
-                + " uuid=" + currentUuid + " extraLoud=" + extraLoud);
+                + " uuid=" + currentUuid + " extraLoud=" + extraLoud
+                + " sound=" + currentSoundUri);
 
         startForeground(AlarmConstants.NOTIF_ID_SOUND_SERVICE,
                         buildNotification(currentTitle, currentBody, currentUuid, currentAlarmId));
@@ -207,7 +210,16 @@ public class AlarmSoundService extends Service {
         try {
             releaseMediaPlayer();
 
-            Uri sound = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM);
+            Uri sound = null;
+            if (currentSoundUri != null && !currentSoundUri.isEmpty()) {
+                try {
+                    sound = Uri.parse(currentSoundUri);
+                } catch (Exception e) {
+                    Log.w(TAG, "Bad SOUND_URI, falling back to default: " + currentSoundUri);
+                    sound = null;
+                }
+            }
+            if (sound == null) sound = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM);
             if (sound == null) sound = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE);
             if (sound == null) sound = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);
 
@@ -218,7 +230,19 @@ public class AlarmSoundService extends Service {
                 .setFlags(AudioAttributes.FLAG_AUDIBILITY_ENFORCED)
                 .build()
             );
-            mediaPlayer.setDataSource(this, sound);
+            try {
+                mediaPlayer.setDataSource(this, sound);
+            } catch (Exception e) {
+                Log.w(TAG, "setDataSource failed for " + sound + ", falling back to default", e);
+                Uri fallback = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM);
+                if (fallback == null) fallback = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE);
+                mediaPlayer.reset();
+                mediaPlayer.setAudioAttributes(new AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_ALARM)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                    .build());
+                mediaPlayer.setDataSource(this, fallback);
+            }
             mediaPlayer.setLooping(true);
 
             mediaPlayer.setOnPreparedListener(mp -> {

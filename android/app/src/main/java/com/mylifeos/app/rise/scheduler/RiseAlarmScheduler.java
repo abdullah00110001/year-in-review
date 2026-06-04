@@ -16,10 +16,9 @@ public class RiseAlarmScheduler {
 
     private static final String TAG = "RiseAlarmScheduler";
 
-    // ── extraLoud parameter যোগ হয়েছে ──
     public static void scheduleAlarm(Context context, int id, long timeInMillis,
                                       String title, String body, String uuid,
-                                      boolean extraLoud) {
+                                      boolean extraLoud, String soundUri) {
         try {
             AlarmManager am = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
             if (am == null) {
@@ -43,8 +42,10 @@ public class RiseAlarmScheduler {
             rxIntent.putExtra(AlarmConstants.EXTRA_ALARM_UUID,  uuid);
             rxIntent.putExtra(AlarmConstants.EXTRA_ALARM_TITLE, title);
             rxIntent.putExtra(AlarmConstants.EXTRA_ALARM_BODY,  body);
-            // ── Extra Loud flag ──
             rxIntent.putExtra("EXTRA_LOUD", extraLoud);
+            if (soundUri != null && !soundUri.isEmpty()) {
+                rxIntent.putExtra("SOUND_URI", soundUri);
+            }
 
             int flags = PendingIntent.FLAG_UPDATE_CURRENT;
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
@@ -70,18 +71,16 @@ public class RiseAlarmScheduler {
 
             boolean scheduled = false;
 
-            // METHOD 1: setAlarmClock (BEST)
             try {
                 AlarmManager.AlarmClockInfo clockInfo =
                     new AlarmManager.AlarmClockInfo(timeInMillis, showPi);
                 am.setAlarmClock(clockInfo, alarmPi);
                 scheduled = true;
-                Log.d(TAG, "✅ setAlarmClock: id=" + id + " extraLoud=" + extraLoud);
+                Log.d(TAG, "✅ setAlarmClock: id=" + id + " extraLoud=" + extraLoud + " sound=" + soundUri);
             } catch (Exception e) {
                 Log.w(TAG, "setAlarmClock failed: " + e.getMessage());
             }
 
-            // METHOD 2: setExactAndAllowWhileIdle (FALLBACK)
             if (!scheduled && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 try {
                     am.setExactAndAllowWhileIdle(
@@ -93,7 +92,6 @@ public class RiseAlarmScheduler {
                 }
             }
 
-            // METHOD 3: setExact (LAST RESORT)
             if (!scheduled) {
                 try {
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
@@ -117,10 +115,16 @@ public class RiseAlarmScheduler {
         }
     }
 
-    // Backward-compat overload (extraLoud=false default)
+    // Backward-compat overloads
+    public static void scheduleAlarm(Context context, int id, long timeInMillis,
+                                      String title, String body, String uuid,
+                                      boolean extraLoud) {
+        scheduleAlarm(context, id, timeInMillis, title, body, uuid, extraLoud, null);
+    }
+
     public static void scheduleAlarm(Context context, int id, long timeInMillis,
                                       String title, String body, String uuid) {
-        scheduleAlarm(context, id, timeInMillis, title, body, uuid, false);
+        scheduleAlarm(context, id, timeInMillis, title, body, uuid, false, null);
     }
 
     public static void cancelAlarm(Context context, int id) {

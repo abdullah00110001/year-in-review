@@ -55,15 +55,40 @@ public class AlarmRecoveryReceiver extends BroadcastReceiver {
         }
 
         // 2. Alarm should be ringing but service is dead?
-        if (AlarmStateManager.isRinging(context) && !AlarmSoundService.isRunning) {
-            Log.w(TAG, "💀 Service dead but alarm ringing — restarting!");
-            restartService(context);
-        } else if (!AlarmStateManager.isRinging(context)) {
-            // Alarm আর নেই — recovery বাতিল করো
+        if (AlarmStateManager.isRinging(context)) {
+            if (!AlarmSoundService.isRunning) {
+                Log.w(TAG, "💀 Service dead but alarm ringing — restarting!");
+                restartService(context);
+            } else {
+                Log.d(TAG, "✅ Service OK — alarm still ringing");
+            }
+            // Force the ring screen back to foreground every cycle (Alarmy-style)
+            forceRingScreenForeground(context);
+            // Re-arm a quick recovery so the user can't escape for long
+            scheduleQuick(context);
+        } else {
             Log.d(TAG, "✅ No active alarm — cancelling recovery schedule");
             cancel(context);
-        } else {
-            Log.d(TAG, "✅ Service OK — alarm still ringing");
+        }
+    }
+
+    private void forceRingScreenForeground(Context ctx) {
+        try {
+            String uuid = AlarmStateManager.getActiveUuid(ctx);
+            if (uuid == null) return;
+            Intent show = new Intent(ctx, com.mylifeos.app.MainActivity.class);
+            show.setAction(Intent.ACTION_VIEW);
+            show.setData(android.net.Uri.parse(AlarmConstants.DEEP_LINK_BASE + uuid));
+            show.addFlags(
+                Intent.FLAG_ACTIVITY_NEW_TASK |
+                Intent.FLAG_ACTIVITY_SINGLE_TOP |
+                Intent.FLAG_ACTIVITY_CLEAR_TOP |
+                Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
+            );
+            ctx.startActivity(show);
+            Log.d(TAG, "🔝 Forced ring screen to foreground for uuid=" + uuid);
+        } catch (Exception e) {
+            Log.e(TAG, "forceRingScreenForeground failed", e);
         }
     }
 
@@ -146,29 +171,24 @@ public class AlarmRecoveryReceiver extends BroadcastReceiver {
      * 15 min পরপর health check করবে।
      */
     public static void schedule(Context context) {
+        scheduleQuick(context);
+    }
+
+    /** Re-arm a fast (~6s) recovery check so the user cannot escape the ring screen. */
+    public static void scheduleQuick(Context context) {
         try {
             AlarmManager am = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
             if (am == null) return;
-
             PendingIntent pi = getPendingIntent(context);
-
-            // First check: 5 minutes after alarm
-            long firstCheck = System.currentTimeMillis() + (5 * 60 * 1000L);
-
+            long next = System.currentTimeMillis() + 6_000L;
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, firstCheck, pi);
+                am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, next, pi);
             } else {
-                am.setRepeating(
-                    AlarmManager.RTC_WAKEUP,
-                    firstCheck,
-                    AlarmConstants.RECOVERY_INTERVAL_MS,
-                    pi
-                );
+                am.setExact(AlarmManager.RTC_WAKEUP, next, pi);
             }
-
-            Log.d(TAG, "📅 Recovery check scheduled");
+            Log.d(TAG, "📅 Quick recovery check armed (+6s)");
         } catch (Exception e) {
-            Log.e(TAG, "schedule failed", e);
+            Log.e(TAG, "scheduleQuick failed", e);
         }
     }
 
