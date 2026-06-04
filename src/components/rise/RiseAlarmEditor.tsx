@@ -296,6 +296,7 @@ export function RiseAlarmEditor({
       extraLoud: alarm.extra_loud ?? false,
       snoozeMinutes: alarm.snooze_interval_minutes,
       alarmDbId: undefined,
+      soundUri: alarm.ringtone_url ?? null,
     });
 
     const localAlarms = JSON.parse(localStorage.getItem('local_alarms') || '[]');
