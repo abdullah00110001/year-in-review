@@ -110,8 +110,8 @@ public class RiseAlarmPlugin extends Plugin {
         String title      = call.getString("title", "Rise Alarm");
         String body       = call.getString("body",  "Wake up!");
         String uuid       = call.getString("uuid");
+        String soundUri   = call.getString("soundUri", null);
 
-        // ── Extra Loud flag ──
         boolean extraLoud = Boolean.TRUE.equals(call.getBoolean("extraLoud", false));
 
         if (id == null || timeInMillis == null) {
@@ -128,9 +128,9 @@ public class RiseAlarmPlugin extends Plugin {
 
         try {
             RiseAlarmScheduler.scheduleAlarm(
-                getContext(), id, timeInMillis, title, body, uuid, extraLoud
+                getContext(), id, timeInMillis, title, body, uuid, extraLoud, soundUri
             );
-            Log.d(TAG, "Scheduled id=" + id + " uuid=" + uuid + " extraLoud=" + extraLoud);
+            Log.d(TAG, "Scheduled id=" + id + " uuid=" + uuid + " extraLoud=" + extraLoud + " sound=" + soundUri);
 
             JSObject ret = new JSObject();
             ret.put("success", true);
