@@ -448,8 +448,8 @@ export function RiseAlarmEditor({
                     </div>
                     <div className="text-left">
                       <p className="font-medium text-sm">Sound</p>
-                      <p className="text-xs text-muted-foreground">
-                        {alarm.ringtone_name || 'Rise & Shine'}
+                      <p className="text-xs text-muted-foreground truncate max-w-[200px]">
+                        {alarm.ringtone_name || 'System default'}
                       </p>
                     </div>
                   </div>
