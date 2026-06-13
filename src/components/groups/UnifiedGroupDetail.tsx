@@ -408,16 +408,15 @@ export function UnifiedGroupDetail({
         wakeLoading={broadcast.isPending}
       />
 
-      {group && (
-        <GroupSettingsSheet
-          open={settingsOpen}
-          onOpenChange={setSettingsOpen}
-          group={group as any}
-          members={members}
-          currentUserId={myId}
-          onLeft={() => { setSettingsOpen(false); onBack?.(); }}
-        />
-      )}
+      <GroupSettingsSheet
+        open={settingsOpen}
+        onOpenChange={setSettingsOpen}
+        group={(group as any) ?? { id: groupId, name: groupName, description: null, invite_code: inviteCode ?? '', created_by: '' }}
+        members={members}
+        currentUserId={myId}
+        onLeft={() => { setSettingsOpen(false); onBack?.(); }}
+      />
+
     </>
   );
 }
