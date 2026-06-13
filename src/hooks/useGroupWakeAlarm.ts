@@ -19,6 +19,22 @@ export interface GroupWakeAlarm {
   days_of_week: number[];
   mission_type: string;
   is_active: boolean;
+  follow_up_minutes?: number;
+  max_wake_calls?: number;
+  roll_call_minutes_after?: number;
+  shared_ringtone_url?: string | null;
+  shared_ringtone_title?: string | null;
+}
+
+export interface GroupWakeAlarmInput {
+  wake_time: string;
+  days_of_week: number[];
+  mission_type: string;
+  follow_up_minutes?: number;
+  max_wake_calls?: number;
+  roll_call_minutes_after?: number;
+  shared_ringtone_url?: string | null;
+  shared_ringtone_title?: string | null;
 }
 
 export interface GroupWakeSession {
@@ -166,18 +182,18 @@ export function useGroupWakeAlarm(groupId: string | null) {
     }
   }, [session]);
 
-  const upsertAlarm = useCallback(async (input: { wake_time: string; days_of_week: number[]; mission_type: string }) => {
+  const upsertAlarm = useCallback(async (input: GroupWakeAlarmInput) => {
     if (!user || !groupId) return;
     if (alarm) {
       const { error } = await supabase
         .from('group_wake_alarms')
-        .update({ ...input, is_active: true })
+        .update({ ...input, is_active: true } as any)
         .eq('id', alarm.id);
       if (error) { toast.error('Could not save alarm'); return; }
     } else {
       const { error } = await supabase
         .from('group_wake_alarms')
-        .insert({ ...input, group_id: groupId, created_by: user.id, is_active: true });
+        .insert({ ...input, group_id: groupId, created_by: user.id, is_active: true } as any);
       if (error) { toast.error('Could not create alarm'); return; }
     }
     toast.success('Group alarm saved');

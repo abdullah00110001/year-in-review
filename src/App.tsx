@@ -17,6 +17,7 @@ import { useState, useEffect } from "react";
 import { isNative } from "@/lib/capacitor/platform";
 import NativeSplash from "@/components/NativeSplash";
 import AnnouncementPopup from "@/components/AnnouncementPopup";
+import JoinByInviteHandler from "@/components/JoinByInviteHandler";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
 import { useLiveUpdate } from "@/hooks/useLiveUpdate";
 import { App as CapApp } from "@capacitor/app";
@@ -89,7 +90,9 @@ import AdminRingtones from "./pages/admin/AdminRingtones";
 import AdminBundles from "./pages/admin/AdminBundles";
 import DownloadApp from "./pages/DownloadApp";
 import RiseRingScreen from "./pages/RiseRingScreen";
+import NightToRise from "./pages/NightToRise";
 import Welcome from "./pages/Welcome";
+import { NightToRiseGuard } from "@/components/rise/night-to-rise/NightToRiseGuard";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -154,6 +157,8 @@ const AppContent = () => {
       <SmartNotificationProvider />
       <ScrollToTop />
       <AnnouncementPopup />
+      <NightToRiseGuard />
+      <JoinByInviteHandler />
       <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route path="/auth" element={<Auth />} />
@@ -191,6 +196,7 @@ const AppContent = () => {
         <Route path="/comparative-analytics" element={<ProtectedRoute><ComparativeAnalytics /></ProtectedRoute>} />
         <Route path="/shield" element={<ProtectedRoute><ShieldPage /></ProtectedRoute>} />
         <Route path="/rise" element={<ProtectedRoute><RisePage /></ProtectedRoute>} />
+        <Route path="/rise/night-to-rise" element={<ProtectedRoute><NightToRise /></ProtectedRoute>} />
         
         {/* 🟢 ওয়েক আপ স্ক্রিন - কোনো ড্যাশবোর্ড ফিলিকার ছাড়াই সরাসরি এখানে ল্যান্ড করবে */}
         <Route path="/rise/ring/:id" element={<RiseRingScreen />} />
@@ -234,19 +240,22 @@ const AppContent = () => {
  *   2. Kicks off Capawesome OTA sync on native after auth
  *   3. Renders nothing else until auth.loading === false (prevents FOUC)
  */
+const SPLASH_SESSION_KEY = 'lifeos_splash_shown_v1';
+
 const AppBoot = () => {
   const { loading: authLoading } = useAuth();
-  const [splashGone, setSplashGone] = useState(false);
+  // Web: show splash only once per browser session
+  const [splashGone, setSplashGone] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    if (isNative) return false;
+    return window.sessionStorage.getItem(SPLASH_SESSION_KEY) === '1';
+  });
   const [alarmRouteDetected, setAlarmRouteDetected] = useState(
     typeof window !== 'undefined' && window.location.pathname.startsWith('/rise/ring'),
   );
 
-  // OTA sync — non-blocking, fires once after mount on native
-  useLiveUpdate({
-    onApplied: () => toast.success('App updated to latest version ✓'),
-  });
+  useLiveUpdate({ onApplied: () => toast.success('App updated to latest version ✓') });
 
-  // Native: check launch URL + ringing state immediately to skip splash if alarm fired.
   useEffect(() => {
     if (!isNative) return;
     (async () => {
@@ -256,7 +265,6 @@ const AppBoot = () => {
         if (url && url.includes('/rise/ring')) {
           setAlarmRouteDetected(true);
           CapSplashScreen.hide({ fadeOutDuration: 0 }).catch(() => {});
-          // Navigate immediately if router not yet on that route
           try {
             const u = new URL(url);
             if (!window.location.pathname.startsWith('/rise/ring')) {
@@ -279,27 +287,36 @@ const AppBoot = () => {
     })();
   }, []);
 
-  // When auth finishes loading, hide the native splash with a soft fade.
   useEffect(() => {
     if (authLoading) return;
-    if (isNative) {
-      CapSplashScreen.hide({ fadeOutDuration: 300 }).catch(() => {});
-    }
+    if (isNative) CapSplashScreen.hide({ fadeOutDuration: 300 }).catch(() => {});
   }, [authLoading]);
 
   const isAlarmRoute = alarmRouteDetected
     || (typeof window !== 'undefined' && window.location.pathname.startsWith('/rise/ring'));
 
-  if (isAlarmRoute) {
-    return <AppContent />;
-  }
+  if (isAlarmRoute) return <AppContent />;
+
+  // Web: skip splash entirely after the first show this session
+  if (!isNative && splashGone) return <AppContent />;
 
   if (authLoading) {
-    return <NativeSplash waitFor={true} />;
+    return <NativeSplash waitFor={true} minimumDuration={isNative ? 2200 : 1200} />;
   }
 
   if (!splashGone) {
-    return <NativeSplash waitFor={false} onComplete={() => setSplashGone(true)} />;
+    return (
+      <NativeSplash
+        waitFor={false}
+        minimumDuration={isNative ? 2200 : 1200}
+        onComplete={() => {
+          if (!isNative && typeof window !== 'undefined') {
+            window.sessionStorage.setItem(SPLASH_SESSION_KEY, '1');
+          }
+          setSplashGone(true);
+        }}
+      />
+    );
   }
 
   return <AppContent />;

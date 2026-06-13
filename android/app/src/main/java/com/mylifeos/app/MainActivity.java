@@ -1,6 +1,10 @@
 /* package com.mylifeos.app;
 
 import android.app.KeyguardManager;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
+import android.media.AudioAttributes;
+import android.media.RingtoneManager;
 import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
@@ -124,8 +128,12 @@ public class MainActivity extends BridgeActivity {
 package com.mylifeos.app;
 
 import android.app.KeyguardManager;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
 import android.content.Context;
 import android.content.Intent;
+import android.media.AudioAttributes;
+import android.media.RingtoneManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -149,10 +157,34 @@ public class MainActivity extends BridgeActivity {
     try { registerPlugin(PureShieldPlugin.class); } catch (Throwable t) { Log.e("MainActivity", "PureShieldPlugin register failed", t); }
     try { registerPlugin(BarcodeScannerPlugin.class); } catch (Throwable t) { Log.e("MainActivity", "BarcodeScannerPlugin register failed", t); }
     try { registerPlugin(NativeRingtonePickerPlugin.class); } catch (Throwable t) { Log.e("MainActivity", "NativeRingtonePickerPlugin register failed", t); }
+    try { registerPlugin(com.mylifeos.app.nighttorise.NightToRisePlugin.class); } catch (Throwable t) { Log.e("MainActivity", "NightToRisePlugin register failed", t); }
     super.onCreate(savedInstanceState);
     instance = this;
+    // 🔔 Create FCM wake-up notification channel before push payload arrives
+    try { ensureWakeUpChannel(); } catch (Throwable t) { Log.e("MainActivity", "ensureWakeUpChannel failed", t); }
     // 🔥 Handle first launch intent
     try { handleAlarmIntent(getIntent()); } catch (Throwable t) { Log.e("MainActivity", "handleAlarmIntent failed", t); }
+  }
+
+  private void ensureWakeUpChannel() {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return;
+    NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+    if (nm == null) return;
+    NotificationChannel ch = new NotificationChannel(
+      "wakeup_channel",
+      "Wake-up calls",
+      NotificationManager.IMPORTANCE_HIGH
+    );
+    ch.setDescription("Wake-up requests from your group");
+    ch.enableVibration(true);
+    ch.setVibrationPattern(new long[]{0, 400, 200, 400});
+    AudioAttributes attrs = new AudioAttributes.Builder()
+      .setUsage(AudioAttributes.USAGE_NOTIFICATION)
+      .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+      .build();
+    ch.setSound(RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION), attrs);
+    ch.setShowBadge(true);
+    nm.createNotificationChannel(ch);
   }
 
   @Override

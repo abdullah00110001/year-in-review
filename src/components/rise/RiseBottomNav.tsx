@@ -16,7 +16,7 @@ export function RiseBottomNav({ activeTab, onTabChange }: RiseBottomNavProps) {
   ];
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur-lg border-t border-border z-50">
+    <div data-rise-nav className="fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur-lg border-t border-border z-50">
       <div className="flex items-center justify-around py-2 px-1 max-w-lg mx-auto">
         {tabs.map((tab) => {
           const isActive = activeTab === tab.id;

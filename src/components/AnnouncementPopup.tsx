@@ -147,12 +147,16 @@ export default function AnnouncementPopup() {
   const close = () => setAnnouncement(null);
 
   return (
-    <div className="fixed inset-0 z-[9998] flex items-center justify-center bg-background/70 backdrop-blur-sm p-4 animate-in fade-in">
-      <div className="relative w-full max-w-md rounded-2xl border border-border bg-card shadow-2xl overflow-hidden">
+    <div
+      className="fixed inset-0 z-[100000] flex items-center justify-center bg-background/70 backdrop-blur-sm p-4 animate-in fade-in pointer-events-auto"
+      onClick={(e) => { if (e.target === e.currentTarget) close(); }}
+    >
+      <div className="relative w-full max-w-md rounded-2xl border border-border bg-card shadow-2xl overflow-hidden pointer-events-auto">
         <button
           onClick={close}
+          type="button"
           aria-label="Close"
-          className="absolute right-3 top-3 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-background/80 backdrop-blur hover:bg-background border border-border"
+          className="absolute right-3 top-3 z-20 flex h-9 w-9 items-center justify-center rounded-full bg-background/90 backdrop-blur hover:bg-background border border-border pointer-events-auto cursor-pointer"
         >
           <X className="h-4 w-4" />
         </button>

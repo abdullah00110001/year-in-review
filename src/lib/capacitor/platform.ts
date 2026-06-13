@@ -75,6 +75,16 @@ export const initializeCapacitor = async (
 
     // Handle Android back button
     App.addListener('backButton', ({ canGoBack }) => {
+      // Route-level suppression: Rise & Shield own their own back behavior
+      // (Rise flashes the header red; Shield is a lock screen). Never auto-navigate
+      // or exit from these routes — let their components handle the event.
+      try {
+        const path = window.location.pathname || '';
+        if (path.startsWith('/rise') || path.startsWith('/shield')) {
+          return;
+        }
+      } catch {}
+
       // Allow custom handler to prevent default
       if (onBackButton && onBackButton()) {
         return;

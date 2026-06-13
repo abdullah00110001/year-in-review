@@ -23,6 +23,7 @@ export interface MemberStats {
   user_id: string;
   display_name: string;
   avatar_url: string | null;
+  daily_seconds?: Record<string, number>;
   // rise
   wake_time?: string | null;
   on_time?: boolean;
@@ -185,9 +186,11 @@ export function useGroupLeaderboard(groupId: string | undefined, type: LifeosGro
       const userIds = (members ?? []).map((m: any) => m.user_id);
       if (userIds.length === 0) return [];
 
-      const { data: profiles } = await supabase
-        .from('profiles').select('user_id, full_name, avatar_url').in('user_id', userIds);
-      const profileMap = new Map((profiles ?? []).map((p: any) => [p.user_id, p]));
+      const { data: names } = await (supabase as any)
+        .rpc('get_user_display_names', { _user_ids: userIds });
+      const profileMap = new Map(
+        (names ?? []).map((n: any) => [n.user_id, { full_name: n.display_name, avatar_url: n.avatar_url }]),
+      );
 
       if (type === 'rise') {
         const { data: logs } = await supabase
@@ -198,7 +201,7 @@ export function useGroupLeaderboard(groupId: string | undefined, type: LifeosGro
           const l: any = logMap.get(uid);
           return {
             user_id: uid,
-            display_name: p.full_name ?? 'Member',
+            display_name: p.full_name || 'Member',
             avatar_url: p.avatar_url ?? null,
             wake_time: l?.wake_time ?? null,
             on_time: l?.on_time ?? false,
@@ -213,9 +216,18 @@ export function useGroupLeaderboard(groupId: string | undefined, type: LifeosGro
           return a.wake_time.localeCompare(b.wake_time);
         });
       } else {
+        const since = new Date(); since.setDate(since.getDate() - 30);
+        const sinceStr = since.toISOString().slice(0, 10);
         const { data: sessions } = await supabase
-          .from('focus_sessions').select('*').in('user_id', userIds).eq('session_date', todayStr());
-        const sMap = new Map((sessions ?? []).map((s: any) => [s.user_id, s]));
+          .from('focus_sessions').select('*').in('user_id', userIds).gte('session_date', sinceStr);
+        const today = todayStr();
+        const sMap = new Map((sessions ?? []).filter((s: any) => s.session_date === today).map((s: any) => [s.user_id, s]));
+        const dailyMap = new Map<string, Record<string, number>>();
+        (sessions ?? []).forEach((s: any) => {
+          const byDay = dailyMap.get(s.user_id) ?? {};
+          byDay[s.session_date] = (s.focus_minutes ?? 0) * 60;
+          dailyMap.set(s.user_id, byDay);
+        });
         const stats = userIds.map((uid: string) => {
           const p: any = profileMap.get(uid) ?? {};
           const s: any = sMap.get(uid);
@@ -223,8 +235,9 @@ export function useGroupLeaderboard(groupId: string | undefined, type: LifeosGro
           const distracting = apps.filter(a => a.minutes > 0).sort((a, b) => b.minutes - a.minutes)[0];
           return {
             user_id: uid,
-            display_name: p.full_name ?? 'Member',
+            display_name: p.full_name || 'Member',
             avatar_url: p.avatar_url ?? null,
+            daily_seconds: dailyMap.get(uid) ?? {},
             focus_minutes: s?.focus_minutes ?? 0,
             distracting_minutes: s?.distracting_minutes ?? 0,
             top_app: distracting ? `${distracting.name}: ${distracting.minutes}m` : '—',

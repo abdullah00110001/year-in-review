@@ -1854,10 +1854,15 @@ export type Database = {
           created_at: string
           created_by: string
           days_of_week: number[]
+          follow_up_minutes: number
           group_id: string
           id: string
           is_active: boolean
+          max_wake_calls: number
           mission_type: string
+          roll_call_minutes_after: number
+          shared_ringtone_title: string | null
+          shared_ringtone_url: string | null
           updated_at: string
           wake_time: string
         }
@@ -1865,10 +1870,15 @@ export type Database = {
           created_at?: string
           created_by: string
           days_of_week?: number[]
+          follow_up_minutes?: number
           group_id: string
           id?: string
           is_active?: boolean
+          max_wake_calls?: number
           mission_type?: string
+          roll_call_minutes_after?: number
+          shared_ringtone_title?: string | null
+          shared_ringtone_url?: string | null
           updated_at?: string
           wake_time: string
         }
@@ -1876,16 +1886,65 @@ export type Database = {
           created_at?: string
           created_by?: string
           days_of_week?: number[]
+          follow_up_minutes?: number
           group_id?: string
           id?: string
           is_active?: boolean
+          max_wake_calls?: number
           mission_type?: string
+          roll_call_minutes_after?: number
+          shared_ringtone_title?: string | null
+          shared_ringtone_url?: string | null
           updated_at?: string
           wake_time?: string
         }
         Relationships: [
           {
             foreignKeyName: "group_wake_alarms_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "lifeos_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      group_wake_attendance: {
+        Row: {
+          alarm_date: string
+          created_at: string
+          group_id: string
+          id: string
+          mission_completed_at: string | null
+          status: string
+          updated_at: string
+          user_id: string
+          woke_at: string | null
+        }
+        Insert: {
+          alarm_date: string
+          created_at?: string
+          group_id: string
+          id?: string
+          mission_completed_at?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+          woke_at?: string | null
+        }
+        Update: {
+          alarm_date?: string
+          created_at?: string
+          group_id?: string
+          id?: string
+          mission_completed_at?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+          woke_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "group_wake_attendance_group_id_fkey"
             columns: ["group_id"]
             isOneToOne: false
             referencedRelation: "lifeos_groups"
@@ -1933,6 +1992,7 @@ export type Database = {
       }
       group_wake_calls: {
         Row: {
+          call_date: string
           custom_message: string | null
           from_user_id: string
           group_id: string
@@ -1940,8 +2000,10 @@ export type Database = {
           sent_at: string
           session_id: string
           to_user_id: string
+          trusted: boolean
         }
         Insert: {
+          call_date?: string
           custom_message?: string | null
           from_user_id: string
           group_id: string
@@ -1949,8 +2011,10 @@ export type Database = {
           sent_at?: string
           session_id: string
           to_user_id: string
+          trusted?: boolean
         }
         Update: {
+          call_date?: string
           custom_message?: string | null
           from_user_id?: string
           group_id?: string
@@ -1958,6 +2022,7 @@ export type Database = {
           sent_at?: string
           session_id?: string
           to_user_id?: string
+          trusted?: boolean
         }
         Relationships: [
           {
@@ -2494,6 +2559,7 @@ export type Database = {
           is_public: boolean
           last_activity_at: string
           name: string
+          pinned_announcement: string | null
           type: Database["public"]["Enums"]["lifeos_group_type"]
           updated_at: string
         }
@@ -2510,6 +2576,7 @@ export type Database = {
           is_public?: boolean
           last_activity_at?: string
           name: string
+          pinned_announcement?: string | null
           type: Database["public"]["Enums"]["lifeos_group_type"]
           updated_at?: string
         }
@@ -2526,6 +2593,7 @@ export type Database = {
           is_public?: boolean
           last_activity_at?: string
           name?: string
+          pinned_announcement?: string | null
           type?: Database["public"]["Enums"]["lifeos_group_type"]
           updated_at?: string
         }
@@ -4818,6 +4886,39 @@ export type Database = {
       is_lifeos_group_member: {
         Args: { _group_id: string; _user_id: string }
         Returns: boolean
+      }
+      record_group_wake: {
+        Args: { _alarm_date?: string; _group_id: string }
+        Returns: {
+          alarm_date: string
+          created_at: string
+          group_id: string
+          id: string
+          mission_completed_at: string | null
+          status: string
+          updated_at: string
+          user_id: string
+          woke_at: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "group_wake_attendance"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      remove_lifeos_group_member: {
+        Args: { _group_id: string; _target_user_id: string }
+        Returns: undefined
+      }
+      set_lifeos_group_member_role: {
+        Args: { _group_id: string; _role: string; _target_user_id: string }
+        Returns: undefined
+      }
+      share_lifeos_group: { Args: { _a: string; _b: string }; Returns: boolean }
+      transfer_lifeos_group_ownership: {
+        Args: { _group_id: string; _target_user_id: string }
+        Returns: undefined
       }
     }
     Enums: {

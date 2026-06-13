@@ -26,6 +26,7 @@ import androidx.core.app.NotificationCompat;
 
 import com.mylifeos.app.MainActivity;
 import com.mylifeos.app.rise.core.AlarmConstants;
+import com.mylifeos.app.rise.core.AlarmSettingsPreferences;
 import com.mylifeos.app.rise.recovery.AlarmRecoveryReceiver;
 import com.mylifeos.app.rise.state.AlarmStateManager;
 
@@ -186,18 +187,25 @@ public class AlarmSoundService extends Service {
     private void forceMaxVolume() {
         if (audioManager == null) return;
         try {
+            // User-configured volume (0..100). Crescendo overrides this on the MediaPlayer side.
+            int userPct = AlarmSettingsPreferences.getVolumePct(this);
+            // EXTRA_LOUD missions and crescendo always start quiet on the MediaPlayer,
+            // but the stream volume should still be at the user's chosen ceiling so the
+            // ramp ends at the level they expect.
             int maxAlarm = audioManager.getStreamMaxVolume(AudioManager.STREAM_ALARM);
-            audioManager.setStreamVolume(AudioManager.STREAM_ALARM, maxAlarm, 0);
+            int targetAlarm = Math.max(1, Math.round(maxAlarm * (userPct / 100f)));
+            audioManager.setStreamVolume(AudioManager.STREAM_ALARM, targetAlarm, 0);
 
             int maxRing = audioManager.getStreamMaxVolume(AudioManager.STREAM_RING);
-            audioManager.setStreamVolume(AudioManager.STREAM_RING, maxRing, 0);
+            int targetRing = Math.max(1, Math.round(maxRing * (userPct / 100f)));
+            audioManager.setStreamVolume(AudioManager.STREAM_RING, targetRing, 0);
 
             try {
                 audioManager.setRingerMode(AudioManager.RINGER_MODE_NORMAL);
             } catch (SecurityException e) {
                 Log.w(TAG, "Cannot change ringer mode (DND policy)");
             }
-            Log.d(TAG, "Volume forced to max");
+            Log.d(TAG, "Volume set to " + userPct + "% (alarm=" + targetAlarm + "/" + maxAlarm + ")");
         } catch (Exception e) {
             Log.e(TAG, "forceMaxVolume failed", e);
         }
@@ -217,6 +225,14 @@ public class AlarmSoundService extends Service {
                 } catch (Exception e) {
                     Log.w(TAG, "Bad SOUND_URI, falling back to default: " + currentSoundUri);
                     sound = null;
+                }
+            }
+            // Per-user default ringtone (set in RiseSettings) when the firing alarm
+            // did not carry an explicit SOUND_URI.
+            if (sound == null) {
+                String userUri = AlarmSettingsPreferences.getRingtoneUri(this);
+                if (userUri != null && !userUri.isEmpty()) {
+                    try { sound = Uri.parse(userUri); } catch (Exception ignored) { sound = null; }
                 }
             }
             if (sound == null) sound = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM);
@@ -246,7 +262,8 @@ public class AlarmSoundService extends Service {
             mediaPlayer.setLooping(true);
 
             mediaPlayer.setOnPreparedListener(mp -> {
-                if (extraLoud) {
+                boolean userCrescendo = AlarmSettingsPreferences.isCrescendoEnabled(this);
+                if (extraLoud || userCrescendo) {
                     // Crescendo: 0 → 1.0 over 30 seconds
                     mp.setVolume(0f, 0f);
                     mp.start();
@@ -343,6 +360,10 @@ public class AlarmSoundService extends Service {
     // ──────────────────────────────────────────
     private void startVibration() {
         if (vibrator == null || !vibrator.hasVibrator()) return;
+        if (!AlarmSettingsPreferences.isVibrateEnabled(this)) {
+            Log.d(TAG, "Vibration disabled by user pref");
+            return;
+        }
         try {
             long[] pattern = {0, 600, 400, 600, 600};
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {

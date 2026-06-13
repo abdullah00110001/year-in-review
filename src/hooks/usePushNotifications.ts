@@ -118,6 +118,21 @@ export function usePushNotifications() {
           // Column may not exist, that's OK
           console.warn('[Push] Token save skipped:', err);
         }
+
+        // Persist FCM token for server-side push targeting (wake-up signals etc.)
+        try {
+          await (supabase as any).from('fcm_tokens').upsert(
+            {
+              user_id: user.id,
+              token: tokenData.value,
+              platform: 'android',
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: 'token' }
+          );
+        } catch (err) {
+          console.warn('[Push] fcm_tokens upsert skipped:', err);
+        }
       });
 
       PushNotifications.addListener('registrationError', (error) => {
@@ -157,7 +172,7 @@ export function usePushNotifications() {
                 id: Date.now(),
                 title: title || 'Life OS',
                 body: body || '',
-                channelId: data?.channelId || 'general',
+                channelId: data?.type === 'wakeup' ? 'wakeup_channel' : (data?.channelId || 'general'),
                 extra: {
                   ...data,
                   route: data?.route || '/',
@@ -179,6 +194,12 @@ export function usePushNotifications() {
         // WAKE_UP_CALL navigates to rise ring - the app resume logic will catch ringing alarm
         if (data?.type === 'WAKE_UP_CALL') {
           setTimeout(() => { navigate('/rise'); }, 500);
+          return;
+        }
+
+        // Wake-up push from a group member → open Rise / Community screen
+        if (data?.type === 'wakeup') {
+          setTimeout(() => { window.location.href = '/rise'; }, 500);
           return;
         }
 

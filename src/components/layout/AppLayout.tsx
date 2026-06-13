@@ -6,9 +6,12 @@ import { useIsMobile } from '@/hooks/use-mobile';
 
 interface AppLayoutProps {
   children: ReactNode;
+  /** Hide the global mobile top bar (logo + bell) for feature pages that
+   *  provide their own header. Bottom nav stays visible. */
+  hideMobileHeader?: boolean;
 }
 
-export default function AppLayout({ children }: AppLayoutProps) {
+export default function AppLayout({ children, hideMobileHeader = false }: AppLayoutProps) {
   const isMobile = useIsMobile();
 
   return (
@@ -19,10 +22,10 @@ export default function AppLayout({ children }: AppLayoutProps) {
       </div>
       
       {/* Mobile Navigation */}
-      <MobileNav />
+      <MobileNav hideTopBar={hideMobileHeader} />
       
       {/* Main content area */}
-      <main className="flex-1 w-full pt-14 lg:pt-0 lg:pl-64">
+      <main className={`flex-1 w-full lg:pt-0 lg:pl-64 ${hideMobileHeader ? 'pt-0' : 'pt-14'}`}>
         <div className={isMobile ? "min-h-[calc(100vh-4rem)] pb-[90px] animate-fade-in" : "min-h-screen pb-8 animate-fade-in"}>
           {children}
         </div>

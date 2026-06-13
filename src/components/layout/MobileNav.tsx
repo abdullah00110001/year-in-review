@@ -41,7 +41,12 @@ import { useAppMode } from '@/contexts/AppModeContext';
 import { supabase } from '@/integrations/supabase/client';
 import NotificationCenter from '@/components/notifications/NotificationCenter';
 
-export default function MobileNav() {
+interface MobileNavProps {
+  /** Hide the fixed top header (logo + bell). Bottom nav remains. */
+  hideTopBar?: boolean;
+}
+
+export default function MobileNav({ hideTopBar = false }: MobileNavProps = {}) {
   const location = useLocation();
   const { user, signOut } = useAuth();
   const { t, language } = useLanguage();
@@ -154,6 +159,7 @@ export default function MobileNav() {
   return (
     <>
       {/* Fixed Header for Mobile */}
+      {!hideTopBar && (
       <div className="fixed top-0 left-0 right-0 z-40 lg:hidden bg-background/95 backdrop-blur-sm border-b h-14 flex items-center px-4">
         <Sheet open={open} onOpenChange={setOpen}>
           <SheetTrigger asChild>
@@ -232,6 +238,7 @@ export default function MobileNav() {
         {/* Notification Center */}
         <NotificationCenter />
       </div>
+      )}
 
       {/* Fixed Bottom Navigation for Mobile */}
       <div 

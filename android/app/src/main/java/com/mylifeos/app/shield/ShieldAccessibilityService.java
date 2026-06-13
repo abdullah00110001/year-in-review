@@ -215,6 +215,26 @@ public class ShieldAccessibilityService extends AccessibilityService {
 
         int type = event.getEventType();
 
+        // 🌙 Night to Rise — enforce app lock window
+        if (type == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
+            try {
+                com.mylifeos.app.nighttorise.NightToRiseManager n2r =
+                    new com.mylifeos.app.nighttorise.NightToRiseManager(this);
+                com.mylifeos.app.nighttorise.NightToRiseManager.Decision d =
+                    n2r.decide(System.currentTimeMillis(), packageName);
+                if (d.shouldBlock) {
+                    Intent i = new Intent(this, com.mylifeos.app.nighttorise.NightToRiseBlockActivity.class);
+                    i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+                    i.putExtra(com.mylifeos.app.nighttorise.NightToRiseBlockActivity.EXTRA_MESSAGE, d.message);
+                    i.putExtra(com.mylifeos.app.nighttorise.NightToRiseBlockActivity.EXTRA_END_MS, d.endTimeMs);
+                    i.putExtra(com.mylifeos.app.nighttorise.NightToRiseBlockActivity.EXTRA_STRICT, n2r.prefs().strictMode());
+                    startActivity(i);
+                    return;
+                }
+            } catch (Throwable t) { Log.w(TAG, "NightToRise check failed", t); }
+        }
+
+
         // ✅ PureShield
         if (type == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
             try {

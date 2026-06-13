@@ -150,7 +150,14 @@ export function RiseAlarmEditor({
           }
         }
       } catch {}
-      setAlarm({ ...DEFAULT_ALARM, ...initialData, ...(restored ?? {}) });
+      const merged: AlarmData = { ...DEFAULT_ALARM, ...initialData, ...(restored ?? {}) };
+      // Hydrate per-mission config from localStorage so each challenge keeps
+      // its own difficulty/count preference across all alarms.
+      try {
+        const cfgRaw = localStorage.getItem(`rise_mission_cfg_${merged.verification_type}`);
+        if (cfgRaw) merged.mission_config = JSON.parse(cfgRaw);
+      } catch {}
+      setAlarm(merged);
       checkAllAlarmPermissions().then((perms) =>
         setPermissionsOk(perms.notifications && perms.exactAlarm),
       );
@@ -260,10 +267,48 @@ export function RiseAlarmEditor({
         r.readAsDataURL(file);
       });
       setAlarm((p) => ({ ...p, wallpaper_url: dataUrl }));
+      toast.success('Wallpaper updated');
     } catch {
       toast.error('Could not load wallpaper');
     }
     e.target.value = '';
+  };
+
+  // Native (Capacitor) wallpaper picker — uses Android photo picker via @capacitor/camera.
+  // Falls back to the hidden <input type="file"> when running on the web OR when
+  // the Camera plugin returns an empty result.
+  const pickWallpaper = async () => {
+    try {
+      const { isNative } = await import('@/lib/capacitor/platform');
+      if (!isNative) {
+        wallpaperInputRef.current?.click();
+        return;
+      }
+      const { Camera, CameraResultType, CameraSource } = await import('@capacitor/camera');
+      const photo = await Camera.getPhoto({
+        source: CameraSource.Photos,
+        resultType: CameraResultType.DataUrl,
+        quality: 70,
+        allowEditing: false,
+        width: 1080,
+      });
+      const dataUrl = photo.dataUrl;
+      if (!dataUrl || dataUrl.length < 100) {
+        console.warn('[Wallpaper] empty dataUrl, falling back to file input');
+        wallpaperInputRef.current?.click();
+        return;
+      }
+      if (alarm.wallpaper_url && alarm.wallpaper_url.startsWith('blob:')) {
+        URL.revokeObjectURL(alarm.wallpaper_url);
+      }
+      setAlarm((p) => ({ ...p, wallpaper_url: dataUrl }));
+      toast.success('Wallpaper updated');
+    } catch (err: any) {
+      const msg = String(err?.message || err || '');
+      if (/cancel/i.test(msg)) return;
+      console.warn('[Wallpaper] picker failed, falling back to file input:', err);
+      wallpaperInputRef.current?.click();
+    }
   };
 
   const handleWallpaperRemove = () => {
@@ -399,10 +444,16 @@ export function RiseAlarmEditor({
                       <button
                         key={m.id}
                         onClick={() => {
+                          // Load the saved per-mission config (if any) when switching.
+                          let cfg: MissionConfig = DEFAULT_MISSION_CONFIG;
+                          try {
+                            const raw = localStorage.getItem(`rise_mission_cfg_${m.id}`);
+                            if (raw) cfg = JSON.parse(raw);
+                          } catch {}
                           setAlarm((p) => ({
                             ...p,
                             verification_type: m.id,
-                            mission_config: p.mission_config ?? DEFAULT_MISSION_CONFIG,
+                            mission_config: m.id === 'none' ? p.mission_config : cfg,
                           }));
                           if (m.id !== 'none') setMissionConfigOpen(true);
                         }}
@@ -635,7 +686,7 @@ export function RiseAlarmEditor({
                     />
                     <div className="absolute inset-0 bg-black/40 flex items-center justify-center gap-3">
                       <button
-                        onClick={() => wallpaperInputRef.current?.click()}
+                        onClick={pickWallpaper}
                         className="flex items-center gap-1.5 bg-white/20 backdrop-blur-sm text-white text-xs font-semibold px-3 py-2 rounded-xl hover:bg-white/30 transition-all"
                       >
                         <ImageIcon className="h-3.5 w-3.5" />
@@ -652,7 +703,7 @@ export function RiseAlarmEditor({
                   </div>
                 ) : (
                   <button
-                    onClick={() => wallpaperInputRef.current?.click()}
+                    onClick={pickWallpaper}
                     className="w-full flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border hover:border-primary/50 hover:bg-primary/5 transition-all"
                     style={{ height: 120 }}
                   >
@@ -719,8 +770,14 @@ export function RiseAlarmEditor({
           missionId={alarm.verification_type}
           value={alarm.mission_config ?? DEFAULT_MISSION_CONFIG}
           onSave={(cfg) => {
+            // Persist per-mission config so every alarm using this mission
+            // type inherits the same settings going forward.
+            try {
+              localStorage.setItem(`rise_mission_cfg_${alarm.verification_type}`, JSON.stringify(cfg));
+            } catch {}
             setAlarm((p) => ({ ...p, mission_config: cfg }));
             setMissionConfigOpen(false);
+            toast.success('Mission settings saved');
           }}
           onClose={() => setMissionConfigOpen(false)}
         />

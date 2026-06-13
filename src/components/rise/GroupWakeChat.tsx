@@ -1,57 +1,50 @@
 import { useEffect, useRef, useState } from 'react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { Bell, ImagePlus, Send, Smile } from 'lucide-react';
+import { Sheet, SheetContent } from '@/components/ui/sheet';
+import { Bell, ImagePlus, Send, Smile, Trash2, Ban } from 'lucide-react';
 import { cn } from '@/lib/utils';
-
-// ── Types ──────────────────────────────────────────────────────────────────
+import { useDeleteForEveryone, useDeleteForMe } from '@/hooks/useGroupChat';
 
 export interface ChatMessage {
   id: string;
   user_id: string;
   full_name: string | null;
   text: string;
-  sent_at: string;       // ISO string
+  sent_at: string;
   reactions?: { emoji: string; count: number }[];
-  is_system?: boolean;   // e.g. "X just woke up!" notifications
+  is_system?: boolean;
+  deleted_for_everyone?: boolean;
 }
 
 interface Props {
   groupName: string;
+  groupId?: string;
   messages: ChatMessage[];
   currentUserId: string;
   onSend: (text: string) => void;
   onReact?: (messageId: string, emoji: string) => void;
 }
 
-// ── Helpers ────────────────────────────────────────────────────────────────
-
 function fmtTime(iso: string): string {
   const d = new Date(iso);
   const h = d.getHours();
   const m = String(d.getMinutes()).padStart(2, '0');
   const ampm = h >= 12 ? 'PM' : 'AM';
-  return `${ampm} ${String(h % 12 || 12).padStart(2,'0')}:${m}`;
+  return `${ampm} ${String(h % 12 || 12).padStart(2, '0')}:${m}`;
 }
-
 function fmtDateSep(iso: string): string {
-  const d = new Date(iso);
-  return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+  return new Date(iso).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
 }
-
 function shouldShowDateSep(prev: ChatMessage | undefined, curr: ChatMessage): boolean {
   if (!prev) return true;
-  const a = new Date(prev.sent_at).toDateString();
-  const b = new Date(curr.sent_at).toDateString();
-  return a !== b;
+  return new Date(prev.sent_at).toDateString() !== new Date(curr.sent_at).toDateString();
 }
-
-// ── System message (wake notification) ────────────────────────────────────
 
 function SystemMsg({ msg }: { msg: ChatMessage }) {
   return (
     <div className="flex justify-center py-1">
-      <div className="flex items-center gap-1.5 rounded-full bg-[#0f1f2e] border border-[#1e3a5a] px-3 py-1 text-xs text-[#7dd3fc]">
+      <div className="flex items-center gap-1.5 rounded-full bg-primary/10 border border-primary/30 px-3 py-1 text-xs text-primary">
         <Bell className="h-3 w-3" />
         {msg.text}
       </div>
@@ -59,79 +52,75 @@ function SystemMsg({ msg }: { msg: ChatMessage }) {
   );
 }
 
-// ── Chat bubble ───────────────────────────────────────────────────────────
-
 function ChatBubble({
-  msg,
-  isMe,
-  showAvatar,
-  onReact,
+  msg, isMe, showAvatar, onLongPress,
 }: {
-  msg: ChatMessage;
-  isMe: boolean;
-  showAvatar: boolean;
-  onReact?: (emoji: string) => void;
+  msg: ChatMessage; isMe: boolean; showAvatar: boolean; onLongPress: (msg: ChatMessage) => void;
 }) {
   const initials = (msg.full_name || '?').slice(0, 2).toUpperCase();
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const start = () => {
+    if (msg.deleted_for_everyone) return;
+    timerRef.current = setTimeout(() => onLongPress(msg), 450);
+  };
+  const cancel = () => {
+    if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null; }
+  };
 
   return (
     <div className={cn('flex items-end gap-2', isMe && 'flex-row-reverse')}>
-      {/* avatar */}
       <div className="h-7 w-7 shrink-0">
         {showAvatar && !isMe ? (
           <Avatar className="h-7 w-7">
-            <AvatarFallback className="text-[10px] bg-[#1e1e30] text-[#8080b0]">
-              {initials}
-            </AvatarFallback>
+            <AvatarFallback className="text-[10px] bg-muted text-muted-foreground">{initials}</AvatarFallback>
           </Avatar>
-        ) : (
-          <div className="h-7 w-7" />
-        )}
+        ) : (<div className="h-7 w-7" />)}
       </div>
 
       <div className={cn('flex max-w-[70%] flex-col gap-0.5', isMe && 'items-end')}>
-        {/* sender name (only for others, first bubble in group) */}
         {showAvatar && !isMe && (
-          <span className="px-1 text-[10px] text-[#5a5a7a]">{msg.full_name || 'Member'}</span>
+          <span className="px-1 text-[10px] text-muted-foreground">{msg.full_name || 'Anonymous'}</span>
         )}
 
-        {/* bubble */}
-        <div className={cn(
-          'rounded-2xl px-3 py-2 text-sm leading-relaxed',
-          isMe
-            ? 'rounded-br-sm bg-[#1e5a8e] text-white'
-            : 'rounded-bl-sm bg-[#1a1a2a] border border-[#2a2a3a] text-[#e0e0f0]',
-        )}>
-          {msg.text}
+        <div
+          onContextMenu={(e) => { e.preventDefault(); if (!msg.deleted_for_everyone) onLongPress(msg); }}
+          onTouchStart={start}
+          onTouchEnd={cancel}
+          onTouchMove={cancel}
+          onMouseDown={start}
+          onMouseUp={cancel}
+          onMouseLeave={cancel}
+          className={cn(
+            'rounded-2xl px-3 py-2 text-sm leading-relaxed select-none',
+            msg.deleted_for_everyone
+              ? 'italic bg-muted/40 border border-dashed border-border text-muted-foreground'
+              : isMe
+                ? 'rounded-br-sm bg-primary text-primary-foreground'
+                : 'rounded-bl-sm bg-muted border border-border text-foreground',
+          )}
+        >
+          {msg.deleted_for_everyone
+            ? <span className="inline-flex items-center gap-1"><Ban className="h-3 w-3" /> This message was deleted</span>
+            : msg.text}
         </div>
 
-        {/* time + reactions */}
         <div className={cn('flex items-center gap-1.5', isMe && 'flex-row-reverse')}>
-          <span className="text-[10px] text-[#3a3a5a]">{fmtTime(msg.sent_at)}</span>
-          {msg.reactions?.map(r => (
-            <button
-              key={r.emoji}
-              onClick={() => onReact?.(r.emoji)}
-              className="flex items-center gap-0.5 rounded-full bg-[#1e1e2e] border border-[#2a2a3a] px-1.5 py-0.5 text-xs hover:bg-[#2a2a3e] transition-colors"
-            >
-              {r.emoji}<span className="text-[#8080b0]">{r.count}</span>
-            </button>
-          ))}
+          <span className="text-[10px] text-muted-foreground">{fmtTime(msg.sent_at)}</span>
         </div>
       </div>
     </div>
   );
 }
 
-// ── Main ───────────────────────────────────────────────────────────────────
-
-export function GroupWakeChat({ groupName, messages, currentUserId, onSend, onReact }: Props) {
+export function GroupWakeChat({ groupName, groupId, messages, currentUserId, onSend }: Props) {
   const [draft, setDraft] = useState('');
   const bottomRef = useRef<HTMLDivElement>(null);
+  const [actionMsg, setActionMsg] = useState<ChatMessage | null>(null);
+  const delEveryone = useDeleteForEveryone(groupId);
+  const delMe = useDeleteForMe(groupId);
 
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages.length]);
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages.length]);
 
   function handleSend() {
     const text = draft.trim();
@@ -139,18 +128,17 @@ export function GroupWakeChat({ groupName, messages, currentUserId, onSend, onRe
     onSend(text);
     setDraft('');
   }
-
   function handleKey(e: React.KeyboardEvent) {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
-    }
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
   }
 
-  return (
-    <div className="flex flex-col bg-[#080810] h-full">
+  const canDelForEveryone = (m: ChatMessage) => {
+    if (m.user_id !== currentUserId) return false;
+    return Date.now() - new Date(m.sent_at).getTime() < 24 * 3600 * 1000;
+  };
 
-      {/* ── Message list ── */}
+  return (
+    <div className="flex flex-col bg-background h-full">
       <div className="flex-1 overflow-y-auto px-3 py-3 flex flex-col gap-1.5 scrollbar-none">
         {messages.map((msg, i) => {
           const prev = messages[i - 1];
@@ -161,40 +149,30 @@ export function GroupWakeChat({ groupName, messages, currentUserId, onSend, onRe
 
           return (
             <div key={msg.id}>
-              {/* date separator */}
               {showDate && (
                 <div className="flex items-center gap-2 py-3">
-                  <div className="flex-1 h-px bg-[#1e1e2e]" />
-                  <span className="text-xs text-[#3a3a5a] shrink-0">{fmtDateSep(msg.sent_at)}</span>
-                  <div className="flex-1 h-px bg-[#1e1e2e]" />
+                  <div className="flex-1 h-px bg-border" />
+                  <span className="text-xs text-muted-foreground shrink-0">{fmtDateSep(msg.sent_at)}</span>
+                  <div className="flex-1 h-px bg-border" />
                 </div>
               )}
-
-              {msg.is_system ? (
-                <SystemMsg msg={msg} />
-              ) : (
-                <ChatBubble
-                  msg={msg}
-                  isMe={isMe}
-                  showAvatar={showAvatar}
-                  onReact={(emoji) => onReact?.(msg.id, emoji)}
-                />
-              )}
+              {msg.is_system
+                ? <SystemMsg msg={msg} />
+                : <ChatBubble msg={msg} isMe={isMe} showAvatar={showAvatar} onLongPress={setActionMsg} />
+              }
             </div>
           );
         })}
         <div ref={bottomRef} />
       </div>
 
-      {/* ── Input bar ── */}
-      <div className="border-t border-[#1a1a2a] bg-[#0d0d16] px-3 py-2.5 flex items-end gap-2">
-        <button className="text-[#3a3a5a] hover:text-[#7dd3fc] transition-colors p-1 shrink-0">
+      <div className="border-t border-border bg-card px-3 py-2.5 flex items-end gap-2">
+        <button className="text-muted-foreground hover:text-primary transition-colors p-1 shrink-0">
           <ImagePlus className="h-5 w-5" />
         </button>
-
         <div className="flex-1 relative">
           <textarea
-            className="w-full resize-none rounded-2xl bg-[#1a1a2a] border border-[#2a2a3a] px-3 py-2 text-sm text-white placeholder-[#3a3a5a] focus:outline-none focus:border-[#2dd4bf] transition-colors min-h-[38px] max-h-32 scrollbar-none"
+            className="w-full resize-none rounded-2xl bg-muted border border-border px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary min-h-[38px] max-h-32 scrollbar-none"
             placeholder="Message..."
             value={draft}
             onChange={e => setDraft(e.target.value)}
@@ -202,20 +180,43 @@ export function GroupWakeChat({ groupName, messages, currentUserId, onSend, onRe
             rows={1}
           />
         </div>
-
-        <button className="text-[#3a3a5a] hover:text-[#7dd3fc] transition-colors p-1 shrink-0">
+        <button className="text-muted-foreground hover:text-primary transition-colors p-1 shrink-0">
           <Smile className="h-5 w-5" />
         </button>
-
-        <Button
-          size="icon"
-          className="h-9 w-9 rounded-full bg-[#2dd4bf] hover:bg-[#14b8a6] text-[#080810] shrink-0 transition-all"
-          onClick={handleSend}
-          disabled={!draft.trim()}
-        >
+        <Button size="icon" className="h-9 w-9 rounded-full shrink-0" onClick={handleSend} disabled={!draft.trim()}>
           <Send className="h-4 w-4" />
         </Button>
       </div>
+
+      {/* Long-press action sheet */}
+      <Sheet open={!!actionMsg} onOpenChange={(v) => { if (!v) setActionMsg(null); }}>
+        <SheetContent side="bottom" className="rounded-t-3xl pb-6">
+          <div className="space-y-2 pt-4">
+            <button
+              onClick={() => { if (actionMsg) delMe.mutate(actionMsg.id); setActionMsg(null); }}
+              className="w-full text-left px-4 py-3 rounded-xl hover:bg-muted flex items-center gap-3"
+            >
+              <Trash2 className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm">Delete for me</span>
+            </button>
+            {actionMsg && canDelForEveryone(actionMsg) && (
+              <button
+                onClick={() => { if (actionMsg) delEveryone.mutate(actionMsg.id); setActionMsg(null); }}
+                className="w-full text-left px-4 py-3 rounded-xl hover:bg-destructive/10 flex items-center gap-3 text-destructive"
+              >
+                <Ban className="h-4 w-4" />
+                <span className="text-sm">Delete for everyone</span>
+              </button>
+            )}
+            <button
+              onClick={() => setActionMsg(null)}
+              className="w-full text-center px-4 py-3 rounded-xl border border-border text-sm font-medium"
+            >
+              Cancel
+            </button>
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }

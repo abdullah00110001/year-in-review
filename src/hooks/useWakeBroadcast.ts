@@ -2,24 +2,51 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
+interface WakeBroadcastInput {
+  group_id: string;
+  kind: 'leader' | 'member';
+  target_user_id?: string;
+  message?: string;
+}
+
 export function useWakeBroadcast() {
+  const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input: {
-      group_id: string;
-      kind: 'leader' | 'member';
-      target_user_id?: string;
-      message?: string;
-    }) => {
+    mutationFn: async (input: WakeBroadcastInput) => {
       const { data, error } = await supabase.functions.invoke('wake-broadcast', { body: input });
-      if (error) throw error;
-      if ((data as any)?.error) throw new Error((data as any).error);
+      if (error) {
+        // Functions client wraps non-2xx as error; extract body when available
+        const ctx: any = (error as any).context;
+        try {
+          const body = ctx?.body ? JSON.parse(await new Response(ctx.body).text()) : null;
+          if (body?.error) throw Object.assign(new Error(body.error), { code: body.code, used: body.used, max: body.max });
+        } catch (_) { /* fallthrough */ }
+        throw error;
+      }
+      if ((data as any)?.error) {
+        throw Object.assign(new Error((data as any).error), { code: (data as any).code });
+      }
       return data;
     },
-    onSuccess: (data: any) => {
+    onSuccess: (data: any, vars) => {
+      qc.invalidateQueries({ queryKey: ['group-wake-calls', vars.group_id] });
       const count = Array.isArray(data?.recipients) ? data.recipients.length : 1;
-      toast.success(`Wake call sent to ${count} member${count !== 1 ? 's' : ''}`);
+      if (vars.kind === 'leader') {
+        toast.success(`Wake call sent to ${count} member${count !== 1 ? 's' : ''}`);
+      } else {
+        toast.success(data?.trusted ? 'Trusted wake call sent 🔔' : 'Wake call sent 🔔');
+      }
     },
-    onError: (e: any) => toast.error(e?.message ?? 'Could not send wake call'),
+    onError: (e: any) => {
+      const code = e?.code;
+      if (code === 'member_rate_limited') {
+        toast.error(`${e.used}/${e.max} wake calls used for today`);
+      } else if (code === 'trusted_cooldown') {
+        toast.error(e.message);
+      } else {
+        toast.error(e?.message ?? 'Could not send wake call');
+      }
+    },
   });
 }
 

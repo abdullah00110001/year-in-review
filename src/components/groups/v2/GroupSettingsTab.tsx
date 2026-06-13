@@ -5,20 +5,32 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
-import { Bell, Copy, LogOut, Pencil, MessageSquare, Crown } from 'lucide-react';
+import { Bell, Copy, LogOut, Pencil, MessageSquare, Crown, AlertTriangle, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useLeaveGroup } from '@/hooks/useLifeosGroups';
 import { useQueryClient } from '@tanstack/react-query';
+import { useAuth } from '@/hooks/useAuth';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 interface Props {
-  group: { id: string; name: string; description: string | null; goal: string; invite_code: string; chat_enabled: boolean };
+  group: { id: string; name: string; description: string | null; goal: string; invite_code: string; chat_enabled: boolean; created_by?: string };
   isLeader: boolean;
   onLeft: () => void;
 }
 
 export function GroupSettingsTab({ group, isLeader, onLeft }: Props) {
   const qc = useQueryClient();
+  const { user } = useAuth();
   const leave = useLeaveGroup();
   const [muted, setMuted] = useState(false);
   const [name, setName] = useState(group.name);
@@ -26,6 +38,12 @@ export function GroupSettingsTab({ group, isLeader, onLeft }: Props) {
   const [goal, setGoal] = useState(group.goal);
   const [chatEnabled, setChatEnabled] = useState(group.chat_enabled);
   const [saving, setSaving] = useState(false);
+  const [leaveOpen, setLeaveOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [confirmName, setConfirmName] = useState('');
+  const [deleting, setDeleting] = useState(false);
+
+  const isOwner = !!(user && group.created_by && user.id === group.created_by);
 
   const saveLeader = async () => {
     setSaving(true);
@@ -47,6 +65,24 @@ export function GroupSettingsTab({ group, isLeader, onLeft }: Props) {
   const copyInvite = async () => {
     await navigator.clipboard.writeText(group.invite_code);
     toast.success('Invite code copied');
+  };
+
+  const handleDelete = async () => {
+    if (confirmName.trim() !== group.name.trim()) {
+      toast.error('Group name does not match');
+      return;
+    }
+    setDeleting(true);
+    const { error } = await supabase.from('lifeos_groups').delete().eq('id', group.id);
+    setDeleting(false);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    toast.success('Group deleted');
+    qc.invalidateQueries({ queryKey: ['lifeos-groups'] });
+    setDeleteOpen(false);
+    onLeft();
   };
 
   return (
@@ -74,15 +110,6 @@ export function GroupSettingsTab({ group, isLeader, onLeft }: Props) {
           </div>
           <Switch checked={muted} onCheckedChange={setMuted} />
         </div>
-
-        <Separator />
-
-        <Button
-          variant="ghost"
-          className="w-full justify-start text-destructive hover:text-destructive hover:bg-destructive/10"
-          onClick={() => leave.mutate(group.id, { onSuccess: onLeft })}>
-          <LogOut className="h-4 w-4 mr-2" /> Leave group
-        </Button>
       </Card>
 
       {/* Leader-only */}
@@ -124,6 +151,86 @@ export function GroupSettingsTab({ group, isLeader, onLeft }: Props) {
           </Button>
         </Card>
       )}
+
+      {/* Danger Zone */}
+      <Card className="p-4 space-y-3 border-destructive/40 bg-destructive/5">
+        <div className="flex items-center gap-2">
+          <AlertTriangle className="h-4 w-4 text-destructive" />
+          <p className="text-sm font-bold text-destructive">Danger zone</p>
+        </div>
+
+        <Button
+          variant="outline"
+          className="w-full justify-start border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+          onClick={() => setLeaveOpen(true)}
+          disabled={isOwner}
+        >
+          <LogOut className="h-4 w-4 mr-2" /> Leave group
+        </Button>
+        {isOwner && (
+          <p className="text-[11px] text-muted-foreground -mt-1">
+            Owners can't leave — transfer ownership or delete the group.
+          </p>
+        )}
+
+        {isOwner && (
+          <Button
+            variant="destructive"
+            className="w-full justify-start"
+            onClick={() => { setConfirmName(''); setDeleteOpen(true); }}
+          >
+            <Trash2 className="h-4 w-4 mr-2" /> Delete group
+          </Button>
+        )}
+      </Card>
+
+      <AlertDialog open={leaveOpen} onOpenChange={setLeaveOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Leave this group?</AlertDialogTitle>
+            <AlertDialogDescription>
+              You'll stop receiving wake calls and chat from {group.name}. You can rejoin later using the invite code.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => leave.mutate(group.id, { onSuccess: () => { setLeaveOpen(false); onLeft(); } })}
+            >
+              Leave
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-destructive">Delete this group permanently?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This removes all members, chat history, and wake records. This cannot be undone.
+              Type <span className="font-bold text-foreground">{group.name}</span> below to confirm.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <Input
+            autoFocus
+            placeholder={group.name}
+            value={confirmName}
+            onChange={(e) => setConfirmName(e.target.value)}
+          />
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={deleting || confirmName.trim() !== group.name.trim()}
+              onClick={(e) => { e.preventDefault(); handleDelete(); }}
+            >
+              {deleting ? 'Deleting…' : 'Delete forever'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
