@@ -17,12 +17,12 @@ const RADII = [
 
 function Row({ icon, title, subtitle, right }: { icon: React.ReactNode; title: string; subtitle: string; right: React.ReactNode }) {
   return (
-    <div className="flex items-start justify-between gap-3 py-3 border-b border-white/[0.06] last:border-0">
+    <div className="flex items-start justify-between gap-3 py-3 border-b border-border last:border-0">
       <div className="flex items-start gap-3 min-w-0">
-        <div className="text-white/60 mt-0.5">{icon}</div>
+        <div className="text-muted-foreground mt-0.5">{icon}</div>
         <div className="min-w-0">
-          <div className="text-sm font-medium text-white">{title}</div>
-          <div className="text-xs text-white/50 mt-0.5">{subtitle}</div>
+          <div className="text-sm font-medium text-foreground">{title}</div>
+          <div className="text-xs text-muted-foreground mt-0.5">{subtitle}</div>
         </div>
       </div>
       <div className="shrink-0">{right}</div>
@@ -35,12 +35,12 @@ export function CommunitySettingsSheet({ open, onOpenChange }: Props) {
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="bottom" className="bg-[#0A0A0F] border-white/10 text-white rounded-t-3xl max-h-[88vh] overflow-y-auto">
+      <SheetContent side="bottom" className="rounded-t-3xl max-h-[88vh] overflow-y-auto">
         <SheetHeader className="text-left pb-2">
-          <SheetTitle className="text-white text-lg">Community Settings</SheetTitle>
+          <SheetTitle className="text-lg">Community Settings</SheetTitle>
         </SheetHeader>
 
-        <div className="rounded-2xl bg-[#111118] border border-white/[0.06] px-4 mt-2">
+        <div className="rounded-2xl bg-muted/40 border border-border px-4 mt-2">
           <Row
             icon={<Eye className="h-4 w-4" />}
             title="Community তে দেখাও"
@@ -61,9 +61,9 @@ export function CommunitySettingsSheet({ open, onOpenChange }: Props) {
           />
         </div>
 
-        <div className="rounded-2xl bg-[#111118] border border-white/[0.06] p-4 mt-3">
-          <div className="flex items-center gap-2 text-sm font-medium mb-3">
-            <MapPin className="h-4 w-4 text-white/60" /> Nearby radius
+        <div className="rounded-2xl bg-muted/40 border border-border p-4 mt-3">
+          <div className="flex items-center gap-2 text-sm font-medium mb-3 text-foreground">
+            <MapPin className="h-4 w-4 text-muted-foreground" /> Nearby radius
           </div>
           <div className="grid grid-cols-3 gap-2">
             {RADII.map((r) => {
@@ -73,10 +73,10 @@ export function CommunitySettingsSheet({ open, onOpenChange }: Props) {
                   key={r.v}
                   onClick={() => update({ nearby_radius_km: r.v })}
                   className={cn(
-                    'py-2 rounded-xl text-xs font-medium transition-all',
+                    'py-2 rounded-xl text-xs font-medium transition-all border',
                     active
-                      ? 'bg-[#6C63FF] text-white shadow-[0_0_14px_rgba(108,99,255,0.4)]'
-                      : 'bg-black/30 text-white/60 hover:text-white border border-white/[0.06]',
+                      ? 'bg-primary text-primary-foreground border-primary shadow-sm'
+                      : 'bg-card text-muted-foreground hover:text-foreground border-border',
                   )}
                 >
                   {r.label}
@@ -86,7 +86,7 @@ export function CommunitySettingsSheet({ open, onOpenChange }: Props) {
           </div>
         </div>
 
-        <p className="text-[11px] text-white/30 text-center mt-4 mb-2">
+        <p className="text-[11px] text-muted-foreground/70 text-center mt-4 mb-2">
           Changes apply instantly. কোনো save button লাগবে না।
         </p>
       </SheetContent>

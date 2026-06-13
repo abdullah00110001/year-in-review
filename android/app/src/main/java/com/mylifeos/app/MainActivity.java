@@ -170,19 +170,26 @@ public class MainActivity extends BridgeActivity {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return;
     NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
     if (nm == null) return;
+    // Delete legacy channel so we can recreate with alarm-grade sound + DND bypass.
+    try { nm.deleteNotificationChannel("wakeup_channel"); } catch (Throwable ignored) {}
     NotificationChannel ch = new NotificationChannel(
       "wakeup_channel",
       "Wake-up calls",
       NotificationManager.IMPORTANCE_HIGH
     );
-    ch.setDescription("Wake-up requests from your group");
+    ch.setDescription("Wake-up requests from your group — rings like an alarm");
     ch.enableVibration(true);
-    ch.setVibrationPattern(new long[]{0, 400, 200, 400});
+    ch.setVibrationPattern(new long[]{0, 600, 300, 600, 300, 600});
+    ch.enableLights(true);
+    ch.setBypassDnd(true);
+    ch.setLockscreenVisibility(android.app.Notification.VISIBILITY_PUBLIC);
     AudioAttributes attrs = new AudioAttributes.Builder()
-      .setUsage(AudioAttributes.USAGE_NOTIFICATION)
+      .setUsage(AudioAttributes.USAGE_ALARM)
       .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
       .build();
-    ch.setSound(RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION), attrs);
+    android.net.Uri alarmUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM);
+    if (alarmUri == null) alarmUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE);
+    ch.setSound(alarmUri, attrs);
     ch.setShowBadge(true);
     nm.createNotificationChannel(ch);
   }

@@ -76,7 +76,11 @@ async function sendFcm(deviceToken: string, payload: {
           channel_id: 'wakeup_channel',
           sound: 'default',
           default_vibrate_timings: true,
+          default_light_settings: true,
+          notification_priority: 'PRIORITY_MAX',
+          visibility: 'PUBLIC',
         },
+        ttl: '60s',
       },
     },
   };
