@@ -30,7 +30,7 @@ interface SettingItem {
   iconColor?: string;
   iconBg?: string;
   status?: 'granted' | 'denied';
-  showGreenDot?: boolean; // 🟢 custom green dot (Adult Filter এর জন্য)
+  showGreenDot?: boolean; 
 }
 
 interface ShieldSettingsProps {
@@ -135,19 +135,17 @@ export function ShieldSettings({ settings, onSettingChange, onNavigate }: Shield
       iconBg: 'bg-rose-500/10',
     },
     {
-      // 🛡️ Adult Filter — click করলে AdultFilterPage যাবে, কোনো toggle নেই
-      // Accessibility চালু থাকলে → সবুজ dot + active রং
       icon: ShieldCheck,
       title: 'Adult Filter',
       description: permissionStatus.accessibility
         ? 'Active — All 18+ sites are blocked'
-        : 'Tap to set block screen style',
+        : 'Tap to configure Adult Filter settings', // 👈 ডেসক্রিপশন ফিক্স করা হয়েছে
       hasArrow: true,
       hasToggle: false,
-      onClick: () => onNavigate('adult-filter'),
+      onClick: () => onNavigate('adult-filter'), // 👈 সরাসরি নেভিগেশন কল
       iconColor: permissionStatus.accessibility ? 'text-green-500' : 'text-rose-500',
       iconBg: permissionStatus.accessibility ? 'bg-green-500/10' : 'bg-rose-500/10',
-      showGreenDot: permissionStatus.accessibility, // 🟢 active হলে dot দেখাবে
+      showGreenDot: permissionStatus.accessibility,
     },
     {
       icon: Activity,
@@ -395,15 +393,20 @@ export function ShieldSettings({ settings, onSettingChange, onNavigate }: Shield
     },
   ];
 
-  // ─── Render ──────────────────────────────────────────────────────────────
+  // ─── Render Item ─────────────────────────────────────────────────────────
   const renderSettingItem = (item: SettingItem, index: number, isLast: boolean) => (
     <div
       key={index}
       className={cn(
-        'flex items-center gap-4 p-4 cursor-pointer active:bg-muted/50 transition-colors',
+        'flex items-center gap-4 p-4 cursor-pointer active:bg-muted/50 transition-colors select-none',
         !isLast && 'border-b border-border/50'
       )}
-      onClick={item.onClick}
+      onClick={(e) => {
+        // যদি আইটেমে onClick থাকে, তবে সেটা ফায়ার করবে
+        if (item.onClick) {
+          item.onClick();
+        }
+      }}
     >
       <div className={cn("h-10 w-10 rounded-xl flex items-center justify-center shrink-0", item.iconBg || 'bg-muted')}>
         <item.icon className={cn("h-5 w-5", item.iconColor || 'text-muted-foreground')} />
@@ -416,11 +419,9 @@ export function ShieldSettings({ settings, onSettingChange, onNavigate }: Shield
               PRO
             </Badge>
           )}
-          {/* 🟢 Adult Filter active dot */}
           {item.showGreenDot && (
             <span className="h-2 w-2 rounded-full bg-green-500 animate-pulse shrink-0" />
           )}
-          {/* normal granted/denied icons — Adult Filter এ showGreenDot use করায় status দরকার নেই */}
           {!item.showGreenDot && item.status === 'granted' && (
             <CheckCircle2 className="h-4 w-4 text-green-500" />
           )}
@@ -439,7 +440,7 @@ export function ShieldSettings({ settings, onSettingChange, onNavigate }: Shield
         <Switch
           checked={item.toggleValue}
           onCheckedChange={item.onToggle}
-          onClick={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()} // টগল ক্লিকের সময় যাতে মেইন ডিভের onClick রান না হয়
           className="shrink-0 data-[state=checked]:bg-primary"
         />
       )}
