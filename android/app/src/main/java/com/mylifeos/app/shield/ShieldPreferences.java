@@ -286,4 +286,15 @@ public void clearHistory() {
     prefs.edit().remove("usage_history").apply();
     prefs.edit().putLong("today_minutes", 0).apply();
 }
+
+// ==========================================
+// 📱 Monitored Apps (keyword scan applies here)
+// ==========================================
+public Set<String> getMonitoredApps() {
+    return prefs.getStringSet("monitored_apps", new HashSet<>());
+}
+
+public void setMonitoredApps(Set<String> apps) {
+    prefs.edit().putStringSet("monitored_apps", apps).apply();
+}
 }

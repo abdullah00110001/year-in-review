@@ -377,14 +377,20 @@ export default function RiseRingScreen() {
             />
           )}
 
-          {/* ✅ QR/Barcode mission */}
+          {/* ✅ QR/Barcode mission — user এর set করা barcode use করো */}
           {(missionType === 'qr' || missionType === 'barcode') && (
-            <BarcodeMission onComplete={handleMissionComplete} targetBarcode="WAKE-UP" />
+            <BarcodeMission
+              onComplete={handleMissionComplete}
+              targetBarcode={alarm.mission_config?.targetBarcode || 'WAKE-UP'}
+            />
           )}
 
-          {/* ✅ Photo mission */}
+          {/* ✅ Photo mission — user এর set করা location use করো */}
           {missionType === 'photo' && (
-            <PhotoMission onComplete={handleMissionComplete} registeredPlace="Bathroom sink" />
+            <PhotoMission
+              onComplete={handleMissionComplete}
+              registeredPlace={alarm.mission_config?.photoLocation || 'Bathroom sink'}
+            />
           )}
 
           {/* ✅ Fix 5: None / unknown mission — সরাসরি "I'm Awake" button */}

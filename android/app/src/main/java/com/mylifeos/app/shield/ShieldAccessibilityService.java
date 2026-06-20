@@ -22,15 +22,18 @@ public class ShieldAccessibilityService extends AccessibilityService {
     private static final String TAG = "ShieldAccessibility";
 
     private ShieldPreferences preferences;
+    private ShieldEscalationManager escalationManager;
+    private ShieldAppFirewall firewall;
+
     private String lastBlockedPackage = "";
     private String lastBlockedUrl = "";
-
     private long lastActionTime = 0;
     private long lastScanTime = 0;
     private static final long SCAN_COOLDOWN_MS = 300;
 
     private Set<String> adultKeywordsSet = new HashSet<>();
     private Set<String> adultSitesList = new HashSet<>();
+    private Set<String> monitoredApps = new HashSet<>();
 
     private static final String[] ADULT_DOMAIN_PATTERNS = new String[]{
         "porn", "xxx", "sex", "nude", "naked", "hentai", "erotic",
@@ -43,25 +46,35 @@ public class ShieldAccessibilityService extends AccessibilityService {
     };
 
     private static final String[] BROWSER_PACKAGES = new String[]{
-        "com.android.chrome",
-        "com.chrome.beta",
-        "com.chrome.dev",
-        "org.mozilla.firefox",
-        "com.brave.browser",
-        "com.opera.browser",
-        "com.microsoft.emmx",
-        "com.sec.android.app.sbrowser",
+        "com.android.chrome", "com.chrome.beta", "com.chrome.dev",
+        "org.mozilla.firefox", "com.brave.browser", "com.opera.browser",
+        "com.microsoft.emmx", "com.sec.android.app.sbrowser",
         "com.duckduckgo.mobile.android"
     };
+
+    // ==========================================
+    // 🔧 Lifecycle
+    // ==========================================
 
     @Override
     protected void onServiceConnected() {
         super.onServiceConnected();
         preferences = new ShieldPreferences(this);
+        escalationManager = new ShieldEscalationManager(this);
+        firewall = new ShieldAppFirewall(this);
         loadAdultKeywordsFromAssets();
         loadAdultSitesFromAssets();
+        loadMonitoredApps();
         Log.d(TAG, "🛡️ Shield Connected — keywords: " + adultKeywordsSet.size()
             + ", sites: " + adultSitesList.size());
+    }
+
+    private void loadMonitoredApps() {
+        monitoredApps.clear();
+        Set<String> saved = preferences.getMonitoredApps();
+        if (saved != null) monitoredApps.addAll(saved);
+        for (String b : BROWSER_PACKAGES) monitoredApps.add(b);
+        Log.d(TAG, "📱 Monitored apps: " + monitoredApps.size());
     }
 
     private void loadAdultKeywordsFromAssets() {
@@ -81,141 +94,34 @@ public class ShieldAccessibilityService extends AccessibilityService {
 
     private void loadAdultSitesFromAssets() {
         try {
-            // adult_sites_clean.txt = duplicate remove করা list (sort -u দিয়ে বানানো)
             BufferedReader reader = new BufferedReader(
-                new InputStreamReader(getAssets().open("adult_sites_clean.txt")));
+                new InputStreamReader(getAssets().open("adult_sites_lists.txt")));
             String line;
             while ((line = reader.readLine()) != null) {
                 String trimmed = line.trim().toLowerCase()
-                    .replace("https://", "")
-                    .replace("http://", "")
-                    .replace("www.", "");
+                    .replace("https://", "").replace("http://", "").replace("www.", "");
                 if (trimmed.endsWith("/")) trimmed = trimmed.substring(0, trimmed.length() - 1);
-                if (!trimmed.isEmpty() && !trimmed.startsWith("#")) {
-                    adultSitesList.add(trimmed);
-                }
+                if (!trimmed.isEmpty() && !trimmed.startsWith("#")) adultSitesList.add(trimmed);
             }
             reader.close();
             Log.d(TAG, "✅ Adult sites loaded: " + adultSitesList.size());
         } catch (IOException e) {
-            Log.e(TAG, "Error loading adult sites list — file missing?", e);
+            Log.e(TAG, "Error loading adult sites", e);
         }
     }
 
     // ==========================================
-    // ✅ LAYER 1: Domain Pattern Check
+    // 🎯 Main Event Handler
     // ==========================================
-    private boolean isAdultDomainPattern(String url) {
-        if (url == null) return false;
-        String domain = extractDomain(url);
-        for (String pattern : ADULT_DOMAIN_PATTERNS) {
-            if (domain.contains(pattern)) return true;
-        }
-        return false;
-    }
-
-    // ==========================================
-    // ✅ LAYER 2: Domain List Check (15k sites)
-    // ==========================================
-    private boolean isInAdultSitesList(String url) {
-        if (url == null || adultSitesList.isEmpty()) return false;
-        String domain = extractDomain(url);
-        if (adultSitesList.contains(domain)) return true;
-        // subdomain check — e.g. video.pornhub.com → pornhub.com
-        String[] parts = domain.split("\\.");
-        if (parts.length > 2) {
-            String rootDomain = parts[parts.length - 2] + "." + parts[parts.length - 1];
-            if (adultSitesList.contains(rootDomain)) return true;
-        }
-        return false;
-    }
-
-    // ==========================================
-    // ✅ LAYER 3: Keyword in URL
-    // ==========================================
-    private boolean hasAdultKeywordInUrl(String url) {
-        if (url == null) return false;
-        String lower = url.toLowerCase();
-        for (String kw : adultKeywordsSet) {
-            if (lower.contains(kw)) return true;
-        }
-        return false;
-    }
-
-    // ==========================================
-    // 🔧 Domain extractor — helper
-    // ==========================================
-    private String extractDomain(String url) {
-        String clean = url.toLowerCase()
-            .replace("https://", "")
-            .replace("http://", "")
-            .replace("www.", "");
-        return clean.contains("/") ? clean.substring(0, clean.indexOf("/")) : clean;
-    }
-
-    // ==========================================
-    // ✅ Star Escape: por* বা p*rn allow
-    // ==========================================
-    private boolean hasStarEscape(String typed, String keyword) {
-        int checkLen = Math.min(3, keyword.length());
-        String prefix = keyword.substring(0, checkLen);
-        int idx = typed.indexOf(prefix);
-        if (idx == -1) return false;
-        int afterPrefix = idx + prefix.length();
-        if (afterPrefix < typed.length() && typed.charAt(afterPrefix) == '*') return true;
-        if (typed.contains("*")) {
-            for (int i = 1; i < keyword.length() - 1; i++) {
-                String masked = keyword.substring(0, i) + "*" + keyword.substring(i + 1);
-                if (typed.contains(masked)) return true;
-            }
-        }
-        return false;
-    }
-
-    private void clearFocusedInput() {
-        try {
-            AccessibilityNodeInfo root = getRootInActiveWindow();
-            if (root == null) return;
-            AccessibilityNodeInfo input = root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT);
-            if (input != null) {
-                Bundle args = new Bundle();
-                args.putCharSequence(
-                    AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, "");
-                boolean cleared = input.performAction(
-                    AccessibilityNodeInfo.ACTION_SET_TEXT, args);
-                if (!cleared) {
-                    input.performAction(AccessibilityNodeInfo.ACTION_SELECT);
-                    performGlobalAction(GLOBAL_ACTION_BACK);
-                }
-            }
-        } catch (Exception e) {
-            Log.e(TAG, "clearFocusedInput failed", e);
-        }
-    }
-
-    private void doubleBack() {
-        performGlobalAction(GLOBAL_ACTION_BACK);
-        new Handler(Looper.getMainLooper()).postDelayed(() -> {
-            performGlobalAction(GLOBAL_ACTION_BACK);
-        }, 300);
-    }
-
-    private void resetLastBlockedUrl() {
-        new Handler(Looper.getMainLooper()).postDelayed(() -> {
-            lastBlockedUrl = "";
-        }, 2000);
-    }
 
     @Override
     public void onAccessibilityEvent(AccessibilityEvent event) {
         if (event.getPackageName() == null) return;
-
         String packageName = event.getPackageName().toString();
         if (packageName.equals(getPackageName())) return;
-
         int type = event.getEventType();
 
-        // 🌙 Night to Rise — enforce app lock window
+        // 🌙 Night to Rise
         if (type == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
             try {
                 com.mylifeos.app.nighttorise.NightToRiseManager n2r =
@@ -223,26 +129,29 @@ public class ShieldAccessibilityService extends AccessibilityService {
                 com.mylifeos.app.nighttorise.NightToRiseManager.Decision d =
                     n2r.decide(System.currentTimeMillis(), packageName);
                 if (d.shouldBlock) {
-                    Intent i = new Intent(this, com.mylifeos.app.nighttorise.NightToRiseBlockActivity.class);
+                    Intent i = new Intent(this,
+                        com.mylifeos.app.nighttorise.NightToRiseBlockActivity.class);
                     i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
-                    i.putExtra(com.mylifeos.app.nighttorise.NightToRiseBlockActivity.EXTRA_MESSAGE, d.message);
-                    i.putExtra(com.mylifeos.app.nighttorise.NightToRiseBlockActivity.EXTRA_END_MS, d.endTimeMs);
-                    i.putExtra(com.mylifeos.app.nighttorise.NightToRiseBlockActivity.EXTRA_STRICT, n2r.prefs().strictMode());
+                    i.putExtra(com.mylifeos.app.nighttorise.NightToRiseBlockActivity.EXTRA_MESSAGE,
+                        d.message);
+                    i.putExtra(com.mylifeos.app.nighttorise.NightToRiseBlockActivity.EXTRA_END_MS,
+                        d.endTimeMs);
+                    i.putExtra(com.mylifeos.app.nighttorise.NightToRiseBlockActivity.EXTRA_STRICT,
+                        n2r.prefs().strictMode());
                     startActivity(i);
                     return;
                 }
             } catch (Throwable t) { Log.w(TAG, "NightToRise check failed", t); }
         }
 
-
-        // ✅ PureShield
+        // PureShield
         if (type == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
             try {
                 com.mylifeos.app.shield.vision.PureShieldService svc =
                     com.mylifeos.app.shield.vision.PureShieldService.instance;
                 if (svc != null && svc.isPureShieldRunning()) {
-                    Intent pureShieldIntent = new Intent(
-                        this, com.mylifeos.app.shield.vision.PureShieldService.class);
+                    Intent pureShieldIntent = new Intent(this,
+                        com.mylifeos.app.shield.vision.PureShieldService.class);
                     pureShieldIntent.setAction("PureShield.FOREGROUND_APP_CHANGED");
                     pureShieldIntent.putExtra("package", packageName);
                     startService(pureShieldIntent);
@@ -252,10 +161,21 @@ public class ShieldAccessibilityService extends AccessibilityService {
 
         if (preferences == null) return;
 
+        // Reload monitored apps if empty
+        if (type == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED && monitoredApps.isEmpty()) {
+            loadMonitoredApps();
+        }
+
         // ==========================================
-        // 🛑 Feature 1: Direct App Block
+        // 🛑 Feature 1: Escalation Block Check
         // ==========================================
         if (type == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
+            if (escalationManager.isAppBlocked(packageName)) {
+                long remaining = escalationManager.getRemainingMs(packageName);
+                showEscalationBlockScreen(packageName, remaining);
+                return;
+            }
+
             Set<String> blockedApps = preferences.getBlockedApps();
             if (blockedApps != null && blockedApps.contains(packageName)) {
                 if (!packageName.equals(lastBlockedPackage)) {
@@ -302,10 +222,9 @@ public class ShieldAccessibilityService extends AccessibilityService {
              type == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED ||
              type == AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED ||
              type == AccessibilityEvent.TYPE_VIEW_SCROLLED)) {
-
             String url = extractUrlFromBrowser(packageName, getRootInActiveWindow());
             if (url != null && !url.isEmpty() && !url.equals(lastBlockedUrl)) {
-                checkAndBlockUrl(url);
+                checkAndBlockUrl(url, packageName);
             }
         }
 
@@ -319,7 +238,7 @@ public class ShieldAccessibilityService extends AccessibilityService {
                 AccessibilityNodeInfo rootNode = getRootInActiveWindow();
                 if (rootNode != null) {
                     if (scanForAdultContent(rootNode, 0)) {
-                        triggerAdultBlock("Adult Screen Content");
+                        triggerAdultBlock("Adult Screen Content", packageName);
                         return;
                     }
                     if (preferences.isReelsBlockEnabled() &&
@@ -336,6 +255,8 @@ public class ShieldAccessibilityService extends AccessibilityService {
         // ⌨️ Feature 5: Keyword Typing Block
         // ==========================================
         if (type == AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED) {
+            if (!monitoredApps.contains(packageName) && !isBrowser(packageName)) return;
+
             CharSequence text = event.getText() != null && !event.getText().isEmpty()
                 ? event.getText().get(0) : null;
             if (text != null && text.length() > 0) {
@@ -345,7 +266,7 @@ public class ShieldAccessibilityService extends AccessibilityService {
                     if (typed.contains(kw)) {
                         if (hasStarEscape(typed, kw)) continue;
                         clearFocusedInput();
-                        triggerAdultBlock("Typed Adult Keyword");
+                        triggerAdultBlock("Typed Adult Keyword", packageName);
                         return;
                     }
                 }
@@ -358,7 +279,7 @@ public class ShieldAccessibilityService extends AccessibilityService {
                             if (hasStarEscape(typed, kw.toLowerCase())) continue;
                             preferences.incrementBlockedAttempts();
                             clearFocusedInput();
-                            triggerBackActionWithToast("Blocked by Shield 🛡️");
+                            triggerAdultBlock("Custom Keyword: " + kw, packageName);
                             return;
                         }
                     }
@@ -370,47 +291,37 @@ public class ShieldAccessibilityService extends AccessibilityService {
     // ==========================================
     // 🌐 URL Block — 3 Layer
     // ==========================================
-    private void checkAndBlockUrl(String url) {
-        // LAYER 1: Domain pattern (hardcoded keywords)
+    private void checkAndBlockUrl(String url, String packageName) {
         if (isAdultDomainPattern(url)) {
             lastBlockedUrl = url;
             doubleBack();
-            triggerAdultBlock("Adult Domain Pattern: " + extractDomain(url));
+            triggerAdultBlock("Adult Domain Pattern: " + extractDomain(url), packageName);
             resetLastBlockedUrl();
             return;
         }
-
-        // LAYER 2: 15k domain list
         if (isInAdultSitesList(url)) {
             lastBlockedUrl = url;
             doubleBack();
-            triggerAdultBlock("Adult Site List: " + extractDomain(url));
+            triggerAdultBlock("Adult Site List: " + extractDomain(url), packageName);
             resetLastBlockedUrl();
             return;
         }
-
-        // LAYER 3: Keyword in URL path
         if (hasAdultKeywordInUrl(url)) {
             lastBlockedUrl = url;
             doubleBack();
-            triggerAdultBlock("Adult Keyword in URL");
+            triggerAdultBlock("Adult Keyword in URL", packageName);
             resetLastBlockedUrl();
             return;
         }
-
-        // Reels/Shorts
         String lowerUrl = url.toLowerCase();
         if (preferences.isReelsBlockEnabled() &&
-            (lowerUrl.contains("/shorts") ||
-             lowerUrl.contains("/reels") ||
+            (lowerUrl.contains("/shorts") || lowerUrl.contains("/reels") ||
              lowerUrl.contains("youtube.com/shorts"))) {
             lastBlockedUrl = url;
             triggerBackActionWithToast("Shorts / Reels Blocked 🚫");
             resetLastBlockedUrl();
             return;
         }
-
-        // User custom blocked sites
         Set<String> blockedSites = preferences.getBlockedSites();
         if (blockedSites != null) {
             for (String site : blockedSites) {
@@ -426,43 +337,150 @@ public class ShieldAccessibilityService extends AccessibilityService {
     }
 
     // ==========================================
-    // 🔞 Adult Block — ShieldBlockActivity directly start
+    // 🔞 Adult Block — escalation + firewall
     // ==========================================
+    private void triggerAdultBlock(String reason, String packageName) {
+        long currentTime = System.currentTimeMillis();
+        if (currentTime - lastActionTime > 1500) {
+            Log.d(TAG, "🔞 ADULT BLOCKED | " + reason + " | pkg: " + packageName);
+            preferences.incrementBlockedAttempts();
+            performGlobalAction(GLOBAL_ACTION_BACK);
+            lastActionTime = currentTime;
+
+            if (packageName != null && !packageName.isEmpty()) {
+                escalationManager.registerOffense(packageName);
+                long blockDurationMs = escalationManager.getRemainingMs(packageName);
+                firewall.blockApp(packageName, blockDurationMs);
+                Log.d(TAG, "📵 Network killed for " + packageName
+                    + " | " + (blockDurationMs / 60000) + " min");
+            }
+
+            new Handler(Looper.getMainLooper()).postDelayed(() ->
+                showBlockScreen(packageName, true), 150);
+        }
+    }
+
     private void triggerAdultBlock(String reason) {
-        long currentTime = System.currentTimeMillis();
-        if (currentTime - lastActionTime > 1500) {
-            Log.d(TAG, "🔞 ADULT BLOCKED | " + reason);
-            preferences.incrementBlockedAttempts();
-            performGlobalAction(GLOBAL_ACTION_BACK);
-            lastActionTime = currentTime;
-            new Handler(Looper.getMainLooper()).postDelayed(() -> {
-                // ✅ সরাসরি ShieldBlockActivity — IS_ADULT_BLOCK = true
-                showBlockScreen(null, true);
-            }, 150);
-        }
+        triggerAdultBlock(reason, null);
     }
 
-    private void triggerBackActionWithToast(String message) {
-        long currentTime = System.currentTimeMillis();
-        if (currentTime - lastActionTime > 1500) {
-            preferences.incrementBlockedAttempts();
-            performGlobalAction(GLOBAL_ACTION_BACK);
-            lastActionTime = currentTime;
-            new Handler(Looper.getMainLooper()).postDelayed(() -> {
-                Toast.makeText(getApplicationContext(), message, Toast.LENGTH_LONG).show();
-            }, 150);
-        }
-    }
-
+    // ==========================================
+    // 🖥️ Block Screens
+    // ==========================================
     private void showBlockScreen(String packageName, boolean isAdultBlock) {
         Intent intent = new Intent(this, ShieldBlockActivity.class);
         if (packageName != null) intent.putExtra("BLOCKED_PACKAGE", packageName);
         intent.putExtra("IS_ADULT_BLOCK", isAdultBlock);
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK |
-                Intent.FLAG_ACTIVITY_CLEAR_TOP |
-                Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS |
-                Intent.FLAG_ACTIVITY_NO_ANIMATION);
+            Intent.FLAG_ACTIVITY_CLEAR_TOP |
+            Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS |
+            Intent.FLAG_ACTIVITY_NO_ANIMATION);
         startActivity(intent);
+    }
+
+    private void showEscalationBlockScreen(String packageName, long remainingMs) {
+        long currentTime = System.currentTimeMillis();
+        if (currentTime - lastActionTime > 1000) {
+            lastActionTime = currentTime;
+            performGlobalAction(GLOBAL_ACTION_BACK);
+            new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                Intent intent = new Intent(this, ShieldBlockActivity.class);
+                intent.putExtra("BLOCKED_PACKAGE", packageName);
+                intent.putExtra("IS_ADULT_BLOCK", true);
+                intent.putExtra("ESCALATION_REMAINING_MS", remainingMs);
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK |
+                    Intent.FLAG_ACTIVITY_CLEAR_TOP |
+                    Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS |
+                    Intent.FLAG_ACTIVITY_NO_ANIMATION);
+                startActivity(intent);
+            }, 150);
+        }
+    }
+
+    // ==========================================
+    // 🔍 Detection Helpers
+    // ==========================================
+    private boolean isAdultDomainPattern(String url) {
+        if (url == null) return false;
+        String domain = extractDomain(url);
+        for (String pattern : ADULT_DOMAIN_PATTERNS) {
+            if (domain.contains(pattern)) return true;
+        }
+        return false;
+    }
+
+    private boolean isInAdultSitesList(String url) {
+        if (url == null || adultSitesList.isEmpty()) return false;
+        String domain = extractDomain(url);
+        if (adultSitesList.contains(domain)) return true;
+        String[] parts = domain.split("\\.");
+        if (parts.length > 2) {
+            String rootDomain = parts[parts.length - 2] + "." + parts[parts.length - 1];
+            if (adultSitesList.contains(rootDomain)) return true;
+        }
+        return false;
+    }
+
+    private boolean hasAdultKeywordInUrl(String url) {
+        if (url == null) return false;
+        String lower = url.toLowerCase();
+        for (String kw : adultKeywordsSet) {
+            if (lower.contains(kw)) return true;
+        }
+        return false;
+    }
+
+    private String extractDomain(String url) {
+        String clean = url.toLowerCase()
+            .replace("https://", "").replace("http://", "").replace("www.", "");
+        return clean.contains("/") ? clean.substring(0, clean.indexOf("/")) : clean;
+    }
+
+    private boolean hasStarEscape(String typed, String keyword) {
+        int checkLen = Math.min(3, keyword.length());
+        String prefix = keyword.substring(0, checkLen);
+        int idx = typed.indexOf(prefix);
+        if (idx == -1) return false;
+        int afterPrefix = idx + prefix.length();
+        if (afterPrefix < typed.length() && typed.charAt(afterPrefix) == '*') return true;
+        if (typed.contains("*")) {
+            for (int i = 1; i < keyword.length() - 1; i++) {
+                String masked = keyword.substring(0, i) + "*" + keyword.substring(i + 1);
+                if (typed.contains(masked)) return true;
+            }
+        }
+        return false;
+    }
+
+    private void clearFocusedInput() {
+        try {
+            AccessibilityNodeInfo root = getRootInActiveWindow();
+            if (root == null) return;
+            AccessibilityNodeInfo input = root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT);
+            if (input != null) {
+                Bundle args = new Bundle();
+                args.putCharSequence(
+                    AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, "");
+                boolean cleared = input.performAction(
+                    AccessibilityNodeInfo.ACTION_SET_TEXT, args);
+                if (!cleared) {
+                    input.performAction(AccessibilityNodeInfo.ACTION_SELECT);
+                    performGlobalAction(GLOBAL_ACTION_BACK);
+                }
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "clearFocusedInput failed", e);
+        }
+    }
+
+    private void doubleBack() {
+        performGlobalAction(GLOBAL_ACTION_BACK);
+        new Handler(Looper.getMainLooper()).postDelayed(
+            () -> performGlobalAction(GLOBAL_ACTION_BACK), 300);
+    }
+
+    private void resetLastBlockedUrl() {
+        new Handler(Looper.getMainLooper()).postDelayed(() -> lastBlockedUrl = "", 2000);
     }
 
     private boolean scanForAdultContent(AccessibilityNodeInfo node, int depth) {
@@ -511,12 +529,9 @@ public class ShieldAccessibilityService extends AccessibilityService {
         CharSequence text = node.getText();
         if (text != null) {
             String t = text.toString().toLowerCase().trim();
-            if ((t.startsWith("http") || t.contains(".com") ||
-                 t.contains(".net") || t.contains(".org") ||
-                 t.contains(".io") || t.contains(".xyz")) &&
-                t.length() > 4 && !t.contains(" ")) {
-                return t;
-            }
+            if ((t.startsWith("http") || t.contains(".com") || t.contains(".net") ||
+                 t.contains(".org") || t.contains(".io") || t.contains(".xyz")) &&
+                t.length() > 4 && !t.contains(" ")) return t;
         }
         for (int i = 0; i < node.getChildCount(); i++) {
             String found = extractUrlByTreeScan(node.getChild(i), depth + 1);
@@ -545,8 +560,8 @@ public class ShieldAccessibilityService extends AccessibilityService {
     private boolean scanForTextFast(AccessibilityNodeInfo node, String targetText, int depth) {
         if (node == null || depth > 10) return false;
         CharSequence text = node.getText();
-        if (text != null && text.toString().toLowerCase().contains(targetText.toLowerCase()))
-            return true;
+        if (text != null && text.toString().toLowerCase()
+            .contains(targetText.toLowerCase())) return true;
         for (int i = 0; i < node.getChildCount(); i++) {
             if (scanForTextFast(node.getChild(i), targetText, depth + 1)) return true;
         }
@@ -599,6 +614,17 @@ public class ShieldAccessibilityService extends AccessibilityService {
             preferences.incrementBlockedAttempts();
             performGlobalAction(GLOBAL_ACTION_HOME);
             lastActionTime = currentTime;
+        }
+    }
+
+    private void triggerBackActionWithToast(String message) {
+        long currentTime = System.currentTimeMillis();
+        if (currentTime - lastActionTime > 1500) {
+            preferences.incrementBlockedAttempts();
+            performGlobalAction(GLOBAL_ACTION_BACK);
+            lastActionTime = currentTime;
+            new Handler(Looper.getMainLooper()).postDelayed(() ->
+                Toast.makeText(getApplicationContext(), message, Toast.LENGTH_LONG).show(), 150);
         }
     }
 
