@@ -41,6 +41,21 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gradle-
 
+      - name: Set App Version
+        run: |
+          VERSION_CODE=$((GITHUB_RUN_NUMBER + 1))
+          VERSION_NAME="1.0.${GITHUB_RUN_NUMBER}"
+          echo "VERSION_CODE=${VERSION_CODE}" >> "$GITHUB_ENV"
+          echo "VERSION_NAME=${VERSION_NAME}" >> "$GITHUB_ENV"
+          echo "VITE_APP_VERSION_CODE=${VERSION_CODE}" >> "$GITHUB_ENV"
+          echo "VITE_APP_VERSION_NAME=${VERSION_NAME}" >> "$GITHUB_ENV"
+
+      - name: Cache Android debug signing key
+        uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: ${{ runner.os }}-lifeos-debug-keystore-v1
+
       - name: Install dependencies
         run: npm install --legacy-peer-deps
 
@@ -63,7 +78,7 @@ jobs:
       - name: Build APK
         run: |
           cd android
-          ./gradlew assembleDebug --parallel --build-cache --stacktrace --no-daemon
+          ./gradlew assembleDebug -PversionCode=$VERSION_CODE -PversionName=$VERSION_NAME --parallel --build-cache --stacktrace --no-daemon
 
       - name: Check APK exists
         run: ls -la android/app/build/outputs/apk/debug/
