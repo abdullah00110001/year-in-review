@@ -14,10 +14,13 @@ export interface ShieldPluginInterface {
 
   // ২. অ্যাপ ব্লকিং
   blockApps(options: { apps: string[] }): Promise<void>;
+  setBlockedApps(options: { apps?: string[]; packages?: string[] }): Promise<void>;
   getBlockedApps(): Promise<{ apps: string[] }>;
   blockSites(options: { sites: string[] }): Promise<void>;
+  setBlockedSites(options: { sites: string[] }): Promise<void>;
   getBlockedSites(): Promise<{ sites: string[] }>;
   blockKeywords(options: { keywords: string[] }): Promise<void>;
+  setBlockedKeywords(options: { keywords: string[] }): Promise<void>;
   getBlockedKeywords(): Promise<{ keywords: string[] }>;
   getInstalledApps(): Promise<{ apps: InstalledApp[] }>;
   getBlockStats(): Promise<{ blockedAttemptsToday: number }>;
@@ -66,6 +69,7 @@ export interface ShieldPluginInterface {
   getDailyHistory(): Promise<{ history: any }>;
   clearHistory(): Promise<{ success: boolean }>;
   updateNotificationSettings(options: { key: string; value: boolean }): Promise<void>;
+  setEscalationBase(options: { minutes: number }): Promise<void>;
 
   // ✅ NEW: Adult Filter Screen style save
   updateAdultFilterScreen(options: {

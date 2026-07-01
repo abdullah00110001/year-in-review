@@ -6,6 +6,14 @@ android {
     namespace "com.mylifeos.app"
     compileSdk 36
 
+    def resolvedVersionCode = (project.findProperty("versionCode") ?: System.getenv("VERSION_CODE") ?: "2").toString().toInteger()
+    def resolvedVersionName = (project.findProperty("versionName") ?: System.getenv("VERSION_NAME") ?: "1.0.2").toString()
+    def releaseKeystorePath = System.getenv("LIFEOS_KEYSTORE_PATH")
+    def releaseKeystorePassword = System.getenv("LIFEOS_KEYSTORE_PASSWORD")
+    def releaseKeyAlias = System.getenv("LIFEOS_KEY_ALIAS")
+    def releaseKeyPassword = System.getenv("LIFEOS_KEY_PASSWORD")
+    def hasReleaseSigning = releaseKeystorePath && releaseKeystorePassword && releaseKeyAlias && releaseKeyPassword && file(releaseKeystorePath).exists()
+
     aaptOptions {
         noCompress "tflite"
         noCompress "lite"
@@ -15,8 +23,8 @@ android {
         applicationId "com.mylifeos.app"
         minSdk 26
         targetSdk 35
-        versionCode 1
-        versionName "1.0"
+        versionCode resolvedVersionCode
+        versionName resolvedVersionName
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -25,9 +33,23 @@ android {
         targetCompatibility JavaVersion.VERSION_17
     }
 
+    signingConfigs {
+        release {
+            if (hasReleaseSigning) {
+                storeFile file(releaseKeystorePath)
+                storePassword releaseKeystorePassword
+                keyAlias releaseKeyAlias
+                keyPassword releaseKeyPassword
+            }
+        }
+    }
+
     buildTypes {
         release {
             minifyEnabled false
+            if (hasReleaseSigning) {
+                signingConfig signingConfigs.release
+            }
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
     }
