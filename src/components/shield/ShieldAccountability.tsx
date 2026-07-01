@@ -92,7 +92,7 @@ function UrgeSurfingTimer({ onComplete }: { onComplete: () => void }) {
   const URGE_SECONDS = 5 * 60; // 5 minutes
   const [remaining, setRemaining] = useState(URGE_SECONDS);
   const [running, setRunning] = useState(false);
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     if (running) {
@@ -279,7 +279,10 @@ export function ShieldAccountability() {
           .from('accountability_groups')
           .select('*')
           .in('id', groupIds);
-        setGroups(groupsData || []);
+        setGroups((groupsData || []).map((group) => ({
+          ...group,
+          notify_on_offense: (group as any).notify_on_offense ?? true,
+        })) as AccountabilityGroup[]);
       } else {
         setGroups([]);
       }
@@ -300,7 +303,7 @@ export function ShieldAccountability() {
         created_by: user.id,
         invite_code: inviteCode,
         notify_on_offense: notifyOnOffense,
-      })
+      } as any)
       .select()
       .single();
 
