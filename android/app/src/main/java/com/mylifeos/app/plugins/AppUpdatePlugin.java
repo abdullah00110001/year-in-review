@@ -5,10 +5,12 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.pm.PackageManager;
 import android.database.Cursor;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Environment;
+import android.provider.Settings;
 import android.util.Log;
 
 import androidx.core.content.FileProvider;
@@ -40,16 +42,32 @@ public class AppUpdatePlugin extends Plugin {
         }
 
         try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && !getContext().getPackageManager().canRequestPackageInstalls()) {
+                Intent settingsIntent = new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES);
+                settingsIntent.setData(Uri.parse("package:" + getContext().getPackageName()));
+                settingsIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                getContext().startActivity(settingsIntent);
+                call.reject("Please allow Life OS to install app updates, then tap Update again.");
+                return;
+            }
+
             // Clean up any previous receiver
             unregisterReceiver();
 
             savedCall = call;
 
+            File downloadsDir = getContext().getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS);
+            if (downloadsDir == null) {
+                call.reject("Update download folder is unavailable");
+                return;
+            }
+            if (!downloadsDir.exists() && !downloadsDir.mkdirs()) {
+                call.reject("Could not prepare update download folder");
+                return;
+            }
+
             // Delete old APK if exists
-            File oldFile = new File(
-                Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
-                fileName
-            );
+            File oldFile = new File(downloadsDir, fileName);
             if (oldFile.exists()) {
                 oldFile.delete();
             }
@@ -59,8 +77,10 @@ public class AppUpdatePlugin extends Plugin {
             request.setTitle("Life OS Update");
             request.setDescription("Downloading the latest version...");
             request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE);
-            request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, fileName);
+            request.setDestinationUri(Uri.fromFile(oldFile));
             request.setMimeType("application/vnd.android.package-archive");
+            request.setAllowedOverMetered(true);
+            request.setAllowedOverRoaming(true);
 
             DownloadManager dm = (DownloadManager) getContext().getSystemService(Context.DOWNLOAD_SERVICE);
             if (dm == null) {
@@ -108,7 +128,7 @@ public class AppUpdatePlugin extends Plugin {
                             Log.d(TAG, "APK downloaded to: " + localUri);
 
                             try {
-                                installApk(context, fileName);
+                                installApk(context, oldFile);
 
                                 JSObject result = new JSObject();
                                 result.put("status", "installing");
@@ -159,18 +179,13 @@ public class AppUpdatePlugin extends Plugin {
         }
     }
 
-    private void installApk(Context context, String fileName) {
-        File apkFile = new File(
-            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
-            fileName
-        );
-
+    private void installApk(Context context, File apkFile) {
         if (!apkFile.exists()) {
             throw new RuntimeException("APK file not found at: " + apkFile.getAbsolutePath());
         }
 
         Uri apkUri;
-        Intent intent = new Intent(Intent.ACTION_VIEW);
+        Intent intent = new Intent(Intent.ACTION_INSTALL_PACKAGE);
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
@@ -186,8 +201,14 @@ public class AppUpdatePlugin extends Plugin {
         }
 
         intent.setDataAndType(apkUri, "application/vnd.android.package-archive");
+        intent.putExtra(Intent.EXTRA_NOT_UNKNOWN_SOURCE, true);
+        intent.putExtra(Intent.EXTRA_RETURN_RESULT, true);
         
         Log.d(TAG, "Launching installer for: " + apkUri.toString());
+        PackageManager pm = context.getPackageManager();
+        if (intent.resolveActivity(pm) == null) {
+            throw new RuntimeException("No package installer found on this device");
+        }
         context.startActivity(intent);
     }
 
