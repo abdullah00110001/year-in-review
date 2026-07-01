@@ -9,6 +9,7 @@ import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { CURRENT_APP_VERSION_CODE } from '@/constants/version';
 import { toast } from 'sonner';
 import { Rocket, Send, Clock, CheckCircle2, Loader2, Upload } from 'lucide-react';
 import { format } from 'date-fns';
@@ -19,6 +20,7 @@ interface AppUpdate {
   title: string;
   description: string;
   update_type: string;
+  version_code?: number;
   is_mandatory: boolean;
   download_url: string | null;
   is_active: boolean;
@@ -87,9 +89,18 @@ export default function AdminAppUpdates() {
       return;
     }
 
+    if (versionCode <= CURRENT_APP_VERSION_CODE) {
+      toast.error(`Version code must be greater than the installed app code (${CURRENT_APP_VERSION_CODE})`);
+      setSaving(false);
+      return;
+    }
+
+    const isApkUrl = (url: string) => /^https?:\/\/.+\.apk(\?|#|$)/i.test(url);
+
     const update: AppUpdate = {
       id: crypto.randomUUID(),
       ...newUpdate,
+      version_code: versionCode,
       download_url: newUpdate.download_url || null,
       is_active: true,
       created_at: new Date().toISOString(),
@@ -129,12 +140,18 @@ export default function AdminAppUpdates() {
       } catch {}
     }
 
+    if (!apkDownloadUrl || !isApkUrl(apkDownloadUrl)) {
+      toast.error('No valid APK URL found. Upload/select a .apk file or paste a direct .apk download URL first.');
+      setSaving(false);
+      return;
+    }
+
     await supabase
       .from('app_metadata')
       .upsert({
         id: 'singleton',
         latest_version_code: versionCode,
-        download_url: apkDownloadUrl || '/download',
+        download_url: apkDownloadUrl,
         is_force_update: newUpdate.is_mandatory,
         release_notes: `${newUpdate.title}: ${newUpdate.description}`,
         updated_by: user?.id,
@@ -225,6 +242,8 @@ export default function AdminAppUpdates() {
                 toast.error('Upload failed: ' + error.message);
               } else {
                 setCurrentApkName(fileName);
+                const { data: urlData } = supabase.storage.from('app-releases').getPublicUrl(fileName);
+                setNewUpdate(p => ({ ...p, download_url: urlData.publicUrl }));
                 toast.success('APK uploaded successfully!');
               }
               setUploadingApk(false);
@@ -289,7 +308,7 @@ export default function AdminAppUpdates() {
 
           <div className="space-y-2">
             <Label>Download URL (optional)</Label>
-            <Input placeholder="https://play.google.com/..." value={newUpdate.download_url} onChange={e => setNewUpdate(p => ({ ...p, download_url: e.target.value }))} />
+              <Input placeholder="https://.../LifeOS.apk" value={newUpdate.download_url} onChange={e => setNewUpdate(p => ({ ...p, download_url: e.target.value }))} />
           </div>
 
           <div className="flex items-center gap-3">

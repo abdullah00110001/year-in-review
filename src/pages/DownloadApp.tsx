@@ -16,28 +16,47 @@ export default function DownloadApp() {
     fetchDownloadInfo();
   }, []);
 
+  const isApkUrl = (url: string | null | undefined) => Boolean(url && /^https?:\/\/.+\.apk(\?|#|$)/i.test(url));
+
   const fetchDownloadInfo = async () => {
     let apkUrl: string | null = null;
     let update: any = null;
 
-    // Get latest update info
+    // App metadata is the canonical source used by update prompts.
+    const { data: metaData } = await supabase
+      .from('app_metadata')
+      .select('download_url, latest_version_code, release_notes')
+      .limit(1)
+      .maybeSingle();
+    if (isApkUrl(metaData?.download_url)) {
+      apkUrl = metaData!.download_url;
+      if (metaData?.release_notes) {
+        update = { version: metaData.latest_version_code, description: metaData.release_notes };
+        setLatestUpdate(update);
+      }
+    }
+
+    // Admin update history fallback — pick newest active entry that has a real APK URL.
     const { data: updateData } = await supabase
       .from('app_settings')
       .select('value')
       .eq('key', 'app_updates')
       .maybeSingle();
 
-    if (updateData?.value) {
+    if (!apkUrl && updateData?.value) {
       const val = updateData.value as any;
-      const activeUpdates = (val.updates || []).filter((u: any) => u.is_active);
+      const activeUpdates = (val.updates || [])
+        .filter((u: any) => u.is_active && isApkUrl(u.download_url))
+        .sort((a: any, b: any) => (Number(b.version_code || 0) - Number(a.version_code || 0)) || String(b.created_at).localeCompare(String(a.created_at)));
       if (activeUpdates.length > 0) {
         update = activeUpdates[0];
         setLatestUpdate(update);
+        apkUrl = update.download_url;
       }
     }
 
-    // Get APK download URL from storage (latest uploaded file)
-    try {
+    // Last fallback: newest APK in storage.
+    if (!apkUrl) try {
       const { data: files } = await supabase.storage.from('app-releases').list('', {
         limit: 10,
         sortBy: { column: 'created_at', order: 'desc' },
@@ -51,26 +70,6 @@ export default function DownloadApp() {
       }
     } catch {
       // Storage bucket may not exist yet
-    }
-
-    // Fallback: use admin-set download URL
-    if (!apkUrl && update?.download_url) {
-      apkUrl = update.download_url;
-    }
-
-    // Also check app_metadata table
-    if (!apkUrl) {
-      const { data: metaData } = await supabase
-        .from('app_metadata')
-        .select('download_url, latest_version_code, release_notes')
-        .limit(1)
-        .maybeSingle();
-      if (metaData?.download_url) {
-        apkUrl = metaData.download_url;
-        if (!update && metaData.release_notes) {
-          setLatestUpdate({ version: metaData.latest_version_code, description: metaData.release_notes });
-        }
-      }
     }
 
     setDownloadUrl(apkUrl);
