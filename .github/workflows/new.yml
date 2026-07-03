@@ -40,10 +40,33 @@ jobs:
       - name: Fix Gradle Permissions
         run: chmod +x android/gradlew
 
+      - name: PATCH build.gradle for Signing # 👈 এই Step টা নতুন। এটাই Fix
+        run: |
+          cd android/app
+          cat >> build.gradle << 'EOF'
+
+          android {
+            signingConfigs {
+                release {
+                    storeFile file('mylifeos-release.keystore')
+                    storePassword 'lifeos123'
+                    keyAlias 'mylifeos-release'
+                    keyPassword 'lifeos123'
+                }
+            }
+            buildTypes {
+                release {
+                    signingConfig signingConfigs.release
+                }
+            }
+          }
+          EOF
+
       - name: Build APK
         run: |
           cd android
           ./gradlew assembleRelease --no-daemon --no-build-cache --stacktrace
+
       - name: Check Keystore File Exists
         run: ls -la android/app/mylifeos-release.keystore
 
