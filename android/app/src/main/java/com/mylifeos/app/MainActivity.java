@@ -18,6 +18,7 @@ import com.mylifeos.app.plugins.PureShieldPlugin;
 import com.mylifeos.app.plugins.ShieldPlugin;
 import com.mylifeos.app.plugins.RiseAlarmPlugin;
 
+import com.mylifeos.app.plugins.AppUpdatePlugin;
 public class MainActivity extends BridgeActivity {
 
     private static MainActivity instance;
@@ -146,6 +147,7 @@ import com.mylifeos.app.plugins.RiseAlarmPlugin;
 import com.mylifeos.app.plugins.BarcodeScannerPlugin;
 import com.mylifeos.app.plugins.NativeRingtonePickerPlugin;
 
+import com.mylifeos.app.plugins.AppUpdatePlugin;
 public class MainActivity extends BridgeActivity {
   private static MainActivity instance;
 
@@ -158,6 +160,7 @@ public class MainActivity extends BridgeActivity {
     try { registerPlugin(BarcodeScannerPlugin.class); } catch (Throwable t) { Log.e("MainActivity", "BarcodeScannerPlugin register failed", t); }
     try { registerPlugin(NativeRingtonePickerPlugin.class); } catch (Throwable t) { Log.e("MainActivity", "NativeRingtonePickerPlugin register failed", t); }
     try { registerPlugin(com.mylifeos.app.nighttorise.NightToRisePlugin.class); } catch (Throwable t) { Log.e("MainActivity", "NightToRisePlugin register failed", t); }
+    try { registerPlugin(AppUpdatePlugin.class); } catch (Throwable t) { Log.e("MainActivity", "AppUpdatePlugin register failed", t); }
     super.onCreate(savedInstanceState);
     instance = this;
     // 🔔 Create FCM wake-up notification channel before push payload arrives
