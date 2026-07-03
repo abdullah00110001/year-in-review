@@ -2,23 +2,19 @@ plugins {
     id 'com.android.application' 
 } 
 
-def ciRunNumber = System.getenv("GITHUB_RUN_NUMBER")
-def resolvedVersionCode = (ciRunNumber != null && ciRunNumber.isInteger()) ? ciRunNumber.toInteger() : 2
-def resolvedVersionName = "1.0.${resolvedVersionCode}"
-
 android { 
     namespace "com.mylifeos.app" 
-    compileSdk 36 
+    compileSdk 35
     aaptOptions { 
         noCompress "tflite" 
         noCompress "lite" 
     } 
     defaultConfig { 
         applicationId "com.mylifeos.app" 
-        minSdk 24 
+        minSdk 26 
         targetSdk 35 
-        versionCode resolvedVersionCode 
-        versionName resolvedVersionName 
+        versionCode 1 
+        versionName "1.0" 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner" 
     } 
     compileOptions { 
