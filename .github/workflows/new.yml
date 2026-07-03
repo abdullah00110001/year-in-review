@@ -49,7 +49,7 @@ jobs:
 
       - name: Check APK Signature
         run: |
-          keytool -printcert -jarfile android/app/build/outputs/apk/release/app-release.apk | grep Owner
+          keytool -printcert -jarfile android/app/build/outputs/apk/release/app-release.apk
 
       - name: Rename to LifeOS.apk
         run: mv android/app/build/outputs/apk/release/app-release.apk android/app/build/outputs/apk/release/LifeOS.apk
