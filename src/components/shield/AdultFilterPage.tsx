@@ -220,10 +220,10 @@ export function AdultFilterPage({ onBack, isActive }: AdultFilterPageProps) {
         });
         // Sync keywords, sites, apps to native
         try {
-          await ShieldPlugin.setBlockedKeywords({ keywords });
-          await ShieldPlugin.setBlockedSites({ sites });
-          await ShieldPlugin.setBlockedApps({ packages: selectedApps });
-          await ShieldPlugin.setEscalationBase({ minutes: baseMinutes });
+          await ShieldPlugin.setBlockedKeywords?.({ keywords });
+          await ShieldPlugin.setBlockedSites?.({ sites });
+          await ShieldPlugin.setBlockedApps?.({ packages: selectedApps });
+          await ShieldPlugin.setEscalationBase?.({ minutes: baseMinutes });
         } catch (e) {
           // native methods may not exist yet — ignore
         }
