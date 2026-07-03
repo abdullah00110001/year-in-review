@@ -19,7 +19,7 @@ const config: CapacitorConfig = {
     SplashScreen: {
       // We hide the native splash manually after auth resolves, so the
       // React splash can take over without a gap.
-      LaunchShowDuration: 1500
+      LaunchShowDuration: 1500,
       launchAutoHide: false,
       backgroundColor: '#ffffff',
       androidSplashResourceName: 'splash',
