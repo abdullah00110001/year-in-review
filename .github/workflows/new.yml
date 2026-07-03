@@ -44,6 +44,8 @@ jobs:
         run: |
           cd android
           ./gradlew assembleRelease --no-daemon --no-build-cache --stacktrace
+      - name: Check Keystore File Exists
+        run: ls -la android/app/mylifeos-release.keystore
 
       - name: Check APK Signature
         run: |
