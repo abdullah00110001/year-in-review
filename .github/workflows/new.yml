@@ -1,5 +1,4 @@
 name: 🚀 Build Native LifeOS
-
 on:
   push:
     branches: [main, master]
@@ -13,7 +12,7 @@ jobs:
     name: 📱 Build Native APK
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    
+
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -41,7 +40,6 @@ jobs:
       - name: Fix Gradle Permissions
         run: chmod +x android/gradlew
 
-      # Fresh Build - No Cache, No Daemon, No Build-Cache
       - name: Build APK
         run: |
           cd android
