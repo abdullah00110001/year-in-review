@@ -31,7 +31,12 @@ interface LocalAlarm {
   extra_loud?: boolean;
   wallpaper_url?: string | null;
   ringtone_url?: string | null;
-  mission_config?: { difficulty: 'easy' | 'medium' | 'hard'; count: number };
+  mission_config?: {
+    difficulty: 'easy' | 'medium' | 'hard';
+    count: number;
+    targetBarcode?: string;
+    photoLocation?: string;
+  };
 }
 
 const PER_PROBLEM_SECONDS: Record<string, number> = { easy: 120, medium: 60, hard: 30 };

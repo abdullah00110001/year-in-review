@@ -47,7 +47,7 @@ public class AppUpdatePlugin extends Plugin {
 
             // Delete old APK if exists
             File oldFile = new File(
-                Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
+                getContext().getExternalFilesDir(null),
                 fileName
             );
             if (oldFile.exists()) {
@@ -59,7 +59,7 @@ public class AppUpdatePlugin extends Plugin {
             request.setTitle("Life OS Update");
             request.setDescription("Downloading the latest version...");
             request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE);
-            request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, fileName);
+            request.setDestinationInExternalFilesDir(getContext(), null, fileName);
             request.setMimeType("application/vnd.android.package-archive");
 
             DownloadManager dm = (DownloadManager) getContext().getSystemService(Context.DOWNLOAD_SERVICE);
@@ -161,7 +161,7 @@ public class AppUpdatePlugin extends Plugin {
 
     private void installApk(Context context, String fileName) {
         File apkFile = new File(
-            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
+            getContext().getExternalFilesDir(null),
             fileName
         );
 

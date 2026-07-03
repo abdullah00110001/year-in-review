@@ -19,12 +19,12 @@ import { cn } from '@/lib/utils';
 interface AccountabilityGroup {
   id: string;
   name: string;
-  description: string;
-  invite_code: string;
+  description: string | null;
+  invite_code: string | null;
   created_by: string;
-  can_view_shield_status: boolean;
-  can_approve_unlock: boolean;
-  notify_on_offense: boolean;
+  can_view_shield_status: boolean | null;
+  can_approve_unlock: boolean | null;
+  notification_level?: string | null;
   members?: GroupMember[];
 }
 
@@ -92,7 +92,7 @@ function UrgeSurfingTimer({ onComplete }: { onComplete: () => void }) {
   const URGE_SECONDS = 5 * 60; // 5 minutes
   const [remaining, setRemaining] = useState(URGE_SECONDS);
   const [running, setRunning] = useState(false);
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     if (running) {
@@ -299,7 +299,7 @@ export function ShieldAccountability() {
         name: newGroupName,
         created_by: user.id,
         invite_code: inviteCode,
-        notify_on_offense: notifyOnOffense,
+        notification_level: notifyOnOffense ? 'all' : 'none',
       })
       .select()
       .single();
@@ -501,7 +501,7 @@ export function ShieldAccountability() {
                     )}
                   </div>
                 </div>
-                {group.notify_on_offense && (
+                {group.notification_level !== 'none' && (
                   <Bell className="h-4 w-4 text-amber-500" />
                 )}
               </div>
@@ -518,7 +518,7 @@ export function ShieldAccountability() {
                     <Lock className="h-3 w-3 mr-1" /> Approve Unlock
                   </Badge>
                 )}
-                {group.notify_on_offense && (
+                {group.notification_level !== 'none' && (
                   <Badge variant="outline" className="text-xs border-amber-500/30 text-amber-600">
                     <Bell className="h-3 w-3 mr-1" /> Offense Alerts
                   </Badge>
@@ -527,9 +527,9 @@ export function ShieldAccountability() {
 
               <div className="flex items-center gap-2 p-3 bg-muted rounded-xl">
                 <span className="text-xs text-muted-foreground">Code:</span>
-                <code className="flex-1 font-mono font-bold text-sm">{group.invite_code}</code>
+                  <code className="flex-1 font-mono font-bold text-sm">{group.invite_code || 'N/A'}</code>
                 <Button variant="ghost" size="icon" className="h-7 w-7"
-                  onClick={() => copyInviteCode(group.invite_code)}>
+                  onClick={() => group.invite_code && copyInviteCode(group.invite_code)}>
                   {copied === group.invite_code
                     ? <Check className="h-3.5 w-3.5" />
                     : <Copy className="h-3.5 w-3.5" />}

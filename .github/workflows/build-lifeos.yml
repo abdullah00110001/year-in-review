@@ -59,29 +59,29 @@ jobs:
       - name: Fix Gradle Permissions
         run: chmod +x android/gradlew
 
-      # 🟢 ম্যাজিক ২: 'clean' রিমুভ করা এবং '--parallel --build-cache' যুক্ত করা
+      # Build the signed release APK that users can install consistently.
       - name: Build APK
         run: |
           cd android
-          ./gradlew assembleDebug --parallel --build-cache --stacktrace --no-daemon
+          ./gradlew assembleRelease --parallel --build-cache --stacktrace --no-daemon
 
       - name: Check APK exists
-        run: ls -la android/app/build/outputs/apk/debug/
+        run: ls -la android/app/build/outputs/apk/release/
 
       - name: Rename to LifeOS.apk
-        run: mv android/app/build/outputs/apk/debug/app-debug.apk android/app/build/outputs/apk/debug/LifeOS.apk
+        run: mv android/app/build/outputs/apk/release/app-release.apk android/app/build/outputs/apk/release/LifeOS.apk
 
       - name: Upload APK for Testing
         uses: actions/upload-artifact@v4
         with:
           name: lifeos-apk
-          path: android/app/build/outputs/apk/debug/LifeOS.apk
+          path: android/app/build/outputs/apk/release/LifeOS.apk
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
           tag_name: v1.0.${{ github.run_number }}
           name: LifeOS Native Release ${{ github.run_number }}
-          files: android/app/build/outputs/apk/debug/LifeOS.apk
+          files: android/app/build/outputs/apk/release/LifeOS.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
