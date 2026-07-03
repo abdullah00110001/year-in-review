@@ -1,4 +1,4 @@
-name: 🚀 Build Native LifeOS
+name: 🚀 Build Debug LifeOS
 on:
   push:
     branches: [main, master]
@@ -8,10 +8,10 @@ permissions:
   contents: write
 
 jobs:
-  build-native:
-    name: 📱 Build Native APK
+  build-debug:
+    name: 📱 Build Debug APK
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 20
 
     steps:
       - name: Checkout Code
@@ -40,48 +40,19 @@ jobs:
       - name: Fix Gradle Permissions
         run: chmod +x android/gradlew
 
-      - name: PATCH build.gradle for Signing # 👈 এই Step টা নতুন। এটাই Fix
-        run: |
-          cd android/app
-          cat >> build.gradle << 'EOF'
-
-          android {
-            signingConfigs {
-                release {
-                    storeFile file('mylifeos-release.keystore')
-                    storePassword 'lifeos123'
-                    keyAlias 'mylifeos-release'
-                    keyPassword 'lifeos123'
-                }
-            }
-            buildTypes {
-                release {
-                    signingConfig signingConfigs.release
-                }
-            }
-          }
-          EOF
-
-      - name: Build APK
+      - name: Build Debug APK # 👈 শুধু এটা Change
         run: |
           cd android
-          ./gradlew assembleRelease --no-daemon --no-build-cache --stacktrace
+          ./gradlew assembleDebug --no-daemon --stacktrace
 
-      - name: Check Keystore File Exists
-        run: ls -la android/app/mylifeos-release.keystore
-
-      - name: Check APK Signature
-        run: |
-          keytool -printcert -jarfile android/app/build/outputs/apk/release/app-release.apk
-
-      - name: Rename to LifeOS.apk
-        run: mv android/app/build/outputs/apk/release/app-release.apk android/app/build/outputs/apk/release/LifeOS.apk
+      - name: Rename to LifeOS-Debug.apk
+        run: mv android/app/build/outputs/apk/debug/app-debug.apk android/app/build/outputs/apk/debug/LifeOS-Debug.apk
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: v1.0.${{ github.run_number }}
-          name: LifeOS Native Release ${{ github.run_number }}
-          files: android/app/build/outputs/apk/release/LifeOS.apk
+          tag_name: debug-v1.0.${{ github.run_number }}
+          name: LifeOS Debug Build ${{ github.run_number }}
+          files: android/app/build/outputs/apk/debug/LifeOS-Debug.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
