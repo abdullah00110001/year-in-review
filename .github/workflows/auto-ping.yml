@@ -1,0 +1,22 @@
+name: Keep Supabase Alive Auto
+
+on:
+  schedule:
+    - cron: '0 0 *'   # প্রতিদিন রাত 12:00 UTC = BD সকাল 6টা
+    - cron: '0 8 *'   # প্রতিদিন দুপুর 2টা BD
+    - cron: '0 16 *'  # প্রতিদিন রাত 10টা BD
+  workflow_dispatch: 
+
+jobs:
+  ping:
+    name: Auto Ping Supabase
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+
+    steps:
+      - name: Ping Supabase
+        run: |
+          curl -s -o /dev/null -w "Status: %{http_code} | Time: $(date)\n" \
+          -H "apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im54dnRvdml5bGRmZmNxYnRncml3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc0Njc3MDksImV4cCI6MjA4MzA0MzcwOX0.--MB5qt_OKqy3TAdeoyGfXW71wz0xNBv7i9oWVOvPpI" \
+          -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im54dnRvdml5bGRmZmNxYnRncml3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc0Njc3MDksImV4cCI6MjA4MzA0MzcwOX0.--MB5qt_OKqy3TAdeoyGfXW71wz0xNBv7i9oWVOvPpI" \
+          "https://nxvtoviyldffcqbtgriw.supabase.co/rest/v1/"
