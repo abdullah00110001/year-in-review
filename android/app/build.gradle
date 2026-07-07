@@ -29,8 +29,17 @@ android {
             storePassword 'lifeos123'
             keyAlias 'mylifeos-release'
             keyPassword 'lifeos123'
+            // Explicitly enable ALL APK signature schemes. Without v1 enabled,
+            // tools like `keytool -printcert -jarfile` and `jarsigner -verify`
+            // report "not a signed jar file" even though the APK is v2/v3 signed.
+            // v1 is also required for reliable install on Android 6 and below,
+            // and avoids some OEM installer quirks on older devices.
+            v1SigningEnabled true
+            v2SigningEnabled true
+            v3SigningEnabled true
         }
     }
+
 
     buildTypes {
         release {
