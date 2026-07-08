@@ -78,6 +78,7 @@ jobs:
       # signRelease task lines in the log so we can confirm signing ran.
       - name: Build Signed Release APK
         run: |
+          set -eo pipefail
           cd android
           ./gradlew assembleRelease \
             -PversionCode=${{ github.run_number }} \
