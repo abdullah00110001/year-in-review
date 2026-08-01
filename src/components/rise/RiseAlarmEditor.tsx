@@ -25,10 +25,7 @@ import {
   Zap,
   Bell,
   Clock,
-  Download,
-  Play,
-  Check,
-  FileAudio
+  MapPin,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -40,9 +37,13 @@ import {
 } from '@/lib/capacitor/nativeAlarm';
 
 export type MissionDifficulty = 'easy' | 'medium' | 'hard';
+
+// ✅ Fix 1: targetBarcode + photoLocation যোগ করা হয়েছে
 export interface MissionConfig {
   difficulty: MissionDifficulty;
-  count: number; // 1–10
+  count: number;
+  targetBarcode?: string;   // QR/Barcode mission এর জন্য
+  photoLocation?: string;   // Photo mission এর জন্য
 }
 
 interface AlarmData {
@@ -104,16 +105,57 @@ const DEFAULT_ALARM: AlarmData = {
   ringtone_id: null,
 };
 
-
 const MISSIONS = [
-  { id: 'math', name: 'Math', icon: Calculator },
-  { id: 'shake', name: 'Shake', icon: Smartphone },
-  { id: 'qr', name: 'QR/Bar', icon: QrCode },
-  { id: 'photo', name: 'Photo', icon: Camera },
-  { id: 'none', name: 'None', icon: X },
+  { id: 'math',   name: 'Math',   icon: Calculator },
+  { id: 'shake',  name: 'Shake',  icon: Smartphone },
+  { id: 'qr',     name: 'QR/Bar', icon: QrCode },
+  { id: 'photo',  name: 'Photo',  icon: Camera },
+  { id: 'none',   name: 'None',   icon: X },
 ];
 
 const DAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+
+// ✅ Fix 2: Image compression helpers
+async function compressImage(file: File, maxWidth = 800, quality = 0.7): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const scale = Math.min(1, maxWidth / img.width);
+        const canvas = document.createElement('canvas');
+        canvas.width  = Math.round(img.width  * scale);
+        canvas.height = Math.round(img.height * scale);
+        const ctx = canvas.getContext('2d');
+        if (!ctx) { reject(new Error('canvas context failed')); return; }
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.onerror = reject;
+      img.src = e.target?.result as string;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+async function compressDataUrl(dataUrl: string, maxWidth = 800, quality = 0.7): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const scale = Math.min(1, maxWidth / img.width);
+      const canvas = document.createElement('canvas');
+      canvas.width  = Math.round(img.width  * scale);
+      canvas.height = Math.round(img.height * scale);
+      const ctx = canvas.getContext('2d');
+      if (!ctx) { reject(new Error('canvas context failed')); return; }
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      resolve(canvas.toDataURL('image/jpeg', quality));
+    };
+    img.onerror = reject;
+    img.src = dataUrl;
+  });
+}
 
 export function RiseAlarmEditor({
   open,
@@ -122,15 +164,14 @@ export function RiseAlarmEditor({
   initialData,
   isEditing = false,
 }: RiseAlarmEditorProps) {
-  const [alarm, setAlarm] = useState<AlarmData>({ ...DEFAULT_ALARM, ...initialData });
-  const [permissionsOk, setPermissionsOk] = useState(false);
+  const [alarm, setAlarm]                   = useState<AlarmData>({ ...DEFAULT_ALARM, ...initialData });
+  const [permissionsOk, setPermissionsOk]   = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [showRingtonePicker, setShowRingtonePicker] = useState(false);
-  const [missionConfigOpen, setMissionConfigOpen] = useState(false);
+  const [missionConfigOpen, setMissionConfigOpen]   = useState(false);
   const [, forceTick] = useState(0);
   const wallpaperInputRef = useRef<HTMLInputElement>(null);
 
-  // Live tick so "Rings in Xh Ym" updates every 15s while editor is open
   useEffect(() => {
     if (!open) return;
     const t = setInterval(() => forceTick((n) => n + 1), 15_000);
@@ -139,7 +180,6 @@ export function RiseAlarmEditor({
 
   useEffect(() => {
     if (open) {
-      // Restore an in-progress draft if the app was backgrounded mid-edit.
       let restored: Partial<AlarmData> | null = null;
       try {
         const raw = sessionStorage.getItem('rise_alarm_editor_draft');
@@ -151,12 +191,14 @@ export function RiseAlarmEditor({
         }
       } catch {}
       const merged: AlarmData = { ...DEFAULT_ALARM, ...initialData, ...(restored ?? {}) };
-      // Hydrate per-mission config from localStorage so each challenge keeps
-      // its own difficulty/count preference across all alarms.
-      try {
-        const cfgRaw = localStorage.getItem(`rise_mission_cfg_${merged.verification_type}`);
-        if (cfgRaw) merged.mission_config = JSON.parse(cfgRaw);
-      } catch {}
+      // ✅ Fix 3: global per-type config কে fallback হিসেবে রাখো,
+      // alarm এর নিজের config থাকলে সেটাই use করো
+      if (!merged.mission_config) {
+        try {
+          const cfgRaw = localStorage.getItem(`rise_mission_cfg_${merged.verification_type}`);
+          if (cfgRaw) merged.mission_config = JSON.parse(cfgRaw);
+        } catch {}
+      }
       setAlarm(merged);
       checkAllAlarmPermissions().then((perms) =>
         setPermissionsOk(perms.notifications && perms.exactAlarm),
@@ -164,7 +206,6 @@ export function RiseAlarmEditor({
     }
   }, [open, initialData]);
 
-  // #7 — Persist draft when the app goes to background so resuming restores state.
   useEffect(() => {
     if (!open) return;
     let sub: any;
@@ -175,9 +216,7 @@ export function RiseAlarmEditor({
         sub = await App.addListener('appStateChange', ({ isActive }) => {
           if (!mounted) return;
           if (!isActive) {
-            try {
-              sessionStorage.setItem('rise_alarm_editor_draft', JSON.stringify(alarm));
-            } catch {}
+            try { sessionStorage.setItem('rise_alarm_editor_draft', JSON.stringify(alarm)); } catch {}
           }
         });
       } catch {}
@@ -196,7 +235,6 @@ export function RiseAlarmEditor({
     }
   }, [open]);
 
-
   const toggleDay = (day: number) => {
     setAlarm((prev) => ({
       ...prev,
@@ -208,34 +246,28 @@ export function RiseAlarmEditor({
 
   const setQuickRepeat = (preset: 'daily' | 'weekdays' | 'weekends' | 'once') => {
     const map = {
-      daily: [0, 1, 2, 3, 4, 5, 6],
+      daily:    [0, 1, 2, 3, 4, 5, 6],
       weekdays: [1, 2, 3, 4, 5],
       weekends: [0, 6],
-      once: [],
+      once:     [],
     };
     setAlarm((p) => ({ ...p, days_of_week: map[preset] }));
   };
 
-  const isDaily = alarm.days_of_week.length === 7;
-  const isWeekdays =
-    alarm.days_of_week.length === 5 &&
-    [1, 2, 3, 4, 5].every((d) => alarm.days_of_week.includes(d));
-  const isWeekends =
-    alarm.days_of_week.length === 2 &&
-    [0, 6].every((d) => alarm.days_of_week.includes(d));
+  const isDaily    = alarm.days_of_week.length === 7;
+  const isWeekdays = alarm.days_of_week.length === 5 && [1,2,3,4,5].every((d) => alarm.days_of_week.includes(d));
+  const isWeekends = alarm.days_of_week.length === 2 && [0,6].every((d) => alarm.days_of_week.includes(d));
 
   const getTimeUntil = () => {
     if (!alarm.alarm_time || !alarm.alarm_time.includes(':')) return '';
-    const now = new Date();
     const parts = alarm.alarm_time.split(':').map(Number);
     if (parts.some(isNaN)) return '';
-    
     const [h, m] = parts;
     const t = new Date();
     t.setHours(h, m, 0, 0);
-    if (t <= now) t.setDate(t.getDate() + 1);
-    const diff = t.getTime() - now.getTime();
-    const hrs = Math.floor(diff / 3.6e6);
+    if (t <= new Date()) t.setDate(t.getDate() + 1);
+    const diff = t.getTime() - Date.now();
+    const hrs  = Math.floor(diff / 3.6e6);
     const mins = Math.floor((diff % 3.6e6) / 6e4);
     return `Rings in ${hrs}h ${mins}m`;
   };
@@ -244,29 +276,19 @@ export function RiseAlarmEditor({
     if (!alarm.alarm_time || !alarm.alarm_time.includes(':')) return '06:00 AM';
     const parts = alarm.alarm_time.split(':').map(Number);
     if (parts.some(isNaN)) return '06:00 AM';
-
     const [h, m] = parts;
-    const ampm = h >= 12 ? 'PM' : 'AM';
+    const ampm   = h >= 12 ? 'PM' : 'AM';
     const displayH = h % 12 || 12;
     return `${displayH}:${String(m).padStart(2, '0')} ${ampm}`;
   };
 
+  // ✅ Fix 4: file input — compress করে save করো
   const handleWallpaperSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (alarm.wallpaper_url && alarm.wallpaper_url.startsWith('blob:')) {
-      URL.revokeObjectURL(alarm.wallpaper_url);
-    }
-    // Persist as data URL so the wallpaper survives reloads and is available
-    // when the alarm rings later (blob: URLs die with the page/session).
     try {
-      const dataUrl: string = await new Promise((resolve, reject) => {
-        const r = new FileReader();
-        r.onload = () => resolve(String(r.result));
-        r.onerror = () => reject(r.error);
-        r.readAsDataURL(file);
-      });
-      setAlarm((p) => ({ ...p, wallpaper_url: dataUrl }));
+      const compressed = await compressImage(file, 800, 0.7);
+      setAlarm((p) => ({ ...p, wallpaper_url: compressed }));
       toast.success('Wallpaper updated');
     } catch {
       toast.error('Could not load wallpaper');
@@ -274,47 +296,32 @@ export function RiseAlarmEditor({
     e.target.value = '';
   };
 
-  // Native (Capacitor) wallpaper picker — uses Android photo picker via @capacitor/camera.
-  // Falls back to the hidden <input type="file"> when running on the web OR when
-  // the Camera plugin returns an empty result.
+  // ✅ Fix 5: native picker — compress করে save করো
   const pickWallpaper = async () => {
     try {
       const { isNative } = await import('@/lib/capacitor/platform');
-      if (!isNative) {
-        wallpaperInputRef.current?.click();
-        return;
-      }
+      if (!isNative) { wallpaperInputRef.current?.click(); return; }
       const { Camera, CameraResultType, CameraSource } = await import('@capacitor/camera');
       const photo = await Camera.getPhoto({
-        source: CameraSource.Photos,
-        resultType: CameraResultType.DataUrl,
-        quality: 70,
+        source:       CameraSource.Photos,
+        resultType:   CameraResultType.DataUrl,
+        quality:      60,
         allowEditing: false,
-        width: 1080,
+        width:        800,
       });
       const dataUrl = photo.dataUrl;
-      if (!dataUrl || dataUrl.length < 100) {
-        console.warn('[Wallpaper] empty dataUrl, falling back to file input');
-        wallpaperInputRef.current?.click();
-        return;
-      }
-      if (alarm.wallpaper_url && alarm.wallpaper_url.startsWith('blob:')) {
-        URL.revokeObjectURL(alarm.wallpaper_url);
-      }
-      setAlarm((p) => ({ ...p, wallpaper_url: dataUrl }));
+      if (!dataUrl || dataUrl.length < 100) { wallpaperInputRef.current?.click(); return; }
+      const compressed = await compressDataUrl(dataUrl, 800, 0.7);
+      setAlarm((p) => ({ ...p, wallpaper_url: compressed }));
       toast.success('Wallpaper updated');
     } catch (err: any) {
       const msg = String(err?.message || err || '');
       if (/cancel/i.test(msg)) return;
-      console.warn('[Wallpaper] picker failed, falling back to file input:', err);
       wallpaperInputRef.current?.click();
     }
   };
 
   const handleWallpaperRemove = () => {
-    if (alarm.wallpaper_url && alarm.wallpaper_url.startsWith('blob:')) {
-      URL.revokeObjectURL(alarm.wallpaper_url);
-    }
     setAlarm((p) => ({ ...p, wallpaper_url: null }));
   };
 
@@ -322,29 +329,24 @@ export function RiseAlarmEditor({
     if (alarm.days_of_week.length === 0) {
       toast.info('One-time alarm scheduled for the next occurrence.');
     }
-    if (!permissionsOk) {
-      requestAllAlarmPermissions();
-    }
+    if (!permissionsOk) requestAllAlarmPermissions();
 
     const alarmId = alarm.id || crypto.randomUUID();
+    if (isEditing && alarm.id) await cancelAlarmByUuid(alarm.id);
 
-    if (isEditing && alarm.id) {
-      await cancelAlarmByUuid(alarm.id);
-    }
-
-    const days = alarm.days_of_week.length === 0 ? [0, 1, 2, 3, 4, 5, 6] : alarm.days_of_week;
+    const days = alarm.days_of_week.length === 0 ? [0,1,2,3,4,5,6] : alarm.days_of_week;
 
     await scheduleRecurringAlarm(alarmId, alarm.alarm_time, days, {
-      title: alarm.label || 'Rise Alarm',
-      body: alarm.intention || 'Time to wake up!',
+      title:      alarm.label || 'Rise Alarm',
+      body:       alarm.intention || 'Time to wake up!',
       missionType: alarm.verification_type as any,
-      extraLoud: alarm.extra_loud ?? false,
+      extraLoud:  alarm.extra_loud ?? false,
       snoozeMinutes: alarm.snooze_interval_minutes,
-      alarmDbId: undefined,
-      soundUri: alarm.ringtone_url ?? null,
+      alarmDbId:  undefined,
+      soundUri:   alarm.ringtone_url ?? null,
     });
 
-    const localAlarms = JSON.parse(localStorage.getItem('local_alarms') || '[]');
+    const localAlarms  = JSON.parse(localStorage.getItem('local_alarms') || '[]');
     const updatedAlarm = { ...alarm, id: alarmId, is_local: true, is_enabled: true };
 
     if (isEditing) {
@@ -387,20 +389,17 @@ export function RiseAlarmEditor({
                 <button
                   onClick={() => setShowTimePicker(true)}
                   className="text-5xl font-black tracking-tight tabular-nums text-foreground hover:text-primary transition-colors active:scale-95"
-                  style={{ fontVariantNumeric: 'tabular-nums' }}
                 >
                   {formatDisplayTime()}
                 </button>
                 <p className="text-sm text-primary font-medium mt-1">{getTimeUntil()}</p>
               </div>
 
-              {/* Repeat presets */}
+              {/* Repeat */}
               <div className="bg-card border border-border rounded-xl p-3 space-y-3">
-                <Label className="text-xs uppercase tracking-wider text-muted-foreground">
-                  Repeat
-                </Label>
+                <Label className="text-xs uppercase tracking-wider text-muted-foreground">Repeat</Label>
                 <div className="flex gap-2 overflow-x-auto pb-0.5 scrollbar-none">
-                  <PresetChip active={isDaily} onClick={() => setQuickRepeat('daily')}>Daily</PresetChip>
+                  <PresetChip active={isDaily}    onClick={() => setQuickRepeat('daily')}>Daily</PresetChip>
                   <PresetChip active={isWeekdays} onClick={() => setQuickRepeat('weekdays')}>Weekdays</PresetChip>
                   <PresetChip active={isWeekends} onClick={() => setQuickRepeat('weekends')}>Weekends</PresetChip>
                   <PresetChip active={alarm.days_of_week.length === 0} onClick={() => setQuickRepeat('once')}>Once</PresetChip>
@@ -414,9 +413,7 @@ export function RiseAlarmEditor({
                         onClick={() => toggleDay(i)}
                         className={cn(
                           'aspect-square w-full rounded-full text-xs font-bold transition-all flex items-center justify-center',
-                          active
-                            ? 'bg-primary text-primary-foreground'
-                            : 'bg-muted text-muted-foreground hover:bg-muted/70',
+                          active ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-muted/70',
                         )}
                       >
                         {d}
@@ -429,22 +426,20 @@ export function RiseAlarmEditor({
               {/* Mission picker */}
               <div className="bg-card border border-border rounded-xl p-3 space-y-3">
                 <div className="flex items-center justify-between">
-                  <Label className="text-xs uppercase tracking-wider text-muted-foreground">
-                    Wake-up Mission
-                  </Label>
+                  <Label className="text-xs uppercase tracking-wider text-muted-foreground">Wake-up Mission</Label>
                   <span className="text-xs text-muted-foreground">
                     {MISSIONS.find((m) => m.id === alarm.verification_type)?.name}
                   </span>
                 </div>
                 <div className="grid grid-cols-5 gap-1.5">
                   {MISSIONS.map((m) => {
-                    const Icon = m.icon;
+                    const Icon     = m.icon;
                     const selected = alarm.verification_type === m.id;
                     return (
                       <button
                         key={m.id}
                         onClick={() => {
-                          // Load the saved per-mission config (if any) when switching.
+                          // ✅ alarm এর নিজস্ব config আছে কিনা দেখো, না থাকলে global fallback
                           let cfg: MissionConfig = DEFAULT_MISSION_CONFIG;
                           try {
                             const raw = localStorage.getItem(`rise_mission_cfg_${m.id}`);
@@ -459,9 +454,7 @@ export function RiseAlarmEditor({
                         }}
                         className={cn(
                           'flex flex-col items-center gap-1 py-2.5 px-1 rounded-lg transition-all border',
-                          selected
-                            ? 'border-primary bg-primary/10'
-                            : 'border-transparent bg-muted hover:bg-muted/70',
+                          selected ? 'border-primary bg-primary/10' : 'border-transparent bg-muted hover:bg-muted/70',
                         )}
                       >
                         <Icon className={cn('h-4 w-4', selected ? 'text-primary' : 'text-muted-foreground')} />
@@ -480,14 +473,23 @@ export function RiseAlarmEditor({
                       Difficulty: <span className="text-foreground font-semibold capitalize">{alarm.mission_config?.difficulty ?? 'medium'}</span>
                       {' · '}
                       Tasks: <span className="text-foreground font-semibold">{alarm.mission_config?.count ?? 3}</span>
+                      {/* ✅ QR/Barcode এর target দেখাও */}
+                      {(alarm.verification_type === 'qr' || alarm.verification_type === 'barcode') &&
+                        alarm.mission_config?.targetBarcode && (
+                          <span className="text-primary"> · "{alarm.mission_config.targetBarcode}"</span>
+                        )}
+                      {/* ✅ Photo এর location দেখাও */}
+                      {alarm.verification_type === 'photo' &&
+                        alarm.mission_config?.photoLocation && (
+                          <span className="text-primary"> · {alarm.mission_config.photoLocation}</span>
+                        )}
                     </span>
                     <ChevronRight className="h-3 w-3" />
                   </button>
                 )}
               </div>
 
-
-              {/* Sound + vibration + extras */}
+              {/* Sound + vibration */}
               <div className="bg-card border border-border rounded-xl divide-y divide-border">
                 <button
                   className="w-full flex items-center justify-between p-3 hover:bg-muted/30 transition-colors"
@@ -590,9 +592,7 @@ export function RiseAlarmEditor({
                           onClick={() => setAlarm((p) => ({ ...p, snooze_interval_minutes: mn }))}
                           className={cn(
                             'h-9 rounded-xl text-xs font-semibold w-full',
-                            alarm.snooze_interval_minutes === mn
-                              ? 'bg-primary text-primary-foreground'
-                              : 'bg-muted text-muted-foreground',
+                            alarm.snooze_interval_minutes === mn ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground',
                           )}
                         >
                           {mn}m
@@ -609,9 +609,7 @@ export function RiseAlarmEditor({
                           onClick={() => setAlarm((p) => ({ ...p, snooze_limit: n }))}
                           className={cn(
                             'h-9 rounded-xl text-xs font-semibold w-full',
-                            alarm.snooze_limit === n
-                              ? 'bg-primary text-primary-foreground'
-                              : 'bg-muted text-muted-foreground',
+                            alarm.snooze_limit === n ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground',
                           )}
                         >
                           ×{n}
@@ -638,7 +636,7 @@ export function RiseAlarmEditor({
                   <div className="flex flex-wrap gap-1.5 mt-2">
                     {[
                       { label: 'Fajr 🤲', value: 'Fajr prayer 🤲' },
-                      { label: 'Gym 💪', value: 'আজ gym যাবো 💪' },
+                      { label: 'Gym 💪',  value: 'আজ gym যাবো 💪' },
                       { label: 'Study 📚', value: 'পরীক্ষা আছে 📚' },
                       { label: 'Work 💼', value: 'Early work 💼' },
                       { label: 'Walk 🌿', value: 'Morning walk 🌿' },
@@ -653,7 +651,6 @@ export function RiseAlarmEditor({
                       </button>
                     ))}
                   </div>
-
                 </div>
                 <div>
                   <Label className="text-xs uppercase tracking-wider text-muted-foreground mb-2 block">
@@ -665,9 +662,7 @@ export function RiseAlarmEditor({
                     onChange={(e) => setAlarm((p) => ({ ...p, intention: e.target.value }))}
                     className="bg-muted border-0 h-10"
                   />
-                  <p className="text-xs text-muted-foreground mt-1.5">
-                    Shown when the alarm rings.
-                  </p>
+                  <p className="text-xs text-muted-foreground mt-1.5">Shown when the alarm rings.</p>
                 </div>
               </div>
 
@@ -689,15 +684,13 @@ export function RiseAlarmEditor({
                         onClick={pickWallpaper}
                         className="flex items-center gap-1.5 bg-white/20 backdrop-blur-sm text-white text-xs font-semibold px-3 py-2 rounded-xl hover:bg-white/30 transition-all"
                       >
-                        <ImageIcon className="h-3.5 w-3.5" />
-                        Change
+                        <ImageIcon className="h-3.5 w-3.5" /> Change
                       </button>
                       <button
                         onClick={handleWallpaperRemove}
                         className="flex items-center gap-1.5 bg-red-500/70 backdrop-blur-sm text-white text-xs font-semibold px-3 py-2 rounded-xl hover:bg-red-500/90 transition-all"
                       >
-                        <Trash2 className="h-3.5 w-3.5" />
-                        Remove
+                        <Trash2 className="h-3.5 w-3.5" /> Remove
                       </button>
                     </div>
                   </div>
@@ -712,9 +705,7 @@ export function RiseAlarmEditor({
                     </div>
                     <div className="text-center">
                       <p className="text-sm font-medium">Choose from gallery</p>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        Shown as background when alarm rings
-                      </p>
+                      <p className="text-xs text-muted-foreground mt-0.5">Shown as background when alarm rings</p>
                     </div>
                   </button>
                 )}
@@ -731,7 +722,7 @@ export function RiseAlarmEditor({
             </div>
           </ScrollArea>
 
-          {/* Sticky save bar */}
+          {/* Save bar */}
           <div className="shrink-0 border-t border-border bg-background/95 backdrop-blur-sm px-4 py-3 pb-[max(env(safe-area-inset-top),0.75rem)] sticky bottom-0">
             <Button onClick={handleSave} className="w-full h-12 rounded-2xl font-bold text-base">
               {isEditing ? 'Update Alarm' : 'Save Alarm'}
@@ -754,10 +745,10 @@ export function RiseAlarmEditor({
           onSelect={(uri, name, id) => {
             setAlarm((p) => ({
               ...p,
-              ringtone_url: uri,
+              ringtone_url:  uri,
               ringtone_name: name,
-              ringtone_id: id,
-              sound_type: id.startsWith('default:') ? 'default' : 'custom',
+              ringtone_id:   id,
+              sound_type:    id.startsWith('default:') ? 'default' : 'custom',
             }));
             setShowRingtonePicker(false);
           }}
@@ -770,10 +761,11 @@ export function RiseAlarmEditor({
           missionId={alarm.verification_type}
           value={alarm.mission_config ?? DEFAULT_MISSION_CONFIG}
           onSave={(cfg) => {
-            // Persist per-mission config so every alarm using this mission
-            // type inherits the same settings going forward.
+            // ✅ alarm-specific config সরাসরি alarm state এ save করো
+            // global per-type key-ও update করো শুধু difficulty/count fallback হিসেবে
             try {
-              localStorage.setItem(`rise_mission_cfg_${alarm.verification_type}`, JSON.stringify(cfg));
+              const globalCfg = { difficulty: cfg.difficulty, count: cfg.count };
+              localStorage.setItem(`rise_mission_cfg_${alarm.verification_type}`, JSON.stringify(globalCfg));
             } catch {}
             setAlarm((p) => ({ ...p, mission_config: cfg }));
             setMissionConfigOpen(false);
@@ -786,36 +778,43 @@ export function RiseAlarmEditor({
   );
 }
 
-// ─── Wheel Time Picker (react-mobile-picker, works smoothly on iOS + Android) ──
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
-const HOURS = Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, '0'));
+function PresetChip({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        'h-7 px-3 rounded-full text-xs font-semibold transition-all whitespace-nowrap shrink-0',
+        active ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-muted/70',
+      )}
+    >
+      {children}
+    </button>
+  );
+}
+
+// ─── Wheel Time Picker ────────────────────────────────────────────────────────
+
+const HOURS   = Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, '0'));
 const MINUTES = Array.from({ length: 60 }, (_, i) => String(i).padStart(2, '0'));
-const AMPM = ['AM', 'PM'];
+const AMPM    = ['AM', 'PM'];
 
-function ScrollTimePicker({
-  value,
-  onSaveTime,
-  onClose,
-}: {
-  value: string;
-  onSaveTime: (t: string) => void;
-  onClose: () => void;
-}) {
-  const [h24, m] = value.split(':').map(Number);
+function ScrollTimePicker({ value, onSaveTime, onClose }: { value: string; onSaveTime: (t: string) => void; onClose: () => void }) {
+  const [h24, m]    = value.split(':').map(Number);
   const initialAmpm = h24 >= 12 ? 'PM' : 'AM';
-  const initialHour12 = h24 % 12 || 12;
+  const initialH12  = h24 % 12 || 12;
 
   const [picked, setPicked] = useState({
-    hour: String(initialHour12).padStart(2, '0'),
+    hour:   String(initialH12).padStart(2, '0'),
     minute: String(m).padStart(2, '0'),
-    ampm: initialAmpm,
+    ampm:   initialAmpm,
   });
 
   const handleComplete = () => {
     let h = parseInt(picked.hour, 10) % 12;
     if (picked.ampm === 'PM') h += 12;
-    const timeString = `${String(h).padStart(2, '0')}:${picked.minute}`;
-    onSaveTime(timeString);
+    onSaveTime(`${String(h).padStart(2, '0')}:${picked.minute}`);
     onClose();
   };
 
@@ -841,28 +840,16 @@ function ScrollTimePicker({
           className="relative px-4 py-3 select-none"
           style={{ touchAction: 'pan-y', WebkitUserSelect: 'none' }}
           onTouchStart={(e) => e.stopPropagation()}
-          onTouchMove={(e) => e.stopPropagation()}
+          onTouchMove={(e)  => e.stopPropagation()}
           onPointerDown={(e) => e.stopPropagation()}
         >
-          {/* highlight bar */}
           <div className="pointer-events-none absolute left-4 right-4 top-1/2 -translate-y-1/2 h-10 rounded-xl bg-primary/10 border-y border-primary/20" />
-          <Picker
-            value={picked}
-            onChange={(v) => setPicked(v as typeof picked)}
-            wheelMode="natural"
-            height={200}
-            itemHeight={40}
-          >
+          <Picker value={picked} onChange={(v) => setPicked(v as typeof picked)} wheelMode="natural" height={200} itemHeight={40}>
             <Picker.Column name="hour">
               {HOURS.map((h) => (
                 <Picker.Item key={h} value={h}>
                   {({ selected }) => (
-                    <span className={cn(
-                      'tabular-nums transition-all',
-                      selected ? 'text-primary text-3xl font-black' : 'text-muted-foreground text-xl font-semibold'
-                    )}>
-                      {h}
-                    </span>
+                    <span className={cn('tabular-nums transition-all', selected ? 'text-primary text-3xl font-black' : 'text-muted-foreground text-xl font-semibold')}>{h}</span>
                   )}
                 </Picker.Item>
               ))}
@@ -871,12 +858,7 @@ function ScrollTimePicker({
               {MINUTES.map((m) => (
                 <Picker.Item key={m} value={m}>
                   {({ selected }) => (
-                    <span className={cn(
-                      'tabular-nums transition-all',
-                      selected ? 'text-primary text-3xl font-black' : 'text-muted-foreground text-xl font-semibold'
-                    )}>
-                      {m}
-                    </span>
+                    <span className={cn('tabular-nums transition-all', selected ? 'text-primary text-3xl font-black' : 'text-muted-foreground text-xl font-semibold')}>{m}</span>
                   )}
                 </Picker.Item>
               ))}
@@ -885,12 +867,7 @@ function ScrollTimePicker({
               {AMPM.map((a) => (
                 <Picker.Item key={a} value={a}>
                   {({ selected }) => (
-                    <span className={cn(
-                      'transition-all',
-                      selected ? 'text-primary text-2xl font-black' : 'text-muted-foreground text-base font-semibold'
-                    )}>
-                      {a}
-                    </span>
+                    <span className={cn('transition-all', selected ? 'text-primary text-2xl font-black' : 'text-muted-foreground text-base font-semibold')}>{a}</span>
                   )}
                 </Picker.Item>
               ))}
@@ -898,12 +875,8 @@ function ScrollTimePicker({
           </Picker>
         </div>
         <div className="px-4 pb-4 pt-2 flex gap-2">
-          <Button variant="ghost" onClick={onClose} className="flex-1 h-12 rounded-2xl font-semibold">
-            Cancel
-          </Button>
-          <Button onClick={handleComplete} className="flex-1 h-12 rounded-2xl font-bold">
-            Set Time
-          </Button>
+          <Button variant="ghost" onClick={onClose} className="flex-1 h-12 rounded-2xl font-semibold">Cancel</Button>
+          <Button onClick={handleComplete} className="flex-1 h-12 rounded-2xl font-bold">Set Time</Button>
         </div>
       </div>
     </div>,
@@ -911,45 +884,19 @@ function ScrollTimePicker({
   );
 }
 
-// ─── Ringtone Sheet (wraps the dynamic Supabase-backed RingtonePicker) ──────
+// ─── Ringtone Sheet ───────────────────────────────────────────────────────────
 
 import { RingtonePicker as DynamicRingtonePicker } from './RingtonePicker';
 
-function RingtoneSheet({
-  selectedId,
-  onSelect,
-  onClose,
-}: {
-  selectedId?: string;
-  onSelect: (uri: string, name: string, id: string) => void;
-  onClose: () => void;
-}) {
+function RingtoneSheet({ selectedId, onSelect, onClose }: { selectedId?: string; onSelect: (uri: string, name: string, id: string) => void; onClose: () => void }) {
   return createPortal(
     <div
-      style={{
-        position: 'fixed',
-        inset: 0,
-        zIndex: 99999,
-        display: 'flex',
-        alignItems: 'flex-end',
-        justifyContent: 'center',
-        background: 'rgba(0,0,0,0.5)',
-        pointerEvents: 'auto',
-      }}
+      style={{ position: 'fixed', inset: 0, zIndex: 99999, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', background: 'rgba(0,0,0,0.5)', pointerEvents: 'auto' }}
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div
         className="bg-background text-foreground border-t border-border"
-        style={{
-          width: '100%',
-          maxWidth: 480,
-          borderRadius: '24px 24px 0 0',
-          height: '85dvh',
-          display: 'flex',
-          flexDirection: 'column',
-          overflow: 'hidden',
-          boxShadow: '0 -8px 40px rgba(0,0,0,0.3)',
-        }}
+        style={{ width: '100%', maxWidth: 480, borderRadius: '24px 24px 0 0', height: '85dvh', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 -8px 40px rgba(0,0,0,0.3)' }}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-5 py-3 border-b border-border shrink-0">
@@ -957,11 +904,7 @@ function RingtoneSheet({
             <p className="font-bold text-base">Ringtones</p>
             <p className="text-xs text-muted-foreground">Select your wake-up sound</p>
           </div>
-          <button
-            onClick={onClose}
-            className="h-8 w-8 rounded-full bg-muted flex items-center justify-center hover:bg-muted/80 transition-colors"
-            aria-label="Close"
-          >
+          <button onClick={onClose} className="h-8 w-8 rounded-full bg-muted flex items-center justify-center hover:bg-muted/80 transition-colors">
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -974,31 +917,8 @@ function RingtoneSheet({
   );
 }
 
-function PresetChip({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={cn(
-        'h-7 px-3 rounded-full text-xs font-semibold transition-all whitespace-nowrap shrink-0',
-        active
-          ? 'bg-primary text-primary-foreground'
-          : 'bg-muted text-muted-foreground hover:bg-muted/70',
-      )}
-    >
-      {children}
-    </button>
-  );
-}
+// ─── Mission Config Sheet ─────────────────────────────────────────────────────
 
-// ─── Mission Config Sheet ──────────────────────────────────────────────────
 function MissionConfigSheet({
   missionId,
   value,
@@ -1011,10 +931,11 @@ function MissionConfigSheet({
   onClose: () => void;
 }) {
   const [draft, setDraft] = useState<MissionConfig>(value);
+
   const labelFor: Record<string, string> = {
-    math: 'Math Problems',
+    math:  'Math Problems',
     shake: 'Shake Reps',
-    qr: 'Barcode Scans',
+    qr:    'Barcode Scans',
     photo: 'Photo Captures',
   };
   const taskWord = labelFor[missionId] ?? 'Tasks';
@@ -1036,6 +957,7 @@ function MissionConfigSheet({
           <h3 className="text-base font-bold mb-1">Configure mission</h3>
           <p className="text-xs text-muted-foreground mb-4">Tune the wake-up challenge to your liking.</p>
 
+          {/* Difficulty */}
           <Label className="text-xs uppercase tracking-wider text-muted-foreground">Difficulty</Label>
           <div className="grid grid-cols-3 gap-2 mt-2 mb-5">
             {(['easy', 'medium', 'hard'] as MissionDifficulty[]).map((d) => (
@@ -1052,28 +974,59 @@ function MissionConfigSheet({
             ))}
           </div>
 
+          {/* Task count */}
           <div className="flex items-center justify-between mb-2">
             <Label className="text-xs uppercase tracking-wider text-muted-foreground">{taskWord}</Label>
             <span className="text-sm font-bold tabular-nums">{draft.count}</span>
           </div>
           <Slider
             value={[draft.count]}
-            min={1}
-            max={10}
-            step={1}
+            min={1} max={10} step={1}
             onValueChange={([v]) => setDraft((p) => ({ ...p, count: v }))}
           />
           <div className="flex justify-between text-[10px] text-muted-foreground mt-1 mb-5">
             <span>1</span><span>5</span><span>10</span>
           </div>
 
+          {/* ✅ QR / Barcode — target barcode input */}
+          {(missionId === 'qr' || missionId === 'barcode') && (
+            <div className="mb-5">
+              <Label className="text-xs uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                <QrCode className="h-3 w-3" /> Target Barcode
+              </Label>
+              <p className="text-xs text-muted-foreground mt-1 mb-2">
+                Alarm dismiss করতে এই barcode scan করতে হবে। ফাঁকা রাখলে যেকোনো barcode কাজ করবে।
+              </p>
+              <Input
+                placeholder="e.g. WAKE-UP (optional)"
+                value={draft.targetBarcode ?? ''}
+                onChange={(e) => setDraft((p) => ({ ...p, targetBarcode: e.target.value }))}
+                className="bg-muted border-0 h-10"
+              />
+            </div>
+          )}
+
+          {/* ✅ Photo — location name input */}
+          {missionId === 'photo' && (
+            <div className="mb-5">
+              <Label className="text-xs uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                <MapPin className="h-3 w-3" /> Photo Location
+              </Label>
+              <p className="text-xs text-muted-foreground mt-1 mb-2">
+                Alarm dismiss করতে কোথায় গিয়ে ছবি তুলতে হবে?
+              </p>
+              <Input
+                placeholder="e.g. Bathroom sink, Kitchen"
+                value={draft.photoLocation ?? ''}
+                onChange={(e) => setDraft((p) => ({ ...p, photoLocation: e.target.value }))}
+                className="bg-muted border-0 h-10"
+              />
+            </div>
+          )}
+
           <div className="flex gap-2">
-            <Button variant="ghost" onClick={onClose} className="flex-1 h-12 rounded-2xl font-semibold">
-              Cancel
-            </Button>
-            <Button onClick={() => onSave(draft)} className="flex-1 h-12 rounded-2xl font-bold">
-              Save
-            </Button>
+            <Button variant="ghost" onClick={onClose} className="flex-1 h-12 rounded-2xl font-semibold">Cancel</Button>
+            <Button onClick={() => onSave(draft)} className="flex-1 h-12 rounded-2xl font-bold">Save</Button>
           </div>
         </div>
       </div>
@@ -1081,4 +1034,3 @@ function MissionConfigSheet({
     document.body,
   );
 }
-

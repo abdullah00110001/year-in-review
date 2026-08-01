@@ -2,10 +2,10 @@ import { useEffect, useState, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Bed, Sun } from 'lucide-react';
-import { MathMission } from '@/components/rise/missions/MathMission';
-import { ShakeMission } from '@/components/rise/missions/ShakeMission';
+import { MathMission }    from '@/components/rise/missions/MathMission';
+import { ShakeMission }   from '@/components/rise/missions/ShakeMission';
 import { BarcodeMission } from '@/components/rise/missions/BarcodeMission';
-import { PhotoMission } from '@/components/rise/missions/PhotoMission';
+import { PhotoMission }   from '@/components/rise/missions/PhotoMission';
 import { WakeStatusModal } from '@/components/rise/WakeStatusModal';
 import { Haptics, ImpactStyle } from '@capacitor/haptics';
 import { isNative } from '@/lib/capacitor/platform';
@@ -44,26 +44,25 @@ const PER_PROBLEM_SECONDS: Record<string, number> = { easy: 120, medium: 60, har
 export default function RiseRingScreen() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const [alarm, setAlarm] = useState<LocalAlarm | null>(null);
-  const [phase, setPhase] = useState<'wake' | 'mission'>('wake');
+
+  const [alarm,           setAlarm]           = useState<LocalAlarm | null>(null);
+  const [phase,           setPhase]           = useState<'wake' | 'mission'>('wake');
   const [showStatusModal, setShowStatusModal] = useState(false);
-  const [statusBusy, setStatusBusy] = useState(false);
+  const [statusBusy,      setStatusBusy]      = useState(false);
   const [showPrivacySheet, setShowPrivacySheet] = useState(false);
 
-  // ✅ Fix 1: isCompleted ref — mission complete হলে আর re-navigate করবে না
-  const isCompletedRef = useRef(false);
+  const isCompletedRef    = useRef(false);
+  const [now, setNow]     = useState(new Date());
+  const [snoozesLeft, setSnoozesLeft] = useState(0);
+  const audioRef          = useRef<HTMLAudioElement | null>(null);
+  const vibrationTimer    = useRef<number | null>(null);
+  const hasClearedRinging = useRef(false);
 
   useEffect(() => {
     setPresence({ status: phase === 'wake' ? 'waking' : 'in_rise_mission' });
   }, [phase]);
 
-  const [now, setNow] = useState(new Date());
-  const [snoozesLeft, setSnoozesLeft] = useState(0);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const vibrationTimer = useRef<number | null>(null);
-  const hasClearedRinging = useRef(false);
-
-  // ✅ Fix 1: Back button + app state — isCompleted check করে
+  // Back button + app state
   useEffect(() => {
     const handler = App.addListener('backButton', () => {
       if (isCompletedRef.current) return;
@@ -71,12 +70,9 @@ export default function RiseRingScreen() {
     });
 
     const stateHandler = App.addListener('appStateChange', ({ isActive }) => {
-      // Mission complete হলে আর navigate করবে না
       if (!isActive && phase === 'wake' && !isCompletedRef.current) {
         setTimeout(() => {
-          if (!isCompletedRef.current) {
-            navigate(`/rise/ring/${id}`, { replace: true });
-          }
+          if (!isCompletedRef.current) navigate(`/rise/ring/${id}`, { replace: true });
         }, 500);
       }
     });
@@ -87,40 +83,43 @@ export default function RiseRingScreen() {
     };
   }, [id, phase, navigate]);
 
+  // Clear ringing alarm ID once on mount
   useEffect(() => {
     const initRingScreen = async () => {
       if (hasClearedRinging.current) return;
       hasClearedRinging.current = true;
-      try {
-        await clearRingingAlarmId();
-      } catch (e) {
-        console.error('Failed to clear ringing ID:', e);
-      }
+      try { await clearRingingAlarmId(); } catch (e) { console.error('Failed to clear ringing ID:', e); }
     };
     if (isNative) initRingScreen();
   }, []);
 
+  // ✅ Fix: alarm config load — alarm-specific mission_config ব্যবহার করো
+  // global per-type config শুধু তখনই fallback হিসেবে নাও যখন alarm এর নিজের config নেই
   useEffect(() => {
     try {
       const stored = JSON.parse(localStorage.getItem('local_alarms') || '[]');
-      const found = stored.find((a: any) => String(a.id) === String(id));
+      const found  = stored.find((a: any) => String(a.id) === String(id));
+
       if (found) {
-        // Per-mission config from localStorage
-        let cfg = found.mission_config;
-        try {
-          const raw = localStorage.getItem(`rise_mission_cfg_${found.verification_type}`);
-          if (raw) cfg = JSON.parse(raw);
-        } catch {}
-        setAlarm({ ...found, mission_config: cfg ?? found.mission_config });
+        // ✅ alarm এর নিজস্ব mission_config প্রায়োরিটি পায়
+        // global config শুধু absent হলে fallback
+        let cfg = found.mission_config ?? null;
+        if (!cfg) {
+          try {
+            const raw = localStorage.getItem(`rise_mission_cfg_${found.verification_type}`);
+            if (raw) cfg = JSON.parse(raw);
+          } catch {}
+        }
+        setAlarm({ ...found, mission_config: cfg });
         setSnoozesLeft(found.snooze_limit ?? 3);
       } else {
-        // ✅ Fix 5: Fallback alarm — none mission, not math
+        // Emergency fallback alarm
         setAlarm({
           id: id || 'emergency-fallback',
           alarm_time: new Date().toTimeString().slice(0, 5),
           label: 'Wake Up',
           intention: 'Time to start the day',
-          verification_type: 'none', // ✅ none করা হয়েছে
+          verification_type: 'none',
           snooze_limit: 3,
           snooze_interval_minutes: 5,
           vibration_enabled: true,
@@ -132,25 +131,25 @@ export default function RiseRingScreen() {
     }
   }, [id]);
 
+  // Clock tick
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(t);
   }, []);
 
+  // Audio + vibration
   useEffect(() => {
     if (!alarm) return;
 
     const extraLoud = alarm.extra_loud === true;
-    const vibrate = alarm.vibration_enabled !== false;
+    const vibrate   = alarm.vibration_enabled !== false;
 
-    // Web fallback audio
     if (!isNative) {
       try {
-        // ✅ Fix 4: ringtone_url থাকলে সেটা play করো
         const src = alarm.ringtone_url ||
           'data:audio/wav;base64,UklGRkIDAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YR4DAAB/f39/f4B/f4F/gIB/gH9/gIB/f3+Af3+Af3+Af4B/gH9/gH9/gIB/f4B/f4B/f4F/gIB/gH9/gIB/';
         const audio = new Audio(src);
-        audio.loop = true;
+        audio.loop   = true;
         audio.volume = extraLoud ? 1.0 : 0.6;
         audio.play().catch(() => {});
         audioRef.current = audio;
@@ -191,9 +190,8 @@ export default function RiseRingScreen() {
     }
   };
 
-  // ✅ Fix 1: handleMissionComplete — isCompleted set করো first
   const handleMissionComplete = async () => {
-    isCompletedRef.current = true; // ✅ আগেই set করো
+    isCompletedRef.current = true;
 
     try { await stopAlarm(); } catch {}
     try { await setPresence({ status: 'idle' }); } catch {}
@@ -206,7 +204,7 @@ export default function RiseRingScreen() {
       } catch {}
     }
 
-    // Fire-and-forget — UI block করবে না
+    // Fire-and-forget post-mission sync
     (async () => {
       try {
         const { data: { user } } = await supabase.auth.getUser();
@@ -214,7 +212,7 @@ export default function RiseRingScreen() {
         await recordWakeEvent({
           userId: user.id,
           missionType: alarm?.verification_type,
-          alarmLabel: alarm?.label,
+          alarmLabel:  alarm?.label,
         });
         const groupId = (alarm as any)?.groupId;
         if (groupId) {
@@ -226,7 +224,6 @@ export default function RiseRingScreen() {
     })();
 
     toast.success('Alarm dismissed. Have a great day! ☀️');
-    // ✅ Navigate — replace করো যাতে back press এ ring screen না আসে
     navigate('/rise', { replace: true });
   };
 
@@ -240,7 +237,7 @@ export default function RiseRingScreen() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { toast.error('Not authenticated'); return; }
 
-      const today = format(new Date(), 'yyyy-MM-dd');
+      const today  = format(new Date(), 'yyyy-MM-dd');
       const nowIso = new Date().toISOString();
 
       const { data: sessionRow } = await supabase
@@ -274,13 +271,13 @@ export default function RiseRingScreen() {
 
       if (sessionId) {
         const payload: any = {
-          session_id: sessionId,
-          group_id: grpId,
-          user_id: user.id,
-          status: 'mission_done',
-          status_text: text,
+          session_id:           sessionId,
+          group_id:             grpId,
+          user_id:              user.id,
+          status:               'mission_done',
+          status_text:          text,
           mission_completed_at: nowIso,
-          status_updated_at: nowIso,
+          status_updated_at:    nowIso,
         };
         await supabase.from('group_wake_member_status').upsert(payload, { onConflict: 'session_id,user_id' });
       }
@@ -313,10 +310,10 @@ export default function RiseRingScreen() {
 
     try {
       await scheduleRecurringAlarm(`${alarm.id}-snooze`, nextTime, [next.getDay()], {
-        title: alarm.label || 'Rise Alarm',
-        body: alarm.intention || 'Snooze over — time to wake up!',
+        title:       alarm.label || 'Rise Alarm',
+        body:        alarm.intention || 'Snooze over — time to wake up!',
         missionType: (alarm.verification_type as any) ?? 'none',
-        extraLoud: alarm.extra_loud ?? false,
+        extraLoud:   alarm.extra_loud ?? false,
         snoozeMinutes: mins,
       });
     } catch (e) {
@@ -325,7 +322,7 @@ export default function RiseRingScreen() {
 
     try {
       const stored = JSON.parse(localStorage.getItem('local_alarms') || '[]');
-      const idx = stored.findIndex((a: any) => String(a.id) === String(alarm.id));
+      const idx    = stored.findIndex((a: any) => String(a.id) === String(alarm.id));
       if (idx >= 0) {
         stored[idx].snooze_limit = Math.max(0, snoozesLeft - 1);
         localStorage.setItem('local_alarms', JSON.stringify(stored));
@@ -338,6 +335,7 @@ export default function RiseRingScreen() {
     navigate('/rise', { replace: true });
   };
 
+  // Loading state
   if (!alarm) {
     return (
       <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center text-white">
@@ -347,58 +345,61 @@ export default function RiseRingScreen() {
     );
   }
 
-  const hours = now.getHours();
-  const minutes = now.getMinutes();
-  const ampm = hours >= 12 ? 'PM' : 'AM';
+  const hours    = now.getHours();
+  const minutes  = now.getMinutes();
+  const ampm     = hours >= 12 ? 'PM' : 'AM';
   const displayH = hours > 12 ? hours - 12 : hours === 0 ? 12 : hours;
-  const dateStr = now.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
+  const dateStr  = now.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
 
-  // ✅ Fix 6: verification_type check — সব mission handle করা হয়েছে
-  const missionType = alarm.verification_type;
+  const missionType    = alarm.verification_type;
   const isValidMission = ['math', 'shake', 'qr', 'barcode', 'photo'].includes(missionType);
+
+  // ✅ alarm 에서 직접 mission config 가져오기 — no global override
+  const missionCfg = alarm.mission_config;
 
   return (
     <>
       {phase === 'mission' ? (
         <div className="fixed inset-0 z-[200] bg-slate-950">
-          {/* ✅ Math mission */}
+
+          {/* Math */}
           {missionType === 'math' && (
             <MathMission
               onComplete={handleMissionComplete}
-              requiredSolves={alarm.mission_config?.count ?? 3}
-              perProblemSeconds={PER_PROBLEM_SECONDS[alarm.mission_config?.difficulty ?? 'medium']}
+              requiredSolves={missionCfg?.count ?? 3}
+              perProblemSeconds={PER_PROBLEM_SECONDS[missionCfg?.difficulty ?? 'medium']}
             />
           )}
 
-          {/* ✅ Shake mission */}
+          {/* Shake */}
           {missionType === 'shake' && (
             <ShakeMission
               onComplete={handleMissionComplete}
               requiredShakes={
-                (alarm.mission_config?.count ?? 3) *
-                (alarm.mission_config?.difficulty === 'hard' ? 15
-                  : alarm.mission_config?.difficulty === 'easy' ? 5 : 10)
+                (missionCfg?.count ?? 3) *
+                (missionCfg?.difficulty === 'hard' ? 15
+                  : missionCfg?.difficulty === 'easy' ? 5 : 10)
               }
             />
           )}
 
-          {/* ✅ QR/Barcode mission — user এর set করা barcode use করো */}
+          {/* ✅ QR/Barcode — alarm এর নিজস্ব targetBarcode ব্যবহার করো */}
           {(missionType === 'qr' || missionType === 'barcode') && (
             <BarcodeMission
               onComplete={handleMissionComplete}
-              targetBarcode={alarm.mission_config?.targetBarcode || 'WAKE-UP'}
+              targetBarcode={missionCfg?.targetBarcode || 'WAKE-UP'}
             />
           )}
 
-          {/* ✅ Photo mission — user এর set করা location use করো */}
+          {/* ✅ Photo — alarm এর নিজস্ব photoLocation ব্যবহার করো */}
           {missionType === 'photo' && (
             <PhotoMission
               onComplete={handleMissionComplete}
-              registeredPlace={alarm.mission_config?.photoLocation || 'Bathroom sink'}
+              registeredPlace={missionCfg?.photoLocation || 'Bathroom sink'}
             />
           )}
 
-          {/* ✅ Fix 5: None / unknown mission — সরাসরি "I'm Awake" button */}
+          {/* None / unknown */}
           {(!isValidMission || missionType === 'none') && (
             <div className="flex flex-col h-full items-center justify-center p-6 text-white">
               <Sun className="h-20 w-20 text-amber-400 mb-6" />
@@ -415,15 +416,16 @@ export default function RiseRingScreen() {
             </div>
           )}
         </div>
+
       ) : (
-        // ✅ Fix 2: Wallpaper — dataUrl হিসেবে save হয়, সরাসরি use করো
+        // Wake screen — wallpaper background
         <div
           className="fixed inset-0 z-[200] bg-gradient-to-b from-amber-600 via-orange-600 to-rose-700 text-white flex flex-col"
           style={
             alarm.wallpaper_url
               ? {
-                  backgroundImage: `url("${alarm.wallpaper_url}")`,
-                  backgroundSize: 'cover',
+                  backgroundImage:    `url("${alarm.wallpaper_url}")`,
+                  backgroundSize:     'cover',
                   backgroundPosition: 'center',
                 }
               : undefined
@@ -461,7 +463,6 @@ export default function RiseRingScreen() {
               className="w-full h-16 bg-white text-amber-700 hover:bg-white/90 rounded-2xl text-lg font-bold shadow-2xl"
             >
               <Sun className="h-5 w-5 mr-2" />
-              {/* ✅ None mission হলে সরাসরি dismiss */}
               {(!isValidMission || missionType === 'none')
                 ? 'Dismiss Alarm'
                 : 'Wake Up — Start Mission'}
