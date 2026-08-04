@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Slider } from '@/components/ui/slider';
 import { ScrollArea } from '@/components/ui/scroll-area';
+
 import {
   X,
   Camera,
@@ -25,7 +26,7 @@ import {
   Zap,
   Bell,
   Clock,
-  MapPin,
+  Type,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -35,15 +36,16 @@ import {
   requestAllAlarmPermissions,
   checkAllAlarmPermissions,
 } from '@/lib/capacitor/nativeAlarm';
-
+import { MissionConfigRouter } from '@/components/rise/missions/MissionConfigPages';
 export type MissionDifficulty = 'easy' | 'medium' | 'hard';
 
-// ✅ Fix 1: targetBarcode + photoLocation যোগ করা হয়েছে
 export interface MissionConfig {
   difficulty: MissionDifficulty;
   count: number;
-  targetBarcode?: string;   // QR/Barcode mission এর জন্য
-  photoLocation?: string;   // Photo mission এর জন্য
+  targetBarcode?: string;   // QR/Barcode — scan করে register করা barcode
+  photoLocation?: string;   // Photo — location label
+  photoDataUrl?: string;    // Photo — reference photo (base64)
+  typingPhrase?: string;    // Typing — phrase to type
 }
 
 interface AlarmData {
@@ -110,6 +112,7 @@ const MISSIONS = [
   { id: 'shake',  name: 'Shake',  icon: Smartphone },
   { id: 'qr',     name: 'QR/Bar', icon: QrCode },
   { id: 'photo',  name: 'Photo',  icon: Camera },
+  { id: 'typing', name: 'Typing', icon: Type },
   { id: 'none',   name: 'None',   icon: X },
 ];
 
@@ -169,6 +172,7 @@ export function RiseAlarmEditor({
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [showRingtonePicker, setShowRingtonePicker] = useState(false);
   const [missionConfigOpen, setMissionConfigOpen]   = useState(false);
+  const [isSaving, setIsSaving]             = useState(false);
   const [, forceTick] = useState(0);
   const wallpaperInputRef = useRef<HTMLInputElement>(null);
 
@@ -263,10 +267,31 @@ export function RiseAlarmEditor({
     const parts = alarm.alarm_time.split(':').map(Number);
     if (parts.some(isNaN)) return '';
     const [h, m] = parts;
-    const t = new Date();
-    t.setHours(h, m, 0, 0);
-    if (t <= new Date()) t.setDate(t.getDate() + 1);
-    const diff = t.getTime() - Date.now();
+    const now    = new Date();
+    const selectedDays = alarm.days_of_week;
+    let nextDate: Date | null = null;
+
+    if (selectedDays.length === 0) {
+      // Once — আজ বা কাল
+      const candidate = new Date();
+      candidate.setHours(h, m, 0, 0);
+      if (candidate <= now) candidate.setDate(candidate.getDate() + 1);
+      nextDate = candidate;
+    } else {
+      // ✅ আগামী ৭ দিনের মধ্যে selected day তে কবে পড়ে
+      for (let i = 0; i <= 7; i++) {
+        const candidate = new Date();
+        candidate.setDate(now.getDate() + i);
+        candidate.setHours(h, m, 0, 0);
+        if (selectedDays.includes(candidate.getDay()) && candidate > now) {
+          nextDate = candidate;
+          break;
+        }
+      }
+    }
+
+    if (!nextDate) return '';
+    const diff = nextDate.getTime() - now.getTime();
     const hrs  = Math.floor(diff / 3.6e6);
     const mins = Math.floor((diff % 3.6e6) / 6e4);
     return `Rings in ${hrs}h ${mins}m`;
@@ -326,6 +351,9 @@ export function RiseAlarmEditor({
   };
 
   const handleSave = async () => {
+    if (isSaving) return; // ✅ double-tap block
+    setIsSaving(true);
+    try {
     if (alarm.days_of_week.length === 0) {
       toast.info('One-time alarm scheduled for the next occurrence.');
     }
@@ -363,6 +391,12 @@ export function RiseAlarmEditor({
     toast.success(isEditing ? 'Alarm updated ✓' : 'Alarm set ✓');
     onSave({ ...alarm, id: alarmId, is_local: true });
     onClose();
+    } catch (e) {
+      console.error('Save failed', e);
+      toast.error('Could not save alarm. Try again.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -724,8 +758,12 @@ export function RiseAlarmEditor({
 
           {/* Save bar */}
           <div className="shrink-0 border-t border-border bg-background/95 backdrop-blur-sm px-4 py-3 pb-[max(env(safe-area-inset-top),0.75rem)] sticky bottom-0">
-            <Button onClick={handleSave} className="w-full h-12 rounded-2xl font-bold text-base">
-              {isEditing ? 'Update Alarm' : 'Save Alarm'}
+            <Button
+              onClick={handleSave}
+              disabled={isSaving}
+              className="w-full h-12 rounded-2xl font-bold text-base disabled:opacity-60"
+            >
+              {isSaving ? 'Saving...' : isEditing ? 'Update Alarm' : 'Save Alarm'}
             </Button>
           </div>
         </SheetContent>
@@ -757,19 +795,16 @@ export function RiseAlarmEditor({
       )}
 
       {missionConfigOpen && (
-        <MissionConfigSheet
+        <MissionConfigRouter
           missionId={alarm.verification_type}
           value={alarm.mission_config ?? DEFAULT_MISSION_CONFIG}
           onSave={(cfg) => {
-            // ✅ alarm-specific config সরাসরি alarm state এ save করো
-            // global per-type key-ও update করো শুধু difficulty/count fallback হিসেবে
             try {
               const globalCfg = { difficulty: cfg.difficulty, count: cfg.count };
               localStorage.setItem(`rise_mission_cfg_${alarm.verification_type}`, JSON.stringify(globalCfg));
             } catch {}
             setAlarm((p) => ({ ...p, mission_config: cfg }));
             setMissionConfigOpen(false);
-            toast.success('Mission settings saved');
           }}
           onClose={() => setMissionConfigOpen(false)}
         />
@@ -887,6 +922,7 @@ function ScrollTimePicker({ value, onSaveTime, onClose }: { value: string; onSav
 // ─── Ringtone Sheet ───────────────────────────────────────────────────────────
 
 import { RingtonePicker as DynamicRingtonePicker } from './RingtonePicker';
+import { MissionConfigRouter } from '@/components/rise/missions/MissionConfigPages';
 
 function RingtoneSheet({ selectedId, onSelect, onClose }: { selectedId?: string; onSelect: (uri: string, name: string, id: string) => void; onClose: () => void }) {
   return createPortal(
@@ -917,120 +953,4 @@ function RingtoneSheet({ selectedId, onSelect, onClose }: { selectedId?: string;
   );
 }
 
-// ─── Mission Config Sheet ─────────────────────────────────────────────────────
 
-function MissionConfigSheet({
-  missionId,
-  value,
-  onSave,
-  onClose,
-}: {
-  missionId: string;
-  value: MissionConfig;
-  onSave: (v: MissionConfig) => void;
-  onClose: () => void;
-}) {
-  const [draft, setDraft] = useState<MissionConfig>(value);
-
-  const labelFor: Record<string, string> = {
-    math:  'Math Problems',
-    shake: 'Shake Reps',
-    qr:    'Barcode Scans',
-    photo: 'Photo Captures',
-  };
-  const taskWord = labelFor[missionId] ?? 'Tasks';
-
-  return createPortal(
-    <div
-      className="fixed inset-0 z-[99999] flex items-end justify-center bg-black/60 backdrop-blur-sm"
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
-    >
-      <div
-        className="w-full max-w-md bg-card text-card-foreground border-t border-border rounded-t-3xl overflow-hidden shadow-2xl animate-in slide-in-from-bottom duration-200"
-        style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 1rem)' }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex justify-center pt-3 pb-1">
-          <div className="bg-muted w-10 h-1 rounded-full" />
-        </div>
-        <div className="px-5 pt-2 pb-4">
-          <h3 className="text-base font-bold mb-1">Configure mission</h3>
-          <p className="text-xs text-muted-foreground mb-4">Tune the wake-up challenge to your liking.</p>
-
-          {/* Difficulty */}
-          <Label className="text-xs uppercase tracking-wider text-muted-foreground">Difficulty</Label>
-          <div className="grid grid-cols-3 gap-2 mt-2 mb-5">
-            {(['easy', 'medium', 'hard'] as MissionDifficulty[]).map((d) => (
-              <button
-                key={d}
-                onClick={() => setDraft((p) => ({ ...p, difficulty: d }))}
-                className={cn(
-                  'h-10 rounded-xl text-xs font-bold capitalize transition-colors',
-                  draft.difficulty === d ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground',
-                )}
-              >
-                {d}
-              </button>
-            ))}
-          </div>
-
-          {/* Task count */}
-          <div className="flex items-center justify-between mb-2">
-            <Label className="text-xs uppercase tracking-wider text-muted-foreground">{taskWord}</Label>
-            <span className="text-sm font-bold tabular-nums">{draft.count}</span>
-          </div>
-          <Slider
-            value={[draft.count]}
-            min={1} max={10} step={1}
-            onValueChange={([v]) => setDraft((p) => ({ ...p, count: v }))}
-          />
-          <div className="flex justify-between text-[10px] text-muted-foreground mt-1 mb-5">
-            <span>1</span><span>5</span><span>10</span>
-          </div>
-
-          {/* ✅ QR / Barcode — target barcode input */}
-          {(missionId === 'qr' || missionId === 'barcode') && (
-            <div className="mb-5">
-              <Label className="text-xs uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                <QrCode className="h-3 w-3" /> Target Barcode
-              </Label>
-              <p className="text-xs text-muted-foreground mt-1 mb-2">
-                Alarm dismiss করতে এই barcode scan করতে হবে। ফাঁকা রাখলে যেকোনো barcode কাজ করবে।
-              </p>
-              <Input
-                placeholder="e.g. WAKE-UP (optional)"
-                value={draft.targetBarcode ?? ''}
-                onChange={(e) => setDraft((p) => ({ ...p, targetBarcode: e.target.value }))}
-                className="bg-muted border-0 h-10"
-              />
-            </div>
-          )}
-
-          {/* ✅ Photo — location name input */}
-          {missionId === 'photo' && (
-            <div className="mb-5">
-              <Label className="text-xs uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                <MapPin className="h-3 w-3" /> Photo Location
-              </Label>
-              <p className="text-xs text-muted-foreground mt-1 mb-2">
-                Alarm dismiss করতে কোথায় গিয়ে ছবি তুলতে হবে?
-              </p>
-              <Input
-                placeholder="e.g. Bathroom sink, Kitchen"
-                value={draft.photoLocation ?? ''}
-                onChange={(e) => setDraft((p) => ({ ...p, photoLocation: e.target.value }))}
-                className="bg-muted border-0 h-10"
-              />
-            </div>
-          )}
-
-          <div className="flex gap-2">
-            <Button variant="ghost" onClick={onClose} className="flex-1 h-12 rounded-2xl font-semibold">Cancel</Button>
-            <Button onClick={() => onSave(draft)} className="flex-1 h-12 rounded-2xl font-bold">Save</Button>
-          </div>
-        </div>
-      </div>
-    </div>,
-    document.body,
-  );
-}
