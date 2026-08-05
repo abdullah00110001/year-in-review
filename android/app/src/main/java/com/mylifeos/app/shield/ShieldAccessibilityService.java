@@ -1,4 +1,4 @@
-package com.mylifeos.app.shield;
+Package com.mylifeos.app.shield;
 
 import android.accessibilityservice.AccessibilityService;
 import android.content.Intent;
@@ -29,11 +29,19 @@ public class ShieldAccessibilityService extends AccessibilityService {
     private String lastBlockedUrl = "";
     private long lastActionTime = 0;
     private long lastScanTime = 0;
-    private static final long SCAN_COOLDOWN_MS = 300;
+    private long lastBlockTime = 0; // ✅ Fix: block করার পর cooldown track করো
+
+    // ✅ Fix 1: cooldown বাড়ানো হয়েছে — 300ms → 1500ms
+    // false positive কমবে, loop বন্ধ হবে
+    private static final long SCAN_COOLDOWN_MS  = 1500;
+
+    // ✅ Fix 2: block করার পরে অন্তত ৩ সেকেন্ড আর কিছু block করা যাবে না
+    // এটা loop বন্ধ করে (block screen → event → block → loop)
+    private static final long POST_BLOCK_COOLDOWN_MS = 3000;
 
     private Set<String> adultKeywordsSet = new HashSet<>();
-    private Set<String> adultSitesList = new HashSet<>();
-    private Set<String> monitoredApps = new HashSet<>();
+    private Set<String> adultSitesList   = new HashSet<>();
+    private Set<String> monitoredApps    = new HashSet<>();
 
     private static final String[] ADULT_DOMAIN_PATTERNS = new String[]{
         "porn", "xxx", "sex", "nude", "naked", "hentai", "erotic",
@@ -52,16 +60,28 @@ public class ShieldAccessibilityService extends AccessibilityService {
         "com.duckduckgo.mobile.android"
     };
 
+    // রেখে দেওয়া হলো (রিমুভ করা হয়নি), তবে সব অ্যাপে কাজ করার জন্য নিচে লজিক বদলানো হয়েছে
+    private static final String[] CONTENT_SCAN_PACKAGES = new String[]{
+        "com.android.chrome", "com.chrome.beta", "com.chrome.dev",
+        "org.mozilla.firefox", "com.brave.browser", "com.opera.browser",
+        "com.microsoft.emmx", "com.sec.android.app.sbrowser",
+        "com.duckduckgo.mobile.android", "com.google.android.youtube",
+        "com.facebook.katana", "com.instagram.android",
+        "com.zhiliaoapp.musically", "com.ss.android.ugc.trill",
+        "org.telegram.messenger", "com.twitter.android",
+        "com.reddit.frontpage",
+    };
+
     // ==========================================
-    // 🔧 Lifecycle
+    // Lifecycle
     // ==========================================
 
     @Override
     protected void onServiceConnected() {
         super.onServiceConnected();
-        preferences = new ShieldPreferences(this);
+        preferences      = new ShieldPreferences(this);
         escalationManager = new ShieldEscalationManager(this);
-        firewall = new ShieldAppFirewall(this);
+        firewall         = new ShieldAppFirewall(this);
         loadAdultKeywordsFromAssets();
         loadAdultSitesFromAssets();
         loadMonitoredApps();
@@ -111,17 +131,26 @@ public class ShieldAccessibilityService extends AccessibilityService {
     }
 
     // ==========================================
-    // 🎯 Main Event Handler
+    // Main Event Handler
     // ==========================================
 
     @Override
     public void onAccessibilityEvent(AccessibilityEvent event) {
         if (event.getPackageName() == null) return;
         String packageName = event.getPackageName().toString();
+
+        // ✅ Fix 4: নিজের app এ কিছু করা যাবে না
         if (packageName.equals(getPackageName())) return;
+
+        // ✅ Fix 5: block screen যেন নিজেই block না করে
+        // ShieldBlockActivity বা NightToRiseBlockActivity থেকে event এলে ignore করো
+        if (packageName.equals(getPackageName())
+            || packageName.contains("ShieldBlock")
+            || packageName.contains("NightToRise")) return;
+
         int type = event.getEventType();
 
-        // 🌙 Night to Rise
+        // Night to Rise
         if (type == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
             try {
                 com.mylifeos.app.nighttorise.NightToRiseManager n2r =
@@ -132,19 +161,16 @@ public class ShieldAccessibilityService extends AccessibilityService {
                     Intent i = new Intent(this,
                         com.mylifeos.app.nighttorise.NightToRiseBlockActivity.class);
                     i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
-                    i.putExtra(com.mylifeos.app.nighttorise.NightToRiseBlockActivity.EXTRA_MESSAGE,
-                        d.message);
-                    i.putExtra(com.mylifeos.app.nighttorise.NightToRiseBlockActivity.EXTRA_END_MS,
-                        d.endTimeMs);
-                    i.putExtra(com.mylifeos.app.nighttorise.NightToRiseBlockActivity.EXTRA_STRICT,
-                        n2r.prefs().strictMode());
+                    i.putExtra(com.mylifeos.app.nighttorise.NightToRiseBlockActivity.EXTRA_MESSAGE, d.message);
+                    i.putExtra(com.mylifeos.app.nighttorise.NightToRiseBlockActivity.EXTRA_END_MS, d.endTimeMs);
+                    i.putExtra(com.mylifeos.app.nighttorise.NightToRiseBlockActivity.EXTRA_STRICT, n2r.prefs().strictMode());
                     startActivity(i);
                     return;
                 }
             } catch (Throwable t) { Log.w(TAG, "NightToRise check failed", t); }
         }
 
-        // PureShield
+        // PureShield foreground signal
         if (type == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
             try {
                 com.mylifeos.app.shield.vision.PureShieldService svc =
@@ -161,13 +187,12 @@ public class ShieldAccessibilityService extends AccessibilityService {
 
         if (preferences == null) return;
 
-        // Reload monitored apps if empty
         if (type == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED && monitoredApps.isEmpty()) {
             loadMonitoredApps();
         }
 
         // ==========================================
-        // 🛑 Feature 1: Escalation Block Check
+        // Feature 1: Escalation + App Block
         // ==========================================
         if (type == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
             if (escalationManager.isAppBlocked(packageName)) {
@@ -190,7 +215,7 @@ public class ShieldAccessibilityService extends AccessibilityService {
         }
 
         // ==========================================
-        // 🔒 Feature 2: Hardcore Protection
+        // Feature 2: Hardcore Protection
         // ==========================================
         if (type == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED && isSystemUI(packageName)) {
             if (preferences.isBlockRecentAppsEnabled() &&
@@ -215,7 +240,7 @@ public class ShieldAccessibilityService extends AccessibilityService {
         }
 
         // ==========================================
-        // 🌐 Feature 3: URL Blocking — 3 layers
+        // Feature 3: URL Blocking
         // ==========================================
         if (isBrowser(packageName) &&
             (type == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED ||
@@ -229,33 +254,43 @@ public class ShieldAccessibilityService extends AccessibilityService {
         }
 
         // ==========================================
-        // 🚫 Feature 4: Page Title + Screen Scan
+        // Feature 4: Content Scan
+        // ✅ এখন নির্দিষ্ট অ্যাপের বাইরেও সব অ্যাপেই কাজ করবে (নিজের অ্যাপ ও ব্লক স্ক্রিন বাদে)
         // ==========================================
         if (type == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
-            long currentTime = System.currentTimeMillis();
-            if (currentTime - lastScanTime > SCAN_COOLDOWN_MS) {
-                lastScanTime = currentTime;
-                AccessibilityNodeInfo rootNode = getRootInActiveWindow();
-                if (rootNode != null) {
-                    if (scanForAdultContent(rootNode, 0)) {
-                        triggerAdultBlock("Adult Screen Content", packageName);
-                        return;
-                    }
-                    if (preferences.isReelsBlockEnabled() &&
-                        isSocialMediaApp(packageName) &&
-                        scanForReelsFast(rootNode, 0)) {
-                        triggerBackActionWithToast("Shorts / Reels Blocked 🚫");
-                        return;
-                    }
+            long now = System.currentTimeMillis();
+
+            // ✅ post-block cooldown — block করার ৩ সেকেন্ড পর আবার scan শুরু
+            if (now - lastBlockTime < POST_BLOCK_COOLDOWN_MS) return;
+
+            // ✅ scan cooldown — 1500ms এর আগে আবার scan নয়
+            if (now - lastScanTime < SCAN_COOLDOWN_MS) return;
+
+            // ✅ সব অ্যাপে স্ক্যান চালু করার জন্য চেকটি আপডেট করা হয়েছে
+            if (!isContentScanTarget(packageName)) return;
+
+            lastScanTime = now;
+            AccessibilityNodeInfo rootNode = getRootInActiveWindow();
+            if (rootNode != null) {
+                if (scanForAdultContent(rootNode, 0)) {
+                    triggerAdultBlock("Adult Screen Content", packageName);
+                    return;
+                }
+                if (preferences.isReelsBlockEnabled() &&
+                    isSocialMediaApp(packageName) &&
+                    scanForReelsFast(rootNode, 0)) {
+                    triggerBackActionWithToast("Shorts / Reels Blocked 🚫");
+                    return;
                 }
             }
         }
 
         // ==========================================
-        // ⌨️ Feature 5: Keyword Typing Block
+        // Feature 5: Keyword Typing Block
         // ==========================================
         if (type == AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED) {
-            if (!monitoredApps.contains(packageName) && !isBrowser(packageName)) return;
+            // সব অ্যাপে টাইপিং চেক করার জন্য monitoredApps চেকটি তুলে দেওয়া হলো বা বাইপাস করা হলো
+            // if (!monitoredApps.contains(packageName) && !isBrowser(packageName)) return;
 
             CharSequence text = event.getText() != null && !event.getText().isEmpty()
                 ? event.getText().get(0) : null;
@@ -289,7 +324,7 @@ public class ShieldAccessibilityService extends AccessibilityService {
     }
 
     // ==========================================
-    // 🌐 URL Block — 3 Layer
+    // URL Block
     // ==========================================
     private void checkAndBlockUrl(String url, String packageName) {
         if (isAdultDomainPattern(url)) {
@@ -337,7 +372,7 @@ public class ShieldAccessibilityService extends AccessibilityService {
     }
 
     // ==========================================
-    // 🔞 Adult Block — escalation + firewall
+    // Adult Block
     // ==========================================
     private void triggerAdultBlock(String reason, String packageName) {
         long currentTime = System.currentTimeMillis();
@@ -347,16 +382,17 @@ public class ShieldAccessibilityService extends AccessibilityService {
             performGlobalAction(GLOBAL_ACTION_BACK);
             lastActionTime = currentTime;
 
+            // ✅ Fix 7: block time record করো — post-block cooldown এর জন্য
+            lastBlockTime = currentTime;
+
             if (packageName != null && !packageName.isEmpty()) {
                 escalationManager.registerOffense(packageName);
                 long blockDurationMs = escalationManager.getRemainingMs(packageName);
                 firewall.blockApp(packageName, blockDurationMs);
-                Log.d(TAG, "📵 Network killed for " + packageName
-                    + " | " + (blockDurationMs / 60000) + " min");
             }
 
-            new Handler(Looper.getMainLooper()).postDelayed(() ->
-                showBlockScreen(packageName, true), 150);
+            new Handler(Looper.getMainLooper()).postDelayed(
+                () -> showBlockScreen(packageName, true), 150);
         }
     }
 
@@ -365,7 +401,7 @@ public class ShieldAccessibilityService extends AccessibilityService {
     }
 
     // ==========================================
-    // 🖥️ Block Screens
+    // Block Screens
     // ==========================================
     private void showBlockScreen(String packageName, boolean isAdultBlock) {
         Intent intent = new Intent(this, ShieldBlockActivity.class);
@@ -382,6 +418,7 @@ public class ShieldAccessibilityService extends AccessibilityService {
         long currentTime = System.currentTimeMillis();
         if (currentTime - lastActionTime > 1000) {
             lastActionTime = currentTime;
+            lastBlockTime  = currentTime; // ✅ escalation block ও track করো
             performGlobalAction(GLOBAL_ACTION_BACK);
             new Handler(Looper.getMainLooper()).postDelayed(() -> {
                 Intent intent = new Intent(this, ShieldBlockActivity.class);
@@ -398,8 +435,24 @@ public class ShieldAccessibilityService extends AccessibilityService {
     }
 
     // ==========================================
-    // 🔍 Detection Helpers
+    // Detection Helpers
     // ==========================================
+
+    // ✅ Fix 8: কনটেন্ট স্ক্যান এখন নির্দিষ্ট কোনো লিস্টে আটকে না থেকে সব অ্যাপেই কাজ করবে (নিজের অ্যাপ ও ব্লক স্ক্রিন বাদে)
+    private boolean isContentScanTarget(String pkg) {
+        if (pkg == null) return false;
+        
+        // নিজের অ্যাপ বা ব্লক স্ক্রিন হলে স্ক্যান করার দরকার নেই (লুপ এড়াতে)
+        if (pkg.equals(getPackageName()) || 
+            pkg.contains("ShieldBlock") || 
+            pkg.contains("NightToRise")) {
+            return false;
+        }
+        
+        // বাকি যেকোনো অ্যাপের জন্যই true রিটার্ন করবে, অর্থাৎ সব অ্যাপে স্ক্যান করবে
+        return true;
+    }
+
     private boolean isAdultDomainPattern(String url) {
         if (url == null) return false;
         String domain = extractDomain(url);
@@ -587,9 +640,7 @@ public class ShieldAccessibilityService extends AccessibilityService {
     }
 
     private boolean isSystemUI(String pkg) {
-        return pkg.equals("com.android.systemui") ||
-               pkg.equals("android") ||
-               pkg.contains("launcher");
+        return pkg.equals("com.android.systemui") || pkg.equals("android") || pkg.contains("launcher");
     }
 
     private boolean isSocialMediaApp(String pkg) {
@@ -623,6 +674,7 @@ public class ShieldAccessibilityService extends AccessibilityService {
             preferences.incrementBlockedAttempts();
             performGlobalAction(GLOBAL_ACTION_BACK);
             lastActionTime = currentTime;
+            lastBlockTime  = currentTime; // ✅ toast block ও track করো
             new Handler(Looper.getMainLooper()).postDelayed(() ->
                 Toast.makeText(getApplicationContext(), message, Toast.LENGTH_LONG).show(), 150);
         }
